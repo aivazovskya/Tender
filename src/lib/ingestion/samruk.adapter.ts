@@ -1,9 +1,10 @@
-import { BaseTenderAdapter } from './base.adapter';
+import { BaseTenderAdapter, IngestionResult } from './base.adapter';
 import { Tender, SourceType, AdapterType } from '../types/tender';
 
 export class SamrukApiAdapter extends BaseTenderAdapter {
   protected sourceType: SourceType = 'SAMRUK_KAZYNA';
   protected adapterType: AdapterType = 'API';
+  public usedFallbackData: boolean = false;
 
   async fetchRawData(): Promise<any[]> {
     const token = process.env.SAMRUK_API_TOKEN;
@@ -21,6 +22,7 @@ export class SamrukApiAdapter extends BaseTenderAdapter {
           const json = await res.json();
           const items = Array.isArray(json) ? json : json?.data || json?.items;
           if (Array.isArray(items) && items.length > 0) {
+            this.usedFallbackData = false;
             return items.map((item: any) => ({
               advertId: item.id || item.advertId,
               advertNumber: item.advertNumber || `SK-${item.id}`,
@@ -41,6 +43,7 @@ export class SamrukApiAdapter extends BaseTenderAdapter {
     }
 
     // Fallback/демо-данные при отсутствии токена или ошибки сети
+    this.usedFallbackData = true;
     return [
       {
         advertId: 99120,
@@ -95,5 +98,15 @@ export class SamrukApiAdapter extends BaseTenderAdapter {
       ],
       history: []
     }));
+  }
+
+  override async run(): Promise<IngestionResult> {
+    const result = await super.run();
+    result.usedFallbackData = this.usedFallbackData;
+    if (this.usedFallbackData) {
+      result.status = 'WARN';
+      result.message = `⚠️ Использованы демонстрационные данные — токен SAMRUK_API_TOKEN отсутствует или недействителен`;
+    }
+    return result;
   }
 }

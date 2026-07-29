@@ -15,10 +15,8 @@ export class ConfigurableScraperAdapter extends BaseTenderAdapter {
   constructor(config: ScraperSourceConfigData) {
     super();
     this.config = config;
-    if (config.dataSourceId) {
-      // Keep source name consistent
-      this.sourceType = 'B2B_PRIVATE';
-    }
+    const dsId = config.dataSourceId || 'CUSTOM_SCRAPER';
+    this.sourceType = dsId.startsWith('SCRAPER:') ? dsId : `SCRAPER:${dsId}`;
   }
 
   async fetchRawData(): Promise<any[]> {

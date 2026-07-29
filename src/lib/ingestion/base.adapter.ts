@@ -9,6 +9,7 @@ export interface IngestionResult {
   status: 'SUCCESS' | 'WARN' | 'ERROR';
   message: string;
   tenders: Tender[];
+  usedFallbackData?: boolean;
 }
 
 /**

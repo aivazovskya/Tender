@@ -5,7 +5,8 @@ const tests = [
   'scripts/tests/transforms.test.js',
   'scripts/tests/kaspi-webhook.test.js',
   'scripts/tests/ssrf.test.js',
-  'scripts/tests/ingestion-idempotency.test.js'
+  'scripts/tests/ingestion-idempotency.test.js',
+  'scripts/tests/ingestion-bugs.test.js'
 ];
 
 console.log('🚀 Running TenderAI Automated Test Suite (npm test)...\n');

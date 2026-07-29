@@ -1,9 +1,10 @@
-import { BaseTenderAdapter } from './base.adapter';
+import { BaseTenderAdapter, IngestionResult } from './base.adapter';
 import { Tender, SourceType, AdapterType } from '../types/tender';
 
 export class GoszakupApiAdapter extends BaseTenderAdapter {
   protected sourceType: SourceType = 'GOSZAKUP';
   protected adapterType: AdapterType = 'API';
+  public usedFallbackData: boolean = false;
 
   async fetchRawData(): Promise<any[]> {
     const token = process.env.GOSZAKUP_API_TOKEN;
@@ -38,6 +39,7 @@ export class GoszakupApiAdapter extends BaseTenderAdapter {
         if (res.ok) {
           const json = await res.json();
           if (json?.data?.TrdBuy && Array.isArray(json.data.TrdBuy)) {
+            this.usedFallbackData = false;
             return json.data.TrdBuy.map((b: any) => ({
               id: b.id,
               number_anno: b.numberAnno || `${b.id}-2026`,
@@ -60,6 +62,7 @@ export class GoszakupApiAdapter extends BaseTenderAdapter {
     }
 
     // Fallback/демо-данные при отсутствии токена или ошибки API
+    this.usedFallbackData = true;
     return [
       {
         id: 987150,
@@ -106,9 +109,17 @@ export class GoszakupApiAdapter extends BaseTenderAdapter {
       documents: [
         { id: `doc-${raw.id}-1`, fileName: 'ТЗ_Лицензии_ПО.pdf', fileUrl: '/docs/tz_software.pdf', fileSize: '1.1 MB', fileType: 'pdf' }
       ],
-      history: [
-        { id: `audit-${raw.id}-1`, changedBy: 'Goszakup API Adapter', field: 'status', oldValue: 'NEW', newValue: 'PUBLISHED', timestamp: new Date().toISOString() }
-      ]
+      history: []
     }));
+  }
+
+  override async run(): Promise<IngestionResult> {
+    const result = await super.run();
+    result.usedFallbackData = this.usedFallbackData;
+    if (this.usedFallbackData) {
+      result.status = 'WARN';
+      result.message = `⚠️ Использованы демонстрационные данные — токен GOSZAKUP_API_TOKEN отсутствует или недействителен`;
+    }
+    return result;
   }
 }

@@ -4,9 +4,9 @@ import { GoszakupApiAdapter } from '@/lib/ingestion/goszakup.adapter';
 import { SamrukApiAdapter } from '@/lib/ingestion/samruk.adapter';
 import { ConfigurableScraperAdapter } from '@/lib/ingestion/scraper.adapter';
 import { ScraperSourceConfigData } from '@/lib/types/scraper';
-
 import { AIService } from '@/lib/services/ai.service';
 import { validateApiAuth } from '@/lib/security/auth';
+import { diffTenderFields } from '@/lib/ingestion/diff';
 
 const prisma = new PrismaClient();
 
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       result = await adapter.run();
     } else if (dbSource && dbSource.adapterType === 'SCRAPER' && dbSource.scraperConfig) {
       const configData: ScraperSourceConfigData = {
-        dataSourceId: dbSource.id,
+        dataSourceId: dbSource.name || dbSource.id,
         renderMode: dbSource.scraperConfig.renderMode as any,
         listUrlTemplate: dbSource.scraperConfig.listUrlTemplate,
         pagination: dbSource.scraperConfig.pagination as any,
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: `Источник '${source}' не найден или конфигурация не задана` }, { status: 400 });
     }
 
-    // Persist normalized tenders into PostgreSQL database via Prisma upsert
+    // Persist normalized tenders into PostgreSQL database via Prisma upsert & TenderAuditTrail
     if (result && result.status !== 'ERROR' && Array.isArray(result.tenders) && result.tenders.length > 0) {
       for (const t of result.tenders) {
         let aiSummary = t.aiSummary;
@@ -73,7 +73,21 @@ export async function POST(request: NextRequest) {
           console.warn(`[Ingestion API] Не удалось сгенерировать AI-суммаризацию для лота #${t.externalId}:`, aiErr);
         }
 
-        await prisma.tender.upsert({
+        const existing = await prisma.tender.findUnique({
+          where: {
+            source_externalId: {
+              source: t.source,
+              externalId: t.externalId
+            }
+          }
+        });
+
+        let auditLogsToCreate: Array<{ field: string; oldValue: string | null; newValue: string | null }> = [];
+        if (existing) {
+          auditLogsToCreate = diffTenderFields(existing, t);
+        }
+
+        const savedTender = await prisma.tender.upsert({
           where: {
             source_externalId: {
               source: t.source,
@@ -121,13 +135,28 @@ export async function POST(request: NextRequest) {
             riskScore
           }
         });
+
+        if (existing && auditLogsToCreate.length > 0) {
+          await prisma.tenderAuditTrail.createMany({
+            data: auditLogsToCreate.map(change => ({
+              tenderId: savedTender.id,
+              field: change.field,
+              oldValue: change.oldValue,
+              newValue: change.newValue,
+              changedBy: 'System Parser'
+            }))
+          });
+        }
       }
     }
 
     // Log connector execution metrics in database
     try {
       if (dbSource) {
-        const healthStatus = result.status === 'ERROR' ? 'DOWN' : (result.status === 'WARN' ? 'DEGRADED' : 'HEALTHY');
+        const healthStatus = result.status === 'ERROR'
+          ? 'DOWN'
+          : (result.status === 'WARN' || result.usedFallbackData ? 'DEGRADED' : 'HEALTHY');
+
         await prisma.connectorLog.create({
           data: {
             sourceId: dbSource.id,
@@ -158,3 +187,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: error?.message || 'Сбой выполнения' }, { status: 500 });
   }
 }
+

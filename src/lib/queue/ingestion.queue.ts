@@ -6,6 +6,7 @@ import { SamrukApiAdapter } from '../ingestion/samruk.adapter';
 import { ConfigurableScraperAdapter } from '../ingestion/scraper.adapter';
 import { ScraperSourceConfigData } from '../types/scraper';
 import { AIService } from '../services/ai.service';
+import { diffTenderFields } from '../ingestion/diff';
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 const prisma = new PrismaClient();
@@ -42,7 +43,7 @@ export const createIngestionWorker = () => {
 
         if (dbSource && dbSource.adapterType === 'SCRAPER' && dbSource.scraperConfig) {
           const configData: ScraperSourceConfigData = {
-            dataSourceId: dbSource.id,
+            dataSourceId: dbSource.name || dbSource.id,
             renderMode: dbSource.scraperConfig.renderMode as any,
             listUrlTemplate: dbSource.scraperConfig.listUrlTemplate,
             pagination: dbSource.scraperConfig.pagination as any,
@@ -59,7 +60,7 @@ export const createIngestionWorker = () => {
         }
       }
 
-      // Persist tenders into DB with AI summary generation
+      // Persist tenders into DB with AI summary generation & TenderAuditTrail
       if (result && result.status !== 'ERROR' && Array.isArray(result.tenders) && result.tenders.length > 0) {
         for (const t of result.tenders) {
           let aiSummary = t.aiSummary;
@@ -77,7 +78,21 @@ export const createIngestionWorker = () => {
             console.warn(`[BullMQ Worker] Ошибка AI-суммаризации для лота #${t.externalId}:`, aiErr);
           }
 
-          await prisma.tender.upsert({
+          const existing = await prisma.tender.findUnique({
+            where: {
+              source_externalId: {
+                source: t.source,
+                externalId: t.externalId
+              }
+            }
+          });
+
+          let auditLogsToCreate: Array<{ field: string; oldValue: string | null; newValue: string | null }> = [];
+          if (existing) {
+            auditLogsToCreate = diffTenderFields(existing, t);
+          }
+
+          const savedTender = await prisma.tender.upsert({
             where: {
               source_externalId: {
                 source: t.source,
@@ -125,6 +140,18 @@ export const createIngestionWorker = () => {
               riskScore
             }
           });
+
+          if (existing && auditLogsToCreate.length > 0) {
+            await prisma.tenderAuditTrail.createMany({
+              data: auditLogsToCreate.map(change => ({
+                tenderId: savedTender.id,
+                field: change.field,
+                oldValue: change.oldValue,
+                newValue: change.newValue,
+                changedBy: 'System Parser'
+              }))
+            });
+          }
         }
       }
 

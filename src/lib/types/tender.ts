@@ -1,4 +1,4 @@
-export type SourceType = 'GOSZAKUP' | 'SAMRUK_KAZYNA' | 'KAZATMROPROM' | 'B2B_PRIVATE';
+export type SourceType = string;
 export type AdapterType = 'API' | 'SCRAPER';
 export type ProcurementMethod = 'OPEN_TENDER' | 'AUCTION' | 'PRICE_REQUEST' | 'SINGLE_SOURCE' | 'TWO_STAGE_TENDER';
 export type RiskSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
