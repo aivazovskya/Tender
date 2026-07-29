@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { KanbanItem, KanbanStage } from '../lib/types/tender';
+import { getShortSourceBadge, DataSourceMeta } from '../lib/utils/sourceLabel';
 import { 
   Trash2, 
   CheckCircle, 
@@ -17,6 +18,7 @@ interface KanbanBoardProps {
   onUpdateStage: (itemId: string, newStage: KanbanStage) => void;
   onRemoveItem: (itemId: string) => void;
   onOpenTenderDetails: (tender: any) => void;
+  dataSources?: DataSourceMeta[];
 }
 
 const STAGES: Array<{ id: KanbanStage; title: string; color: string; icon: any }> = [
@@ -109,7 +111,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                   >
                     <div className="flex items-start justify-between gap-2">
                       <span className="text-[10px] text-mid-gray font-mono">
-                        {item.tender.source === 'GOSZAKUP' ? 'ГОС' : 'СК'} #{item.tender.externalId}
+                        {getShortSourceBadge(item.tender.source, dataSources)} #{item.tender.externalId}
                       </span>
                       <button
                         onClick={() => onRemoveItem(item.id)}

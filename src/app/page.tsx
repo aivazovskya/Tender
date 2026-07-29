@@ -350,6 +350,7 @@ export default function HomePage() {
                       onSendToTelegram={handleSendToTelegram}
                       isInKanban={kanbanItems.some(k => k.tenderId === tender.id)}
                       language={language}
+                      dataSources={dataSources}
                     />
                   ))}
                 </div>
@@ -382,6 +383,7 @@ export default function HomePage() {
                     onSendToTelegram={handleSendToTelegram}
                     isInKanban={kanbanItems.some(k => k.tenderId === tender.id)}
                     language={language}
+                    dataSources={dataSources}
                   />
                 ))}
               </div>
@@ -395,6 +397,7 @@ export default function HomePage() {
             onUpdateStage={handleUpdateKanbanStage}
             onRemoveItem={handleRemoveKanbanItem}
             onOpenTenderDetails={(t) => setSelectedTender(t)}
+            dataSources={dataSources}
           />
         )}
 
@@ -416,6 +419,7 @@ export default function HomePage() {
           onClose={() => setSelectedTender(null)}
           onAddToKanban={handleAddToKanban}
           isInKanban={kanbanItems.some(k => k.tenderId === selectedTender.id)}
+          dataSources={dataSources}
         />
       )}
 

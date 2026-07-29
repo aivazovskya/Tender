@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Tender } from '../lib/types/tender';
 import { AIService } from '../lib/services/ai.service';
+import { getSourceLabel, DataSourceMeta } from '../lib/utils/sourceLabel';
 import { 
   X, 
   FileText, 
@@ -22,13 +23,15 @@ interface TenderDetailModalProps {
   onClose: () => void;
   onAddToKanban: (tender: Tender) => void;
   isInKanban: boolean;
+  dataSources?: DataSourceMeta[];
 }
 
 export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
   tender,
   onClose,
   onAddToKanban,
-  isInKanban
+  isInKanban,
+  dataSources
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'ai' | 'rag' | 'audit'>('overview');
   
@@ -66,7 +69,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
           <div>
             <div className="flex items-center space-x-3 mb-2">
               <span className="px-2.5 py-0.5 text-xs font-mono font-medium rounded-md bg-paper text-ink border border-hairline">
-                {tender.source === 'GOSZAKUP' ? 'goszakup.gov.kz' : 'portal.sk.kz'}
+                {getSourceLabel(tender.source, dataSources)}
               </span>
               <span className="text-xs text-mid-gray font-mono">№ {tender.externalId}</span>
               <span className="px-2 py-0.5 text-xs rounded bg-surface-alt border border-hairline text-ink-soft">

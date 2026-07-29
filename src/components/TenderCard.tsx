@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Tender } from '../lib/types/tender';
+import { getSourceLabel, DataSourceMeta } from '../lib/utils/sourceLabel';
 import { 
   Building2, 
   MapPin, 
@@ -22,6 +23,7 @@ interface TenderCardProps {
   onSendToTelegram: (tender: Tender) => void;
   isInKanban: boolean;
   language: 'RU' | 'KK';
+  dataSources?: DataSourceMeta[];
 }
 
 export const TenderCard: React.FC<TenderCardProps> = ({
@@ -30,7 +32,8 @@ export const TenderCard: React.FC<TenderCardProps> = ({
   onAddToKanban,
   onSendToTelegram,
   isInKanban,
-  language
+  language,
+  dataSources
 }) => {
   const [showSummary, setShowSummary] = useState(false);
 
@@ -59,7 +62,7 @@ export const TenderCard: React.FC<TenderCardProps> = ({
         <div className="flex items-center justify-between gap-2 mb-3">
           <div className="flex items-center space-x-2">
             <span className="px-2.5 py-0.5 text-[11px] font-mono font-medium rounded-md bg-surface-alt text-ink border border-hairline">
-              {tender.source === 'GOSZAKUP' ? 'goszakup.gov.kz' : 'portal.sk.kz'}
+              {getSourceLabel(tender.source, dataSources)}
             </span>
             
             <span className="text-xs text-mid-gray font-mono">
