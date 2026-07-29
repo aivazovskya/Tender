@@ -1,7 +1,7 @@
 # TenderAI — Платформа агрегации тендеров Казахстана с ИИ-ботом
 
 **Версия**: v1.6 (Казахстан)  
-**Технологический стек**: Next.js 14 App Router API-First Architecture (`/api/*`), TypeScript, Tailwind CSS, Prisma, PostgreSQL, Telegraf (Telegram Bot), BullMQ & Redis, Google Gemini API.
+**Технологический стек**: Next.js 14 App Router API-First Architecture (`/api/*`), TypeScript, Tailwind CSS, Prisma, PostgreSQL (TF-IDF Vector Search Engine), Telegraf (Telegram Bot), BullMQ & Redis, Google Gemini API.
 
 ---
 
@@ -17,7 +17,7 @@
    - ИИ-генерация резюме лотов, требований и оценка риска участия через Google Gemini API с фиксацией расхода токенов в `AiTokenUsage`.
 
 3. **ИИ-Бот & Поиск (Module 3)**:
-   - Семантический поиск и матчинг на базе TF-IDF векторизации с учетом географического контекста РК и финансовых ограничений.
+   - Семантический векторный поиск и матчинг на базе TF-IDF косинусного сходства с учетом географического контекста РК и финансовых ограничений.
    - Ответы на вопросы по техническим спецификациям и квалификационным требованиям лота.
 
 4. **Интерактивный Telegram-Бот (Module 4)**:

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { validateApiAuth } from '@/lib/security/auth';
 
 const prisma = new PrismaClient();
 
@@ -9,9 +10,13 @@ const defaultSettings = {
   minRiskNotify: 50
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = validateApiAuth(request);
+
   try {
-    const settings = await prisma.notificationSetting.findFirst();
+    const settings = await prisma.notificationSetting.findUnique({
+      where: { userId: auth.userId }
+    });
 
     if (settings) {
       return NextResponse.json({
@@ -32,10 +37,24 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = validateApiAuth(request);
+  if (!auth.authorized && auth.response) return auth.response;
+
   try {
     const body = await request.json();
-    const { userId, telegramNotify, emailNotify, minRiskNotify } = body;
-    const uid = userId || 'usr_default';
+    const { telegramNotify, emailNotify, minRiskNotify } = body;
+    const uid = auth.userId;
+
+    // Ensure User record exists before upserting NotificationSetting
+    await prisma.user.upsert({
+      where: { id: uid },
+      update: {},
+      create: {
+        id: uid,
+        email: `${uid}@tenderai.kz`,
+        name: 'Пользователь TenderAI'
+      }
+    }).catch(() => {});
 
     const settings = await prisma.notificationSetting.upsert({
       where: { userId: uid },
@@ -58,3 +77,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: error?.message || 'Ошибка сохранения настроек уведомлений в БД' }, { status: 500 });
   }
 }
+
