@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
 
-
 const defaultProfile = {
   companyName: 'ТОО "КазИТ Сервис"',
   bin: '180940004512',
@@ -15,9 +14,18 @@ const defaultProfile = {
   telegramChatId: '@kazit_tender_team'
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = validateApiAuth(request);
+
   try {
-    const profile = await prisma.companyProfile.findFirst();
+    const profile = await prisma.companyProfile.findFirst({
+      where: {
+        OR: [
+          { userId: auth.userId },
+          { userId: null }
+        ]
+      }
+    });
 
     if (profile) {
       return NextResponse.json({
@@ -65,7 +73,8 @@ export async function POST(request: NextRequest) {
         minAmount,
         maxAmount,
         contactEmail,
-        telegramChatId
+        telegramChatId,
+        userId: auth.userId
       },
       create: {
         companyName,
@@ -76,7 +85,8 @@ export async function POST(request: NextRequest) {
         minAmount,
         maxAmount,
         contactEmail,
-        telegramChatId
+        telegramChatId,
+        userId: auth.userId
       }
     });
 

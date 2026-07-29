@@ -181,6 +181,8 @@ model AiTokenUsage {
 
 model CompanyProfile {
   id            String   @id @default(cuid())
+  userId        String?  @unique
+  user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   companyName   String
   bin           String   @unique
   activities    String
@@ -197,13 +199,16 @@ model CompanyProfile {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  role      String   @default("USER")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  payments  Payment[]
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  name                String?
+  role                String               @default("USER")
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  payments            Payment[]
+  companyProfile      CompanyProfile?
+  kanbanCards         KanbanCard[]
+  notificationSetting NotificationSetting?
 }
 
 model Payment {
@@ -222,6 +227,8 @@ model Payment {
 
 model KanbanCard {
   id        String      @id @default(cuid())
+  userId    String?
+  user      User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   tenderId  String
   tender    Tender      @relation(fields: [tenderId], references: [id], onDelete: Cascade)
   stage     KanbanStage @default(UNDER_REVIEW)
@@ -235,6 +242,7 @@ model KanbanCard {
 model NotificationSetting {
   id             String   @id @default(cuid())
   userId         String   @unique
+  user           User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   telegramNotify Boolean  @default(true)
   emailNotify    Boolean  @default(false)
   minRiskNotify  Int      @default(50)

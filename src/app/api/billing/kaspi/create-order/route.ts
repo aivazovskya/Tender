@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { validateApiAuth } from '@/lib/security/auth';
 
 const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
+  const auth = validateApiAuth(request);
+
   try {
     const body = await request.json();
     const { tariffId, amountKzt } = body;
@@ -41,13 +44,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Persist Payment record in PostgreSQL DB with PENDING status
+    // Ensure User record exists if userId is provided
+    if (auth.userId && auth.userId !== 'demo-user-id') {
+      await prisma.user.upsert({
+        where: { id: auth.userId },
+        update: {},
+        create: {
+          id: auth.userId,
+          email: `${auth.userId}@tenderai.kz`,
+          name: 'Пользователь TenderAI'
+        }
+      }).catch(() => {});
+    }
+
+    // Persist Payment record in PostgreSQL DB with PENDING status and userId relation
     await prisma.payment.create({
       data: {
         orderId,
         amount: amountKzt,
         tariffPlanId: tariffId || 'PRO',
-        status: 'PENDING'
+        status: 'PENDING',
+        userId: auth.userId !== 'demo-user-id' ? auth.userId : undefined
       }
     });
 

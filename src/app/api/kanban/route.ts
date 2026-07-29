@@ -2,9 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = validateApiAuth(request);
+
   try {
     const cards = await prisma.kanbanCard.findMany({
+      where: {
+        OR: [
+          { userId: auth.userId },
+          { userId: null }
+        ]
+      },
       include: { tender: true },
       orderBy: { updatedAt: 'desc' }
     });
@@ -41,7 +49,7 @@ export async function POST(request: NextRequest) {
     if (id && !id.startsWith('kanban-')) {
       card = await prisma.kanbanCard.update({
         where: { id },
-        data: { stage, priority, assignee, notes },
+        data: { stage, priority, assignee, notes, userId: auth.userId },
         include: { tender: true }
       });
     } else {
@@ -51,7 +59,8 @@ export async function POST(request: NextRequest) {
           stage: stage || 'UNDER_REVIEW',
           priority: priority || 'MEDIUM',
           assignee,
-          notes
+          notes,
+          userId: auth.userId
         },
         include: { tender: true }
       });
@@ -59,8 +68,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, card });
   } catch (error: any) {
-    console.warn('[API /api/kanban POST Fallback]:', error?.message);
-    return NextResponse.json({ success: true, isFallback: true, message: 'Сохранено локально' });
+    console.error('[API /api/kanban POST Error]:', error?.message);
+    return NextResponse.json(
+      { success: false, isFallback: false, message: error?.message || 'Ошибка сохранения карточки в БД' },
+      { status: 500 }
+    );
   }
 }
 
@@ -78,6 +90,10 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    return NextResponse.json({ success: true, isFallback: true });
+    console.error('[API /api/kanban DELETE Error]:', error?.message);
+    return NextResponse.json(
+      { success: false, isFallback: false, message: error?.message || 'Ошибка удаления карточки из БД' },
+      { status: 500 }
+    );
   }
 }
