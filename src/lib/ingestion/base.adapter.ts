@@ -76,7 +76,10 @@ export abstract class BaseTenderAdapter {
     const startTime = Date.now();
     try {
       // Execute fetch with rate limiting and exponential backoff protection
-      const raw = await this.rateLimiter.executeWithBackoff(() => this.fetchRawData());
+      // Avoid double-wrapping multi-page scrapers with a pipeline-level retry
+      const raw = this.adapterType === 'SCRAPER'
+        ? await this.fetchRawData()
+        : await this.rateLimiter.executeWithBackoff(() => this.fetchRawData());
       const normalized = this.normalize(raw);
       const durationMs = Date.now() - startTime;
 
