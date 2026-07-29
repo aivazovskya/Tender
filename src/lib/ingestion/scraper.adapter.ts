@@ -4,6 +4,7 @@ import { Tender, SourceType, AdapterType } from '../types/tender';
 import { ScraperSourceConfigData, FieldExtractionRule } from '../types/scraper';
 import { TransformRegistry } from './transforms';
 import { RobotsTxtChecker } from './robots';
+import { validateUrlForSSRF } from '../security/ssrf';
 
 export class ConfigurableScraperAdapter extends BaseTenderAdapter {
   protected sourceType: SourceType = 'B2B_PRIVATE';
@@ -47,6 +48,15 @@ export class ConfigurableScraperAdapter extends BaseTenderAdapter {
 
       for (let page = startPage; page < startPage + maxPages; page++) {
         const targetUrl = listUrlTemplate.replace('{page}', String(page));
+
+        // SSRF Security Check
+        const ssrfCheck = validateUrlForSSRF(targetUrl);
+        if (!ssrfCheck.allowed) {
+          const ssrfWarning = `Запрос к ${targetUrl} заблокирован фильтром SSRF: ${ssrfCheck.reason}`;
+          console.warn(`[ConfigurableScraperAdapter] ${ssrfWarning}`);
+          this.lastSelectorWarnings.push(ssrfWarning);
+          break;
+        }
 
         // Check robots.txt
         if (respectRobotsTxt) {
@@ -113,12 +123,17 @@ export class ConfigurableScraperAdapter extends BaseTenderAdapter {
           if (detailPage?.enabled && detailPage.fields && rawItem.detailUrl) {
             try {
               const detailUrl = TransformRegistry.absoluteUrl(rawItem.detailUrl, targetUrl);
-              const detailHtml = await this.fetchDetailPageHtml(detailUrl, renderMode, browser);
-              if (detailHtml) {
-                const $detail = cheerio.load(detailHtml);
-                for (const [fieldName, rule] of Object.entries(detailPage.fields)) {
-                  rawItem[fieldName] = this.extractFieldValue($detail, $detail('body'), rule, detailUrl);
+              const detailSsrf = validateUrlForSSRF(detailUrl);
+              if (detailSsrf.allowed) {
+                const detailHtml = await this.fetchDetailPageHtml(detailUrl, renderMode, browser);
+                if (detailHtml) {
+                  const $detail = cheerio.load(detailHtml);
+                  for (const [fieldName, rule] of Object.entries(detailPage.fields)) {
+                    rawItem[fieldName] = this.extractFieldValue($detail, $detail('body'), rule, detailUrl);
+                  }
                 }
+              } else {
+                console.warn(`[ConfigurableScraperAdapter] SSRF заблокировал загрузку детальной страницы ${detailUrl}: ${detailSsrf.reason}`);
               }
             } catch (err: any) {
               console.warn(`[ConfigurableScraperAdapter] Ошибка загрузки детальной страницы лота: ${err?.message}`);

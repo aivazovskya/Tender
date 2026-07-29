@@ -1,3 +1,4 @@
+require('tsx/cjs');
 const { TransformRegistry } = require('../src/lib/ingestion/transforms');
 
 function runTests() {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateApiAuth } from '@/lib/security/auth';
 
 
 const defaultProfile = {
@@ -37,6 +38,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = validateApiAuth(request);
+  if (!auth.authorized && auth.response) return auth.response;
+
   try {
     const body = await request.json();
     const {

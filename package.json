@@ -26,7 +26,8 @@
     "react-dom": "^18.2.0",
     "recharts": "^2.12.2",
     "tailwind-merge": "^2.2.1",
-    "telegraf": "^4.15.3"
+    "telegraf": "^4.15.3",
+    "tsx": "^4.23.1"
   },
   "devDependencies": {
     "@types/ioredis": "^4.28.10",

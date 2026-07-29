@@ -5,9 +5,15 @@ import { SamrukApiAdapter } from '@/lib/ingestion/samruk.adapter';
 import { ConfigurableScraperAdapter } from '@/lib/ingestion/scraper.adapter';
 import { ScraperSourceConfigData } from '@/lib/types/scraper';
 
+import { AIService } from '@/lib/services/ai.service';
+import { validateApiAuth } from '@/lib/security/auth';
+
 const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
+  const auth = validateApiAuth(request, 'ADMIN');
+  if (!auth.authorized && auth.response) return auth.response;
+
   try {
     const body = await request.json();
     const { source } = body;
@@ -52,6 +58,21 @@ export async function POST(request: NextRequest) {
     // Persist normalized tenders into PostgreSQL database via Prisma upsert
     if (result && result.status !== 'ERROR' && Array.isArray(result.tenders) && result.tenders.length > 0) {
       for (const t of result.tenders) {
+        let aiSummary = t.aiSummary;
+        let aiKeyRequirements = t.aiKeyRequirements || [];
+        let riskScore = t.riskScore || 0;
+
+        try {
+          const aiAnalysis = await AIService.generateLLMSummary(t);
+          if (aiAnalysis) {
+            aiSummary = aiAnalysis.summary;
+            aiKeyRequirements = aiAnalysis.requirements;
+            riskScore = aiAnalysis.riskScore;
+          }
+        } catch (aiErr) {
+          console.warn(`[Ingestion API] Не удалось сгенерировать AI-суммаризацию для лота #${t.externalId}:`, aiErr);
+        }
+
         await prisma.tender.upsert({
           where: {
             source_externalId: {
@@ -74,9 +95,9 @@ export async function POST(request: NextRequest) {
             applicationSecurityAmount: t.applicationSecurityAmount,
             applicationSecurityPercent: t.applicationSecurityPercent,
             sourceUrl: t.sourceUrl,
-            aiSummary: t.aiSummary,
-            aiKeyRequirements: t.aiKeyRequirements || [],
-            riskScore: t.riskScore || 0
+            aiSummary,
+            aiKeyRequirements,
+            riskScore
           },
           create: {
             source: t.source,
@@ -95,9 +116,9 @@ export async function POST(request: NextRequest) {
             applicationSecurityAmount: t.applicationSecurityAmount,
             applicationSecurityPercent: t.applicationSecurityPercent,
             sourceUrl: t.sourceUrl,
-            aiSummary: t.aiSummary,
-            aiKeyRequirements: t.aiKeyRequirements || [],
-            riskScore: t.riskScore || 0
+            aiSummary,
+            aiKeyRequirements,
+            riskScore
           }
         });
       }

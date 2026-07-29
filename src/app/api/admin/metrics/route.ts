@@ -1,11 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { validateApiAuth } from '@/lib/security/auth';
 
 export const dynamic = 'force-dynamic';
 
 const prisma = new PrismaClient();
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = validateApiAuth(request, 'ADMIN');
+  if (!auth.authorized && auth.response) return auth.response;
+
   try {
     const totalTendersCount = await prisma.tender.count();
     const activeDataSourcesCount = await prisma.dataSource.count({ where: { isActive: true } });

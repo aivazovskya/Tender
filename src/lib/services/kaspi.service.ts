@@ -67,7 +67,10 @@ export const TARIFF_PLANS: KaspiTariffPlan[] = [
 
 export class KaspiPayService {
   /**
-   * Generates official Kaspi Pay QR metadata for backend database tracking
+   * Generates Kaspi Pay QR payment order metadata and payload URL.
+   * NOTE: Formats standard Kaspi Pay acquiring link format (kaspi.kz/pay) for merchant service.
+   * Incoming payment verification and subscription activation are handled via secure HMAC-SHA256
+   * webhook endpoint at POST /api/billing/kaspi/webhook using KASPI_WEBHOOK_SECRET.
    */
   static generateQrCode(tariffId: string, amountKzt: number): KaspiQrPaymentResponse {
     const orderId = `ORD-KZ-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;

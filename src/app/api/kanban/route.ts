@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-
+import { validateApiAuth } from '@/lib/security/auth';
 
 export async function GET() {
   try {
@@ -30,6 +30,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = validateApiAuth(request);
+  if (!auth.authorized && auth.response) return auth.response;
+
   try {
     const body = await request.json();
     const { id, tenderId, stage, priority, assignee, notes } = body;
@@ -62,6 +65,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const auth = validateApiAuth(request);
+  if (!auth.authorized && auth.response) return auth.response;
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

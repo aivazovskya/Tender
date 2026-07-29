@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { validateApiAuth } from '@/lib/security/auth';
+import { validateUrlForSSRF } from '@/lib/security/ssrf';
 
 const prisma = new PrismaClient();
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = validateApiAuth(request, 'ADMIN');
+  if (!auth.authorized && auth.response) return auth.response;
+
   try {
     const configs = await prisma.scraperSourceConfig.findMany({
       include: {
@@ -25,6 +30,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = validateApiAuth(request, 'ADMIN');
+  if (!auth.authorized && auth.response) return auth.response;
+
   try {
     const body = await request.json();
     const {
@@ -45,6 +53,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: false,
         message: 'Заполните обязательные поля: name, displayName, listUrlTemplate, listItemSelector, fields'
+      }, { status: 400 });
+    }
+
+    // SSRF Security Validation
+    const ssrfCheck = validateUrlForSSRF(listUrlTemplate);
+    if (!ssrfCheck.allowed) {
+      return NextResponse.json({
+        success: false,
+        message: `Ошибка безопасности SSRF: ${ssrfCheck.reason}`
       }, { status: 400 });
     }
 
@@ -110,18 +127,32 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = validateApiAuth(request, 'ADMIN');
+  if (!auth.authorized && auth.response) return auth.response;
+
   try {
     const body = await request.json();
-    const { id, active, ...updateData } = body;
+    const { id, active, listUrlTemplate, ...updateData } = body;
 
     if (!id) {
       return NextResponse.json({ success: false, message: 'ID конфигурации не указан' }, { status: 400 });
+    }
+
+    if (listUrlTemplate) {
+      const ssrfCheck = validateUrlForSSRF(listUrlTemplate);
+      if (!ssrfCheck.allowed) {
+        return NextResponse.json({
+          success: false,
+          message: `Ошибка безопасности SSRF: ${ssrfCheck.reason}`
+        }, { status: 400 });
+      }
     }
 
     const updated = await prisma.scraperSourceConfig.update({
       where: { id },
       data: {
         active: active !== undefined ? active : undefined,
+        ...(listUrlTemplate ? { listUrlTemplate } : {}),
         ...updateData
       }
     });

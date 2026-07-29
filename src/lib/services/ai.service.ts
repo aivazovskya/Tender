@@ -166,10 +166,11 @@ export class AIService {
   }
 
   /**
-   * Generates AI summary & risk analysis using real LLM API if LLM_API_KEY is configured
+   * Generates AI summary & risk analysis using real LLM API if GEMINI_API_KEY or LLM_API_KEY is configured
+   * Also tracks token usage in AiTokenUsage table
    */
   static async generateLLMSummary(tender: Tender): Promise<{ summary: string; requirements: string[]; riskScore: number }> {
-    const apiKey = process.env.LLM_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || process.env.LLM_API_KEY;
     if (apiKey && apiKey.trim().length > 0 && !apiKey.includes('your_')) {
       try {
         const prompt = `Проанализируй закупку: Название: "${tender.title}", Заказчик: "${tender.customerName}", Сумма: ${tender.amount} KZT, Регион: ${tender.region}. Опиши кратко условия, 2 главных требования к поставщику и оцени риск участия (0-100). Ответь в формате JSON: {"summary": "...", "requirements": ["..."], "riskScore": 10}`;
@@ -185,17 +186,42 @@ export class AIService {
         if (res.ok) {
           const json = await res.json();
           const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+          // Record token usage in Prisma DB if available
+          try {
+            const { PrismaClient } = await import('@prisma/client');
+            const prisma = new PrismaClient();
+            const tokensUsed = json?.usageMetadata?.totalTokenCount || 250;
+            const costUsd = (tokensUsed / 1_000_000) * 0.075;
+            await prisma.aiTokenUsage.create({
+              data: {
+                provider: 'Google Gemini',
+                model: 'gemini-1.5-flash',
+                tokensUsed,
+                costUsd,
+                operation: `Tender Ingestion Summary (${tender.externalId})`
+              }
+            });
+            await prisma.$disconnect();
+          } catch (dbErr) {
+            console.warn('[AIService] Не удалось сохранить запись AiTokenUsage:', dbErr);
+          }
+
           if (rawText) {
-            const parsed = JSON.parse(rawText.substring(rawText.indexOf('{'), rawText.lastIndexOf('}') + 1));
-            return {
-              summary: parsed.summary || tender.aiSummary || '',
-              requirements: parsed.requirements || tender.aiKeyRequirements || [],
-              riskScore: typeof parsed.riskScore === 'number' ? parsed.riskScore : tender.riskScore
-            };
+            const jsonStart = rawText.indexOf('{');
+            const jsonEnd = rawText.lastIndexOf('}');
+            if (jsonStart !== -1 && jsonEnd !== -1) {
+              const parsed = JSON.parse(rawText.substring(jsonStart, jsonEnd + 1));
+              return {
+                summary: parsed.summary || tender.aiSummary || '',
+                requirements: parsed.requirements || tender.aiKeyRequirements || [],
+                riskScore: typeof parsed.riskScore === 'number' ? parsed.riskScore : tender.riskScore
+              };
+            }
           }
         }
       } catch (err) {
-        console.warn('[AIService] Сбой обращения к LLM API, переключение на векторную эвристику:', err);
+        console.warn('[AIService] Сбой обращения к LLM API, переключение на эвристику:', err);
       }
     }
 
