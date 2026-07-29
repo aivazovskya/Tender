@@ -239,13 +239,14 @@ export const TelegramBotModal: React.FC<TelegramBotModalProps> = ({ telegramChat
                   )}
 
                   <div
-                    className={`p-3 rounded-2xl text-xs leading-relaxed max-w-[85%] ${
+                    className={`p-3 rounded-2xl text-xs leading-relaxed max-w-[85%] whitespace-pre-wrap ${
                       msg.sender === 'user'
                         ? 'bg-ink text-paper rounded-tr-none'
                         : 'bg-paper border border-hairline text-ink rounded-tl-none shadow-subtle space-y-2'
                     }`}
-                    dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br/>') }}
-                  />
+                  >
+                    {msg.text}
+                  </div>
                 </div>
               ))}
             </div>
