@@ -31,8 +31,9 @@ function testTransforms() {
   const parsedDate = TransformRegistry.parseDateRu('25 июля 2026');
   assert(parsedDate.includes('2026-07-25'), 'parseDateRu: 25 июля 2026 -> ISO format');
 
-  // Regex extract
+  // Regex extract & ReDoS protection
   assert(TransformRegistry.regexExtract('Лот № 98765-KZ от 2026', '№\\s*([0-9A-Z-]+)') === '98765-KZ', 'regexExtract: extracts pattern');
+  assert(TransformRegistry.regexExtract('aaaaa', '(a+)+$') === 'aaaaa', 'regexExtract: ReDoS dangerous pattern blocked safely');
 
   if (passed !== total) {
     throw new Error(`Transforms tests failed: ${passed}/${total} passed`);

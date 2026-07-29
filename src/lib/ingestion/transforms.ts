@@ -137,9 +137,22 @@ export class TransformRegistry {
 
   public static regexExtract(val: string, pattern?: string): string {
     if (!val || !pattern) return val;
+    
+    // ReDoS Security Protection: limit length and check for catastrophic backtracking signatures
+    if (pattern.length > 100) return val;
+
+    // Detect nested quantifiers causing exponential backtracking, e.g. (a+)+, (a*)*, (\w+)+
+    const dangerousNestedQuantifiers = /(\([^)]*[\*\+\?][^)]*\))[\*\+\?]/;
+    if (dangerousNestedQuantifiers.test(pattern)) {
+      console.warn('[ReDoS Guard] Заблокировано регулярное выражение с риском бэктрекинга:', pattern);
+      return val;
+    }
+
+    const inputVal = val.length > 10000 ? val.substring(0, 10000) : val;
+
     try {
       const regex = new RegExp(pattern, 'i');
-      const match = val.match(regex);
+      const match = inputVal.match(regex);
       if (!match) return '';
       return match[1] !== undefined ? match[1] : match[0];
     } catch {
