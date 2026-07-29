@@ -1,0 +1,243 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum ProcurementMethod {
+  OPEN_TENDER
+  AUCTION
+  PRICE_PROPOSAL
+  SINGLE_SOURCE
+}
+
+enum TenderStatus {
+  ACTIVE
+  CLOSED
+  CANCELLED
+  SUSPENDED
+}
+
+enum DataSourceType {
+  API
+  SCRAPER
+}
+
+enum ScraperRenderMode {
+  STATIC
+  JS_RENDERED
+}
+
+enum HealthStatus {
+  HEALTHY
+  DEGRADED
+  DOWN
+}
+
+enum KanbanStage {
+  UNDER_REVIEW
+  PREPARING_BID
+  SUBMITTED
+  WON
+  LOST
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+}
+
+model Tender {
+  id                         String              @id @default(cuid())
+  source                     String
+  externalId                 String
+  title                      String
+  description                String?
+  customerName               String
+  customerBin                String
+  category                   String
+  industryTags               String[]
+  procurementMethod          ProcurementMethod   @default(OPEN_TENDER)
+  amount                     Float
+  currency                   String              @default("KZT")
+  region                     String
+  publishDate                DateTime
+  deadlineDate               DateTime
+  applicationSecurityAmount Float?
+  applicationSecurityPercent Float?
+  status                     TenderStatus        @default(ACTIVE)
+  sourceUrl                  String
+  aiSummary                  String?
+  aiKeyRequirements          String[]
+  riskScore                  Int                 @default(0)
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
+
+  riskFlags                  RiskFlag[]
+  documents                  TenderDocument[]
+  history                    TenderAuditTrail[]
+  kanbanCards                KanbanCard[]
+
+  @@unique([source, externalId])
+}
+
+model RiskFlag {
+  id          String   @id @default(cuid())
+  tenderId    String
+  tender      Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  severity    String   @default("MEDIUM")
+  createdAt   DateTime @default(now())
+}
+
+model TenderDocument {
+  id        String   @id @default(cuid())
+  tenderId  String
+  tender    Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  fileName  String
+  fileUrl   String
+  fileSize  String?
+  docType   String   @default("TECHNICAL_SPEC")
+  createdAt DateTime @default(now())
+}
+
+model TenderAuditTrail {
+  id        String   @id @default(cuid())
+  tenderId  String
+  tender    Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  field     String
+  oldValue  String?
+  newValue  String?
+  changedBy String   @default("System Parser")
+  timestamp DateTime @default(now())
+}
+
+model DataSource {
+  id                String               @id @default(cuid())
+  name              String               @unique
+  displayName       String
+  adapterType       DataSourceType       @default(API)
+  isActive          Boolean              @default(true)
+  checkIntervalMins Int                  @default(15)
+  lastSyncAt        DateTime?
+  healthStatus      HealthStatus         @default(HEALTHY)
+  successRate24h    Float                @default(100.0)
+  totalIngested     Int                  @default(0)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  logs              ConnectorLog[]
+  scraperConfig     ScraperSourceConfig?
+}
+
+model ScraperSourceConfig {
+  id               String            @id @default(cuid())
+  dataSourceId     String            @unique
+  dataSource       DataSource        @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  renderMode       ScraperRenderMode @default(STATIC)
+  listUrlTemplate  String
+  pagination       Json
+  listItemSelector String
+  fields           Json
+  detailPage       Json?
+  respectRobotsTxt Boolean           @default(true)
+  active           Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+model ConnectorLog {
+  id           String     @id @default(cuid())
+  sourceId     String
+  dataSource   DataSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  status       String
+  message      String
+  itemsFetched Int        @default(0)
+  executionMs  Int        @default(0)
+  timestamp    DateTime   @default(now())
+}
+
+model AiTokenUsage {
+  id         String   @id @default(cuid())
+  provider   String   @default("OpenAI")
+  model      String   @default("gpt-4o-mini")
+  tokensUsed Int
+  costUsd    Float    @default(0.0)
+  operation  String
+  timestamp  DateTime @default(now())
+}
+
+model CompanyProfile {
+  id            String   @id @default(cuid())
+  companyName   String
+  bin           String   @unique
+  activities    String
+  keywords      String[]
+  regions       String[]
+  minAmount     Float    @default(0)
+  maxAmount     Float?
+  contactEmail  String
+  telegramChatId String?
+  subscriptionPlan String @default("FREE")
+  subscriptionExpiresAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      String   @default("USER")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  payments  Payment[]
+}
+
+model Payment {
+  id                 String        @id @default(cuid())
+  orderId            String        @unique
+  kaspiTransactionId String?       @unique
+  status             PaymentStatus @default(PENDING)
+  amount             Float
+  tariffPlanId       String
+  userId             String?
+  user               User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  rawWebhookPayload  String?
+  createdAt          DateTime      @default(now())
+  confirmedAt        DateTime?
+}
+
+model KanbanCard {
+  id        String      @id @default(cuid())
+  tenderId  String
+  tender    Tender      @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  stage     KanbanStage @default(UNDER_REVIEW)
+  priority  Priority    @default(MEDIUM)
+  assignee  String?
+  notes     String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model NotificationSetting {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  telegramNotify Boolean  @default(true)
+  emailNotify    Boolean  @default(false)
+  minRiskNotify  Int      @default(50)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

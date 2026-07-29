@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # 1. Next.js Web Application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tender_web
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:postgres_secure_pass_2026@db:5432/tender_db?schema=public
+      - REDIS_URL=redis://redis:6379
+      - KASPI_PAY_SECRET_KEY=${KASPI_PAY_SECRET_KEY:-kazit_kaspi_secret_key_prod_2026}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOSZAKUP_API_TOKEN=${GOSZAKUP_API_TOKEN}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  # 2. BullMQ Background Worker for Ingestion & Scrapers
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tender_worker
+    restart: always
+    command: ["node", "scripts/ingestion-worker.js"]
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:postgres_secure_pass_2026@db:5432/tender_db?schema=public
+      - REDIS_URL=redis://redis:6379
+      - GOSZAKUP_API_TOKEN=${GOSZAKUP_API_TOKEN}
+
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  # 3. PostgreSQL Database Server
+  db:
+    image: postgres:16-alpine
+    container_name: tender_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_secure_pass_2026
+      POSTGRES_DB: tender_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tender_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 4. Redis Queue & Cache Server
+  redis:
+    image: redis:7-alpine
+    container_name: tender_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:

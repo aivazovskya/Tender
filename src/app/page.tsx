@@ -1,0 +1,452 @@
+'use client';
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { Tender, KanbanItem, CompanyProfileData, DataSourceStatus } from '../lib/types/tender';
+import { INITIAL_DATA_SOURCES, KZ_REGIONS, CATEGORIES } from '../lib/mockData';
+import { AIService } from '../lib/services/ai.service';
+import { TelegramBotService } from '../lib/services/telegram.service';
+import { Navigation } from '../components/Navigation';
+import { TenderCard } from '../components/TenderCard';
+import { TenderDetailModal } from '../components/TenderDetailModal';
+import { KanbanBoard } from '../components/KanbanBoard';
+import { CompanyProfileModal } from '../components/CompanyProfileModal';
+import { AdminPanel } from '../components/AdminPanel';
+import { BillingModal } from '../components/BillingModal';
+import { TelegramBotModal } from '../components/TelegramBotModal';
+
+import { 
+  Search, 
+  Sparkles, 
+  RefreshCw, 
+  CheckCircle2
+} from 'lucide-react';
+
+export default function HomePage() {
+  const [activeTab, setActiveTab] = useState<'catalog' | 'kanban' | 'matching' | 'admin' | 'billing' | 'telegram'>('catalog');
+  const [language, setLanguage] = useState<'RU' | 'KK'>('RU');
+
+  // Main State
+  const [tenders, setTenders] = useState<Tender[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dataSources, setDataSources] = useState<DataSourceStatus[]>(INITIAL_DATA_SOURCES);
+  const [kanbanItems, setKanbanItems] = useState<KanbanItem[]>([]);
+  const [selectedTender, setSelectedTender] = useState<Tender | null>(null);
+
+  // Filter States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedRegion, setSelectedRegion] = useState('Все регионы');
+  const [selectedCategory, setSelectedCategory] = useState('Все категории');
+  const [selectedSource, setSelectedSource] = useState<'ALL' | 'GOSZAKUP' | 'SAMRUK_KAZYNA'>('ALL');
+  const [minAmount, setMinAmount] = useState<string>('');
+  const [maxAmount, setMaxAmount] = useState<string>('');
+  const [sortBy, setSortBy] = useState<'date' | 'amount_desc' | 'risk_asc' | 'match_desc'>('date');
+
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // Company Profile for Matching
+  const [companyProfile, setCompanyProfileState] = useState<CompanyProfileData>({
+    companyName: 'ТОО "КазИТ Сервис"',
+    bin: '180940004512',
+    activities: 'Поставка компьютерной техники, серверного оборудования, сетевых устройств, разработка ПО и системная интеграция.',
+    keywords: ['Серверы', 'Сетевое оборудование', 'ИТ-услуги', 'ПО'],
+    regions: ['г. Астана', 'г. Алматы', 'Карагандинская область'],
+    minAmount: 5000000,
+    maxAmount: 200000000,
+    contactEmail: 'tender@kazit-service.kz',
+    telegramChatId: '@kazit_tender_team'
+  });
+
+  const setCompanyProfile = (newProfile: CompanyProfileData) => {
+    setCompanyProfileState(newProfile);
+    fetch('/api/company-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newProfile)
+    }).catch(() => {});
+  };
+
+  // Fetch initial profile & kanban items from REST API
+  useEffect(() => {
+    fetch('/api/company-profile')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.profile) {
+          setCompanyProfileState(data.profile);
+        }
+      })
+      .catch(() => {});
+
+    fetch('/api/kanban')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.cards)) {
+          setKanbanItems(data.cards);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Fetch tenders via REST API (/api/tenders)
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (searchQuery) params.set('q', searchQuery);
+    if (selectedRegion !== 'Все регионы') params.set('region', selectedRegion);
+    if (selectedCategory !== 'Все категории') params.set('category', selectedCategory);
+    if (selectedSource !== 'ALL') params.set('source', selectedSource);
+
+    fetch(`/api/tenders?${params.toString()}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.tenders) {
+          setTenders(data.tenders);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [searchQuery, selectedRegion, selectedCategory, selectedSource]);
+
+  // Kanban Handlers with API Sync
+  const handleAddToKanban = (tender: Tender) => {
+    if (kanbanItems.some(item => item.tenderId === tender.id)) return;
+    const newItem: KanbanItem = {
+      id: `kanban-${Date.now()}`,
+      tenderId: tender.id,
+      stage: 'UNDER_REVIEW',
+      priority: 'MEDIUM',
+      tender,
+      updatedAt: new Date().toISOString()
+    };
+    setKanbanItems(prev => [...prev, newItem]);
+    showToast(`Лот №${tender.externalId} добавлен в воронку!`);
+
+    fetch('/api/kanban', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newItem)
+    }).catch(() => {});
+  };
+
+  const handleUpdateKanbanStage = (itemId: string, newStage: any) => {
+    setKanbanItems(prev => prev.map(item => item.id === itemId ? { ...item, stage: newStage } : item));
+    showToast('Этап воронки обновлен');
+
+    const item = kanbanItems.find(k => k.id === itemId);
+    if (item) {
+      fetch('/api/kanban', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...item, stage: newStage })
+      }).catch(() => {});
+    }
+  };
+
+  const handleRemoveKanbanItem = (itemId: string) => {
+    setKanbanItems(prev => prev.filter(item => item.id !== itemId));
+    showToast('Лот удален из воронки');
+
+    fetch(`/api/kanban?id=${itemId}`, { method: 'DELETE' }).catch(() => {});
+  };
+
+  const handleSendToTelegram = (tender: Tender) => {
+    TelegramBotService.sendNotification(tender, companyProfile.telegramChatId);
+    showToast(`Уведомление по лоту №${tender.externalId} отправлено в Telegram!`);
+  };
+
+  const matchedTenders = useMemo(() => {
+    return AIService.matchCompanyProfile(companyProfile, tenders);
+  }, [companyProfile, tenders]);
+
+  const filteredTenders = useMemo(() => {
+    let list = tenders;
+
+    if (minAmount) {
+      list = list.filter(t => t.amount >= parseFloat(minAmount));
+    }
+    if (maxAmount) {
+      list = list.filter(t => t.amount <= parseFloat(maxAmount));
+    }
+
+    return [...list].sort((a, b) => {
+      if (sortBy === 'amount_desc') return b.amount - a.amount;
+      if (sortBy === 'risk_asc') return a.riskScore - b.riskScore;
+      if (sortBy === 'match_desc') return (b.matchPercentage || 0) - (a.matchPercentage || 0);
+      return new Date(b.publishDate).getTime() - new Date(a.publishDate).getTime();
+    });
+  }, [tenders, minAmount, maxAmount, sortBy]);
+
+  const totalVolumeKzt = useMemo(() => tenders.reduce((acc, t) => acc + t.amount, 0), [tenders]);
+
+  return (
+    <div className="min-h-screen flex flex-col bg-canvas text-ink font-geist">
+      <Navigation
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        language={language}
+        setLanguage={setLanguage}
+        kanbanCount={kanbanItems.length}
+      />
+
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl bg-ink text-paper font-medium text-xs shadow-elevated border border-hairline flex items-center space-x-2 animate-bounce">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {activeTab === 'catalog' && (
+          <div className="space-y-8 animate-fadeIn">
+            <div className="bg-paper border border-hairline rounded-3xl p-6 md:p-8 space-y-6 relative overflow-hidden shadow-subtle">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-extrabold text-ink tracking-tight">
+                    {language === 'RU' ? 'Единый агрегатор тендеров Казахстана' : 'Қазақстан тендерлерінің бірыңғай агрегаторы'}
+                  </h1>
+                  <p className="text-xs md:text-sm text-mid-gray mt-1 max-w-2xl leading-relaxed">
+                    Мониторинг goszakup.gov.kz, Самрук-Казына и квазигоссектора. Семантический ИИ-поиск, авто-суммаризация ТЗ и оценка рисков.
+                  </p>
+                </div>
+
+                <div className="flex items-center space-x-3 shrink-0">
+                  <div className="p-3 rounded-2xl bg-surface-alt border border-hairline text-right">
+                    <span className="text-[10px] text-mid-gray block uppercase font-bold tracking-wider">Активных лотов</span>
+                    <span className="text-base font-bold text-ink font-mono">{tenders.length}</span>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-surface-alt border border-hairline text-right">
+                    <span className="text-[10px] text-mid-gray block uppercase font-bold tracking-wider">Общий объем</span>
+                    <span className="text-base font-bold text-ink font-mono">
+                      {(totalVolumeKzt / 1000000).toFixed(1)} млн ₸
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Natural Language AI Search Box */}
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Sparkles className="w-4 h-4 text-ember animate-pulse" />
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={language === 'RU' ? "Спросите ИИ-бота на естественном языке (например: 'поставка серверов в Астане')..." : "ИИ-ассистенттен табиғи тілде сұраңыз..."}
+                  className="w-full pl-11 pr-28 py-3.5 bg-surface-alt border border-hairline rounded-2xl text-xs sm:text-sm text-ink placeholder-mid-gray focus:outline-none focus:border-ink shadow-subtle transition-all"
+                />
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-xl bg-ink text-paper text-xs font-semibold flex items-center space-x-1 shadow-subtle">
+                  <span>ИИ-Поиск</span>
+                </div>
+              </div>
+
+              {/* Filter Controls Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 pt-2">
+                <div>
+                  <label className="text-[10px] text-mid-gray uppercase font-semibold tracking-wider block mb-1">Регион РК</label>
+                  <select
+                    value={selectedRegion}
+                    onChange={(e) => setSelectedRegion(e.target.value)}
+                    className="w-full bg-surface-alt border border-hairline rounded-xl px-3 py-2 text-xs text-ink focus:outline-none focus:border-ink transition-all shadow-subtle"
+                  >
+                    {KZ_REGIONS.map(reg => (
+                      <option key={reg} value={reg}>{reg}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-mid-gray uppercase font-semibold tracking-wider block mb-1">Категория</label>
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="w-full bg-surface-alt border border-hairline rounded-xl px-3 py-2 text-xs text-ink focus:outline-none focus:border-ink transition-all shadow-subtle"
+                  >
+                    {CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-mid-gray uppercase font-semibold tracking-wider block mb-1">Источник</label>
+                  <select
+                    value={selectedSource}
+                    onChange={(e) => setSelectedSource(e.target.value as any)}
+                    className="w-full bg-surface-alt border border-hairline rounded-xl px-3 py-2 text-xs text-ink focus:outline-none focus:border-ink transition-all shadow-subtle"
+                  >
+                    <option value="ALL">Все площадки</option>
+                    <option value="GOSZAKUP">goszakup.gov.kz</option>
+                    <option value="SAMRUK_KAZYNA">portal.sk.kz (Самрук)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-mid-gray uppercase font-semibold tracking-wider block mb-1">Сортировка</label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="w-full bg-surface-alt border border-hairline rounded-xl px-3 py-2 text-xs text-ink focus:outline-none focus:border-ink transition-all shadow-subtle"
+                  >
+                    <option value="date">По дате публикации</option>
+                    <option value="amount_desc">По убыванию суммы ₸</option>
+                    <option value="risk_asc">По наименьшему риску</option>
+                  </select>
+                </div>
+
+                <div className="flex items-end">
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSelectedRegion('Все регионы');
+                      setSelectedCategory('Все категории');
+                      setSelectedSource('ALL');
+                      setMinAmount('');
+                      setMaxAmount('');
+                      setSortBy('date');
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-surface-alt hover:bg-paper border border-hairline text-xs font-semibold text-ink-soft transition-colors shadow-subtle flex items-center justify-center space-x-1.5"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-mid-gray" />
+                    <span>Сбросить</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Results Grid */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-bold text-ink tracking-tight">
+                  Найдено тендеров: <span className="text-ember">{filteredTenders.length}</span>
+                </h2>
+                <span className="text-xs text-mid-gray">
+                  Обновлено по API &bull; ЕГСЗ / Самрук-Казына
+                </span>
+              </div>
+
+              {loading ? (
+                <div className="bg-paper border border-hairline rounded-3xl p-12 text-center text-xs font-mono text-mid-gray animate-pulse shadow-subtle">
+                  Загрузка лотов из REST API...
+                </div>
+              ) : filteredTenders.length === 0 ? (
+                <div className="bg-paper border border-hairline rounded-3xl p-12 text-center space-y-3 shadow-subtle">
+                  <Search className="w-10 h-10 text-mid-gray mx-auto" />
+                  <h3 className="text-base font-semibold text-ink">Лотов по данному запросу не найдено</h3>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredTenders.map((tender) => (
+                    <TenderCard
+                      key={tender.id}
+                      tender={tender}
+                      onOpenDetails={(t) => setSelectedTender(t)}
+                      onAddToKanban={handleAddToKanban}
+                      onSendToTelegram={handleSendToTelegram}
+                      isInKanban={kanbanItems.some(k => k.tenderId === tender.id)}
+                      language={language}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'matching' && (
+          <div className="space-y-8 animate-fadeIn">
+            <CompanyProfileModal
+              profile={companyProfile}
+              onSaveProfile={setCompanyProfile}
+              onRunMatching={() => showToast('Семантический ИИ-матчинг пересчитан!')}
+            />
+
+            <div className="space-y-4">
+              <h2 className="text-base font-bold text-ink flex items-center space-x-2 tracking-tight">
+                <Sparkles className="w-4 h-4 text-ember" />
+                <span>Рекомендованные ИИ-лоты под профиль "{companyProfile.companyName}"</span>
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {matchedTenders.map((tender) => (
+                  <TenderCard
+                    key={tender.id}
+                    tender={tender}
+                    onOpenDetails={(t) => setSelectedTender(t)}
+                    onAddToKanban={handleAddToKanban}
+                    onSendToTelegram={handleSendToTelegram}
+                    isInKanban={kanbanItems.some(k => k.tenderId === tender.id)}
+                    language={language}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'kanban' && (
+          <KanbanBoard
+            items={kanbanItems}
+            onUpdateStage={handleUpdateKanbanStage}
+            onRemoveItem={handleRemoveKanbanItem}
+            onOpenTenderDetails={(t) => setSelectedTender(t)}
+          />
+        )}
+
+        {activeTab === 'admin' && (
+          <AdminPanel
+            sources={dataSources}
+            onTriggerSync={(srcId) => showToast(`Запущен синк источника...`)}
+            onAddNewTenders={(newItems) => {
+              setTenders(prev => [...newItems, ...prev]);
+              showToast(`Импортировано +${newItems.length} новых лотов!`);
+            }}
+          />
+        )}
+      </main>
+
+      {selectedTender && (
+        <TenderDetailModal
+          tender={selectedTender}
+          onClose={() => setSelectedTender(null)}
+          onAddToKanban={handleAddToKanban}
+          isInKanban={kanbanItems.some(k => k.tenderId === selectedTender.id)}
+        />
+      )}
+
+      {activeTab === 'billing' && (
+        <BillingModal onClose={() => setActiveTab('catalog')} />
+      )}
+
+      {activeTab === 'telegram' && (
+        <TelegramBotModal
+          telegramChatId={companyProfile.telegramChatId}
+          onClose={() => setActiveTab('catalog')}
+          profile={companyProfile}
+          tenders={tenders}
+        />
+      )}
+
+      <footer className="mt-auto border-t border-hairline bg-paper py-6 text-center text-xs text-mid-gray">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            &copy; 2026 TenderAI Kazakhstan. Все права защищены.
+          </div>
+          <div className="flex items-center space-x-4">
+            <span>goszakup.gov.kz API</span>
+            <span>&bull;</span>
+            <span>portal.sk.kz API</span>
+            <span>&bull;</span>
+            <span>Kaspi Pay Integration</span>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
