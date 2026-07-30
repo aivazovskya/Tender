@@ -63,8 +63,23 @@ export async function POST(request: NextRequest) {
       telegramChatId
     } = body;
 
+    const targetBin = bin || '180940004512';
+
+    // Anti-Takeover Security Check (Bug #14): Prevent overwriting CompanyProfile owned by another userId
+    const existingByBin = await prisma.companyProfile.findUnique({
+      where: { bin: targetBin }
+    });
+
+    if (existingByBin && existingByBin.userId && existingByBin.userId !== auth.userId) {
+      console.warn(`[SECURITY ALERT] User ${auth.userId} attempted to overwrite CompanyProfile (BIN ${targetBin}) owned by ${existingByBin.userId}`);
+      return NextResponse.json(
+        { success: false, error: 'Conflict: Этот БИН уже привязан к другому аккаунту' },
+        { status: 409 }
+      );
+    }
+
     const profile = await prisma.companyProfile.upsert({
-      where: { bin: bin || '180940004512' },
+      where: { bin: targetBin },
       update: {
         companyName,
         activities,
@@ -78,7 +93,7 @@ export async function POST(request: NextRequest) {
       },
       create: {
         companyName,
-        bin: bin || '180940004512',
+        bin: targetBin,
         activities,
         keywords,
         regions,

@@ -32,22 +32,20 @@ export async function POST(req: NextRequest) {
     const signatureHeader = req.headers.get('x-kaspi-signature') || req.headers.get('X-Kaspi-Signature');
     const secret = process.env.KASPI_WEBHOOK_SECRET;
 
-    // Strict security check: Do not allow unconfigured webhook secrets in production
-    if (!secret && process.env.NODE_ENV === 'production') {
-      console.error('[SECURITY FATAL] KASPI_WEBHOOK_SECRET is not configured in production environment variables.');
+    // Strict security check: Do not allow unconfigured or default webhook secrets
+    if (!secret || secret.trim().length === 0 || secret.includes('your_') || secret === 'kaspi_hmac_secret_key_change_in_production') {
+      console.error('[SECURITY FATAL] KASPI_WEBHOOK_SECRET is missing, empty, or configured with a default/placeholder secret.');
       return NextResponse.json(
-        { success: false, error: 'Server misconfiguration: Webhook secret missing' },
+        { success: false, error: 'Server misconfiguration: Webhook secret missing or insecure' },
         { status: 500 }
       );
     }
-
-    const effectiveSecret = secret || 'kaspi_hmac_secret_key_change_in_production';
 
     // 1. Read Raw Body BEFORE any JSON parsing (HMAC is computed over exact raw bytes)
     const rawBody = await req.text();
 
     // 2. Strict HMAC Verification
-    const isValidSignature = verifyKaspiSignature(rawBody, signatureHeader, effectiveSecret);
+    const isValidSignature = verifyKaspiSignature(rawBody, signatureHeader, secret);
     if (!isValidSignature) {
       console.warn(`[SECURITY ALERT] Invalid Kaspi webhook signature attempt from IP ${req.ip || 'unknown'}`);
       return NextResponse.json(

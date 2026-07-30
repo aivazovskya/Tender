@@ -1,19 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 
 export interface AuthValidationResult {
   authorized: boolean;
   response?: NextResponse;
   userId: string;
-  role: string;
+  role: 'ADMIN' | 'USER';
 }
 
 /**
  * Validates request authorization token / API key and resolves current user ID (userId) for multi-tenancy.
- * Supports:
- * - Authorization: Bearer <token>
- * - x-api-key: <key>
- * - x-user-id: <user_id>
- * - Configured API_SECRET_KEY / ADMIN_API_KEY environment variables
+ * Enforces Role-Based Access Control (RBAC - Bug #12) and prevents client header impersonation (Bug #13).
  */
 export function validateApiAuth(
   request: NextRequest,
@@ -31,38 +28,54 @@ export function validateApiAuth(
   const expectedAdminKey = process.env.ADMIN_API_KEY || process.env.API_SECRET_KEY;
   const isProd = process.env.NODE_ENV === 'production';
 
-  // Enforce security in production or when explicit admin key is configured
-  if (expectedAdminKey || isProd) {
-    if (!token) {
-      return {
-        authorized: false,
-        userId: '',
-        role: '',
-        response: NextResponse.json(
-          { success: false, error: 'Unauthorized: Требуется заголовок авторизации Authorization: Bearer или x-api-key' },
-          { status: 401 }
-        )
-      };
-    }
-
-    if (expectedAdminKey && token !== expectedAdminKey) {
-      return {
-        authorized: false,
-        userId: '',
-        role: '',
-        response: NextResponse.json(
-          { success: false, error: 'Forbidden: Неверный токен доступа или недостаточно прав' },
-          { status: 403 }
-        )
-      };
-    }
+  // 1. Mandatory Token Check in Production or when Admin key is set
+  if ((expectedAdminKey || isProd) && !token) {
+    return {
+      authorized: false,
+      userId: '',
+      role: 'USER',
+      response: NextResponse.json(
+        { success: false, error: 'Unauthorized: Требуется заголовок авторизации Authorization: Bearer или x-api-key' },
+        { status: 401 }
+      )
+    };
   }
 
-  const userId = userIdHeader || (token ? `user-${token.substring(0, 8)}` : 'demo-user-id');
+  // 2. Determine actual user role securely from token
+  const isAdmin = expectedAdminKey ? token === expectedAdminKey : token?.startsWith('admin-');
+  const actualRole: 'ADMIN' | 'USER' = isAdmin ? 'ADMIN' : 'USER';
+
+  // 3. Enforce RBAC Role Requirement (Bug #12)
+  if (requiredRole === 'ADMIN' && actualRole !== 'ADMIN') {
+    return {
+      authorized: false,
+      userId: '',
+      role: actualRole,
+      response: NextResponse.json(
+        { success: false, error: 'Forbidden: Недостаточно прав для выполнения административного действия' },
+        { status: 403 }
+      )
+    };
+  }
+
+  // 4. Resolve userId deterministically to prevent client header impersonation (Bug #13)
+  // In production mode, client x-user-id header is ignored unless derived from authenticated token.
+  let userId: string;
+  if (token) {
+    if (isAdmin) {
+      userId = 'admin-system-user';
+    } else {
+      userId = `user-${crypto.createHash('sha256').update(token).digest('hex').substring(0, 12)}`;
+    }
+  } else if (!isProd && userIdHeader) {
+    userId = userIdHeader;
+  } else {
+    userId = 'demo-user-id';
+  }
 
   return {
     authorized: true,
     userId,
-    role: requiredRole || 'ADMIN'
+    role: actualRole
   };
 }
