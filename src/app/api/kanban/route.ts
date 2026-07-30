@@ -32,8 +32,11 @@ export async function GET(request: NextRequest) {
       }))
     });
   } catch (error: any) {
-    console.warn('[API /api/kanban GET Fallback]:', error?.message);
-    return NextResponse.json({ success: true, isFallback: true, cards: [] });
+    console.error('[API /api/kanban GET Error]:', error?.message);
+    return NextResponse.json(
+      { success: false, isFallback: false, message: error?.message || 'Ошибка загрузки карточек воронки из БД' },
+      { status: 500 }
+    );
   }
 }
 
@@ -45,8 +48,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { id, tenderId, stage, priority, assignee, notes } = body;
 
+    if (!tenderId && !id) {
+      return NextResponse.json({ success: false, message: 'Укажите tenderId или id карточки' }, { status: 400 });
+    }
+
     let card;
-    if (id && !id.startsWith('kanban-')) {
+    if (id && !id.startsWith('temp-') && !id.startsWith('kanban-')) {
       card = await prisma.kanbanCard.update({
         where: { id },
         data: { stage, priority, assignee, notes, userId: auth.userId },
@@ -84,7 +91,11 @@ export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
-    if (id && !id.startsWith('kanban-')) {
+    if (!id) {
+      return NextResponse.json({ success: false, message: 'Укажите ID карточки для удаления' }, { status: 400 });
+    }
+
+    if (!id.startsWith('temp-') && !id.startsWith('kanban-')) {
       await prisma.kanbanCard.delete({ where: { id } });
     }
 

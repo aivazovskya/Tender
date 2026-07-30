@@ -41,11 +41,11 @@ export default function HomePage() {
   const [maxAmount, setMaxAmount] = useState<string>('');
   const [sortBy, setSortBy] = useState<'date' | 'amount_desc' | 'risk_asc' | 'match_desc'>('date');
 
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message: msg, type });
+    setTimeout(() => setToast(null), 3500);
   };
 
   // Company Profile for Matching
@@ -111,11 +111,12 @@ export default function HomePage() {
       .finally(() => setLoading(false));
   }, [searchQuery, selectedRegion, selectedCategory, selectedSource]);
 
-  // Kanban Handlers with API Sync
+  // Kanban Handlers with API Sync & State Rollback Protection (Bug #10)
   const handleAddToKanban = (tender: Tender) => {
     if (kanbanItems.some(item => item.tenderId === tender.id)) return;
+    const tempId = `temp-${Date.now()}`;
     const newItem: KanbanItem = {
-      id: `kanban-${Date.now()}`,
+      id: tempId,
       tenderId: tender.id,
       stage: 'UNDER_REVIEW',
       priority: 'MEDIUM',
@@ -123,34 +124,70 @@ export default function HomePage() {
       updatedAt: new Date().toISOString()
     };
     setKanbanItems(prev => [...prev, newItem]);
-    showToast(`Лот №${tender.externalId} добавлен в воронку!`);
 
     fetch('/api/kanban', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newItem)
-    }).catch(() => {});
+      body: JSON.stringify({ tenderId: tender.id, stage: 'UNDER_REVIEW', priority: 'MEDIUM' })
+    })
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || 'Ошибка сервера при сохранении');
+        }
+        if (data.card?.id) {
+          setKanbanItems(prev => prev.map(k => k.id === tempId ? { ...k, id: data.card.id } : k));
+        }
+        showToast(`Лот №${tender.externalId} добавлен в воронку!`, 'success');
+      })
+      .catch((err) => {
+        setKanbanItems(prev => prev.filter(item => item.id !== tempId));
+        showToast(`Не удалось добавить лот №${tender.externalId} в воронку: ${err.message || 'Сбой записи в БД'}`, 'error');
+      });
   };
 
   const handleUpdateKanbanStage = (itemId: string, newStage: any) => {
-    setKanbanItems(prev => prev.map(item => item.id === itemId ? { ...item, stage: newStage } : item));
-    showToast('Этап воронки обновлен');
+    const previousItems = kanbanItems;
+    const targetItem = kanbanItems.find(k => k.id === itemId);
+    if (!targetItem) return;
 
-    const item = kanbanItems.find(k => k.id === itemId);
-    if (item) {
-      fetch('/api/kanban', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...item, stage: newStage })
-      }).catch(() => {});
-    }
+    setKanbanItems(prev => prev.map(item => item.id === itemId ? { ...item, stage: newStage } : item));
+
+    fetch('/api/kanban', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: itemId, tenderId: targetItem.tenderId, stage: newStage })
+    })
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || 'Ошибка сервера при обновлении');
+        }
+        showToast('Этап воронки обновлен', 'success');
+      })
+      .catch((err) => {
+        setKanbanItems(previousItems);
+        showToast(`Не удалось обновить этап лота: ${err.message || 'Изменения отменены'}`, 'error');
+      });
   };
 
   const handleRemoveKanbanItem = (itemId: string) => {
-    setKanbanItems(prev => prev.filter(item => item.id !== itemId));
-    showToast('Лот удален из воронки');
+    const previousItems = kanbanItems;
 
-    fetch(`/api/kanban?id=${itemId}`, { method: 'DELETE' }).catch(() => {});
+    setKanbanItems(prev => prev.filter(item => item.id !== itemId));
+
+    fetch(`/api/kanban?id=${encodeURIComponent(itemId)}`, { method: 'DELETE' })
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || 'Ошибка сервера при удалении');
+        }
+        showToast('Лот удален из воронки', 'success');
+      })
+      .catch((err) => {
+        setKanbanItems(previousItems);
+        showToast(`Не удалось удалить лот из воронки: ${err.message || 'Восстановлен'}`, 'error');
+      });
   };
 
   const handleSendToTelegram = (tender: Tender) => {
@@ -192,10 +229,18 @@ export default function HomePage() {
         kanbanCount={kanbanItems.length}
       />
 
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl bg-ink text-paper font-medium text-xs shadow-elevated border border-hairline flex items-center space-x-2 animate-bounce">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>{toastMessage}</span>
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl font-medium text-xs shadow-elevated border flex items-center space-x-2 animate-bounce ${
+          toast.type === 'error'
+            ? 'bg-red-900 text-red-100 border-red-700'
+            : 'bg-ink text-paper border-hairline'
+        }`}>
+          {toast.type === 'error' ? (
+            <span className="w-2 h-2 rounded-full bg-red-400 shrink-0 animate-ping" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          )}
+          <span>{toast.message}</span>
         </div>
       )}
 
