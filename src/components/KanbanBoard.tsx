@@ -41,7 +41,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   items,
   onUpdateStage,
   onRemoveItem,
-  onOpenTenderDetails
+  onOpenTenderDetails,
+  dataSources
 }) => {
   const totalPipelineAmount = items.reduce((acc, item) => acc + item.tender.amount, 0);
   const wonAmount = items.filter(i => i.stage === 'WON').reduce((acc, item) => acc + item.tender.amount, 0);

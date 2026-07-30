@@ -44,7 +44,7 @@ export function diffTenderFields(
     if (newVal !== null && newVal !== undefined) {
       if (newVal instanceof Date) {
         newStr = newVal.toISOString();
-      } else if (typeof newVal === 'string' && !isNaN(Date.parse(newVal)) && (field === 'deadlineDate' || field === 'publishDate')) {
+      } else if (typeof newVal === 'string' && !isNaN(Date.parse(newVal)) && ((field as string) === 'deadlineDate' || (field as string) === 'publishDate')) {
         newStr = new Date(newVal).toISOString();
       } else {
         newStr = String(newVal);

@@ -14,11 +14,13 @@ export interface RiskFlag {
 }
 
 export interface TenderDocument {
-  id: string;
+  id?: string;
   fileName: string;
   fileUrl: string;
   fileSize?: string;
   fileType?: string;
+  docType?: string;
+  extractedText?: string;
 }
 
 export interface TenderAuditTrail {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { TelegrafBotService } from '../lib/telegram/bot.service';
+import { generateDeepLink, handleBotCommand } from '../lib/telegram/bot.client';
 import { Send, Bot, X, ExternalLink, Copy, Bell, ShieldAlert, Save, Check } from 'lucide-react';
 import { CompanyProfileData, Tender } from '../lib/types/tender';
 
@@ -15,7 +15,7 @@ interface TelegramBotModalProps {
 export const TelegramBotModal: React.FC<TelegramBotModalProps> = ({ telegramChatId, onClose, profile, tenders }) => {
   const [copied, setCopied] = useState(false);
   const isConnected = Boolean(telegramChatId && telegramChatId.trim().length > 0);
-  const deepLink = TelegrafBotService.generateDeepLink('usr_kazit_service_101');
+  const deepLink = generateDeepLink('usr_kazit_service_101');
 
   // Notification settings state
   const [telegramNotify, setTelegramNotify] = useState<boolean>(true);
@@ -87,7 +87,7 @@ export const TelegramBotModal: React.FC<TelegramBotModalProps> = ({ telegramChat
 
     setTimeout(() => {
       const parts = userText.split(' ');
-      const botReply = TelegrafBotService.handleBotCommand(parts[0], parts.slice(1), tenders, profile);
+      const botReply = handleBotCommand(parts[0], parts.slice(1), tenders, profile);
       setBotChat(prev => [...prev, { sender: 'bot', text: botReply }]);
     }, 300);
   };

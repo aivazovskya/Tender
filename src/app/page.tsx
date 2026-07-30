@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Tender, KanbanItem, CompanyProfileData, DataSourceStatus } from '../lib/types/tender';
 import { INITIAL_DATA_SOURCES, KZ_REGIONS, CATEGORIES } from '../lib/mockData';
-import { AIService } from '../lib/services/ai.service';
+import { AIClientService } from '../lib/services/ai.client';
 import { TelegramBotService } from '../lib/services/telegram.service';
 import { Navigation } from '../components/Navigation';
 import { TenderCard } from '../components/TenderCard';
@@ -196,7 +196,7 @@ export default function HomePage() {
   };
 
   const matchedTenders = useMemo(() => {
-    return AIService.matchCompanyProfile(companyProfile, tenders);
+    return AIClientService.matchCompanyProfile(companyProfile, tenders);
   }, [companyProfile, tenders]);
 
   const filteredTenders = useMemo(() => {
