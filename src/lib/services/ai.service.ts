@@ -167,14 +167,21 @@ export class AIService {
   }
 
   /**
-   * Generates AI summary & risk analysis using real LLM API if GEMINI_API_KEY or LLM_API_KEY is configured
-   * Also tracks token usage in AiTokenUsage table
+   * Generates AI summary & risk analysis using real LLM API if GEMINI_API_KEY or LLM_API_KEY is configured.
+   * Grounded on attached tender document text when available.
    */
-  static async generateLLMSummary(tender: Tender): Promise<{ summary: string; requirements: string[]; riskScore: number }> {
+  static async generateLLMSummary(
+    tender: Tender,
+    documentText?: string
+  ): Promise<{ summary: string; requirements: string[]; riskScore: number }> {
+    const docContext = documentText && documentText.trim().length > 0
+      ? `\n\nТекст приложенной технической спецификации / ТЗ (выдержка):\n"${documentText.trim().substring(0, 10000)}"`
+      : '';
+
     const apiKey = process.env.GEMINI_API_KEY || process.env.LLM_API_KEY;
     if (apiKey && apiKey.trim().length > 0 && !apiKey.includes('your_')) {
       try {
-        const prompt = `Проанализируй закупку: Название: "${tender.title}", Заказчик: "${tender.customerName}", Сумма: ${tender.amount} KZT, Регион: ${tender.region}. Опиши кратко условия, 2 главных требования к поставщику и оцени риск участия (0-100). Ответь в формате JSON: {"summary": "...", "requirements": ["..."], "riskScore": 10}`;
+        const prompt = `Проанализируй закупку: Название: "${tender.title}", Заказчик: "${tender.customerName}", Сумма: ${tender.amount} KZT, Регион: ${tender.region}.${docContext}\n\nОпиши кратко условия лота, 2 главных требования к поставщику из документации и оцени риск участия (0-100). Ответь исключительно в формате JSON: {"summary": "...", "requirements": ["..."], "riskScore": 10}`;
 
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
           method: 'POST',

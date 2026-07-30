@@ -103,14 +103,15 @@ model RiskFlag {
 }
 
 model TenderDocument {
-  id        String   @id @default(cuid())
-  tenderId  String
-  tender    Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
-  fileName  String
-  fileUrl   String
-  fileSize  String?
-  docType   String   @default("TECHNICAL_SPEC")
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  tenderId      String
+  tender        Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  fileName      String
+  fileUrl       String
+  fileSize      String?
+  docType       String   @default("TECHNICAL_SPEC")
+  extractedText String?  @db.Text
+  createdAt     DateTime @default(now())
 }
 
 model TenderAuditTrail {

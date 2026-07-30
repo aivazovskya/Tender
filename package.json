@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@prisma/client": "^5.10.2",
+    "@types/pdf-parse": "^1.1.5",
     "bullmq": "^5.1.0",
     "cheerio": "^1.2.0",
     "clsx": "^2.1.0",
@@ -21,7 +22,9 @@
     "framer-motion": "^11.0.8",
     "ioredis": "^5.3.2",
     "lucide-react": "^0.344.0",
+    "mammoth": "^1.12.0",
     "next": "^14.2.25",
+    "pdf-parse": "^2.4.5",
     "playwright": "^1.62.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

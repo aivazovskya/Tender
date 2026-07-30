@@ -51,6 +51,14 @@ export class TelegrafBotService {
         await ctx.replyWithHTML(replyText);
       });
 
+      bot.command(['spec', 'tz'], async (ctx: any) => {
+        const text = ctx.message?.text || '';
+        const args = text.split(/\s+/).slice(1);
+        const chatId = String(ctx.chat.id);
+        const replyText = await TelegrafBotService.handleBotCommandAsync('/spec', args, chatId);
+        await ctx.replyWithHTML(replyText);
+      });
+
       bot.command('help', async (ctx: any) => {
         const chatId = String(ctx.chat.id);
         const replyText = await TelegrafBotService.handleBotCommandAsync('/help', [], chatId);
@@ -58,7 +66,7 @@ export class TelegrafBotService {
       });
 
       TelegrafBotService.botInstance = bot;
-      console.log('🤖 Real Telegraf Telegram Bot service initialized with interactive commands /start, /search, /digest, /profile!');
+      console.log('🤖 Real Telegraf Telegram Bot service initialized with interactive commands /start, /search, /spec, /tz, /digest, /profile!');
       return bot;
     } catch (err) {
       console.error('[TelegrafBotService] Ошибка создания Telegraf инстанса:', err);
@@ -98,12 +106,61 @@ export class TelegrafBotService {
         }
       }
 
+      // Handle /spec and /tz commands with async DB and Redis index lookup
+      if (cleanCmd === '/spec' || cleanCmd === '/tz') {
+        if (args.length === 0) {
+          return `⚠️ Пожалуйста, укажите ID лота или его порядковый номер из последнего поиска.\nПример: <code>/spec 1</code> или <code>/spec 987150-2026</code>`;
+        }
+
+        let targetId = args[0].trim();
+
+        // 1. Check if argument is a 1-based index (e.g. "1", "2", "3") from recent /search
+        if (/^\d+$/.test(targetId) && chatId) {
+          try {
+            const { connection } = await import('../queue/ingestion.queue');
+            const cachedJson = await connection.get(`search:${chatId}`);
+            if (cachedJson) {
+              const ids: string[] = JSON.parse(cachedJson);
+              const idx = parseInt(targetId, 10) - 1;
+              if (idx >= 0 && idx < ids.length) {
+                targetId = ids[idx];
+              }
+            }
+          } catch {
+            // Fallback if Redis is unreachable
+          }
+        }
+
+        // 2. Query Prisma DB for target tender
+        const dbTender = await prisma.tender.findFirst({
+          where: {
+            OR: [
+              { externalId: targetId },
+              { id: targetId }
+            ]
+          }
+        });
+
+        if (dbTender) {
+          if (!dbTender.aiSummary || dbTender.aiSummary.trim().length === 0) {
+            return `📋 <b>Резюме лота №${dbTender.externalId}</b>\n\n⏳ Резюме для этого лота ещё формируется, попробуйте через пару минут.`;
+          }
+
+          let reqsText = '• Соответствие ТЗ заказчика';
+          if (Array.isArray(dbTender.aiKeyRequirements) && dbTender.aiKeyRequirements.length > 0) {
+            reqsText = dbTender.aiKeyRequirements.map(r => `• ${r}`).join('\n');
+          }
+
+          return `📋 <b>Резюме лота №${dbTender.externalId}</b>\n\n${dbTender.aiSummary}\n\n<b>Ключевые требования:</b>\n${reqsText}\n\n⚠️ Оценка риска участия: ${dbTender.riskScore}/100`;
+        }
+      }
+
       const dbTenders = await prisma.tender.findMany({
         take: 50,
         orderBy: { createdAt: 'desc' }
       });
 
-      // Bug #5 fix: Strictly look up profile by telegramChatId to prevent multi-tenant data leak
+      // Look up profile by telegramChatId to prevent multi-tenant data leak
       const profile = chatId
         ? await prisma.companyProfile.findFirst({ where: { telegramChatId: chatId } })
         : null;
@@ -171,8 +228,43 @@ export class TelegrafBotService {
       } else {
         welcome += `Ваш Telegram-чат пока не привязан к профилю компании.\n\n`;
       }
-      welcome += `Доступные интерактивные команды:\n- <code>/search [запрос]</code> — ИИ-поиск по названию лота, категории и региону\n- <code>/digest</code> — Сводка за 24 часа по госзакупкам и B2B\n- <code>/profile</code> — Статус подписки, БИН и ключевые слова компании`;
+      welcome += `Доступные интерактивные команды:\n- <code>/search [запрос]</code> — ИИ-поиск по названию лота, категории и региону\n- <code>/spec [ID или №]</code> — ИИ-резюме и ключевые требования лота ТЗ\n- <code>/digest</code> — Сводка за 24 часа по госзакупкам и B2B\n- <code>/profile</code> — Статус подписки, БИН и ключевые слова компании`;
       return welcome;
+    }
+
+    if (cleanCmd === '/spec' || cleanCmd === '/tz') {
+      if (args.length === 0) {
+        return `⚠️ Пожалуйста, укажите ID лота или его порядковый номер из последнего поиска.\nПример: <code>/spec 1</code> или <code>/spec 987150-2026</code>`;
+      }
+
+      const targetArg = args[0].trim();
+      let matchedTender: Tender | undefined;
+
+      if (/^\d+$/.test(targetArg)) {
+        const idx = parseInt(targetArg, 10) - 1;
+        if (idx >= 0 && idx < activeTenders.length) {
+          matchedTender = activeTenders[idx];
+        }
+      }
+
+      if (!matchedTender) {
+        matchedTender = activeTenders.find(t => t.externalId === targetArg || t.id === targetArg);
+      }
+
+      if (!matchedTender) {
+        return `⚠️ Лот с ID "<b>${targetArg}</b>" не найден. Пожалуйста, проверьте корректность номера лота.`;
+      }
+
+      if (!matchedTender.aiSummary || matchedTender.aiSummary.trim().length === 0) {
+        return `📋 <b>Резюме лота №${matchedTender.externalId}</b>\n\n⏳ Резюме для этого лота ещё формируется, попробуйте через пару минут.`;
+      }
+
+      let reqsText = '• Соответствие ТЗ заказчика';
+      if (Array.isArray(matchedTender.aiKeyRequirements) && matchedTender.aiKeyRequirements.length > 0) {
+        reqsText = matchedTender.aiKeyRequirements.map(r => `• ${r}`).join('\n');
+      }
+
+      return `📋 <b>Резюме лота №${matchedTender.externalId}</b>\n\n${matchedTender.aiSummary}\n\n<b>Ключевые требования:</b>\n${reqsText}\n\n⚠️ Оценка риска участия: ${matchedTender.riskScore || 0}/100`;
     }
 
     if (cleanCmd === '/search') {
@@ -191,6 +283,14 @@ export class TelegrafBotService {
 
       if (matched.length === 0) {
         return `🔍 По запросу "<b>${query}</b>" активных лотов в системе не найдено. Настройте автоуведомления в ЛК.`;
+      }
+
+      // Cache matched tender externalIds in Redis for ordinal lookup (/spec 1, /spec 2)
+      if (chatId) {
+        import('../queue/ingestion.queue').then(({ connection }) => {
+          const ids = matched.map(t => t.externalId || t.id);
+          connection.set(`search:${chatId}`, JSON.stringify(ids), 'EX', 600).catch(() => {});
+        }).catch(() => {});
       }
 
       let res = `🔍 <b>Найдено лотов по запросу "${query}":</b>\n\n`;

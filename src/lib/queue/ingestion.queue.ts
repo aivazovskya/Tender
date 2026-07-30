@@ -8,8 +8,9 @@ import { ScraperSourceConfigData } from '../types/scraper';
 import { AIService } from '../services/ai.service';
 import { diffTenderFields } from '../ingestion/diff';
 
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+import { DocumentExtractionService } from '../services/document-extraction.service';
 
+const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
 export const connection = new Redis(redisUrl, {
   maxRetriesPerRequest: null,
@@ -60,15 +61,36 @@ export const createIngestionWorker = () => {
         }
       }
 
-      // Persist tenders into DB with AI summary generation & TenderAuditTrail
+      // Persist tenders into DB with document text extraction, AI summary generation & TenderAuditTrail
       if (result && result.status !== 'ERROR' && Array.isArray(result.tenders) && result.tenders.length > 0) {
         for (const t of result.tenders) {
+          let extractedDocTexts: string[] = [];
+
+          // Process attached specification documents
+          if (Array.isArray(t.documents) && t.documents.length > 0) {
+            for (const doc of t.documents) {
+              if (doc.fileUrl) {
+                try {
+                  const extracted = await DocumentExtractionService.extractTextFromDocumentUrl(doc.fileUrl);
+                  if (extracted) {
+                    doc.extractedText = extracted;
+                    extractedDocTexts.push(extracted);
+                  }
+                } catch (docErr) {
+                  console.warn(`[BullMQ Worker] Ошибка извлечения текста из файла '${doc.fileUrl}':`, docErr);
+                }
+              }
+            }
+          }
+
+          const fullDocText = extractedDocTexts.join('\n\n');
+
           let aiSummary = t.aiSummary;
           let aiKeyRequirements = t.aiKeyRequirements || [];
           let riskScore = t.riskScore || 0;
 
           try {
-            const aiAnalysis = await AIService.generateLLMSummary(t);
+            const aiAnalysis = await AIService.generateLLMSummary(t, fullDocText);
             if (aiAnalysis) {
               aiSummary = aiAnalysis.summary;
               aiKeyRequirements = aiAnalysis.requirements;
@@ -140,6 +162,40 @@ export const createIngestionWorker = () => {
               riskScore
             }
           });
+
+          // Save / update TenderDocument records in DB
+          if (Array.isArray(t.documents) && t.documents.length > 0) {
+            for (const doc of t.documents) {
+              if (doc.fileUrl) {
+                const existingDoc = await prisma.tenderDocument.findFirst({
+                  where: { tenderId: savedTender.id, fileUrl: doc.fileUrl }
+                });
+
+                if (existingDoc) {
+                  await prisma.tenderDocument.update({
+                    where: { id: existingDoc.id },
+                    data: {
+                      fileName: doc.fileName || 'ТЗ.pdf',
+                      fileSize: doc.fileSize,
+                      docType: doc.docType || 'TECHNICAL_SPEC',
+                      extractedText: doc.extractedText || existingDoc.extractedText
+                    }
+                  });
+                } else {
+                  await prisma.tenderDocument.create({
+                    data: {
+                      tenderId: savedTender.id,
+                      fileName: doc.fileName || 'ТЗ.pdf',
+                      fileUrl: doc.fileUrl,
+                      fileSize: doc.fileSize,
+                      docType: doc.docType || 'TECHNICAL_SPEC',
+                      extractedText: doc.extractedText || null
+                    }
+                  });
+                }
+              }
+            }
+          }
 
           if (existing && auditLogsToCreate.length > 0) {
             await prisma.tenderAuditTrail.createMany({

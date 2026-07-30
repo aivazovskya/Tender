@@ -12,7 +12,9 @@ const tests = [
   'scripts/tests/kaspi-security.test.js',
   'scripts/tests/bot-payload.test.js',
   'scripts/tests/kanban-sync.test.js',
-  'scripts/tests/rbac-security.test.js'
+  'scripts/tests/rbac-security.test.js',
+  'scripts/tests/bot-spec-command.test.js',
+  'scripts/tests/document-extraction.test.js'
 ];
 
 console.log('🚀 Running TenderAI Automated Test Suite (npm test)...\n');
