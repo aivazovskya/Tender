@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { Tender } from '../lib/types/tender';
-import { AIService } from '../lib/services/ai.service';
 import { getSourceLabel, DataSourceMeta } from '../lib/utils/sourceLabel';
 import { 
   X, 
@@ -53,8 +52,31 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
     setRagMessages(prev => [...prev, { sender: 'user', text: userText }]);
     setInputQuestion('');
 
-    const aiReply = await AIService.answerRAGQuestion(tender, userText);
-    setRagMessages(prev => [...prev, { sender: 'ai', text: aiReply }]);
+    try {
+      const res = await fetch('/api/tenders/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenderId: tender.id,
+          externalId: tender.externalId,
+          title: tender.title,
+          customerName: tender.customerName,
+          amount: tender.amount,
+          region: tender.region,
+          deadlineDate: tender.deadlineDate,
+          source: tender.source,
+          question: userText
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.answer) {
+        setRagMessages(prev => [...prev, { sender: 'ai', text: data.answer }]);
+      } else {
+        setRagMessages(prev => [...prev, { sender: 'ai', text: data.error || 'Не удалось получить ответ от сервера.' }]);
+      }
+    } catch (err) {
+      setRagMessages(prev => [...prev, { sender: 'ai', text: 'Ошибка соединения с сервером при отправке вопроса.' }]);
+    }
   };
 
   return (

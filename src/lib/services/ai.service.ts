@@ -1,5 +1,4 @@
 import { Tender, CompanyProfileData } from '../types/tender';
-import { prisma } from '../prisma';
 
 export class AIService {
   /**
@@ -146,6 +145,7 @@ export class AIService {
 
       if (!contextText.trim() && (tender as any).id) {
         try {
+          const { prisma } = await import('../prisma');
           const dbDoc = await prisma.tenderDocument.findFirst({
             where: { tenderId: (tender as any).id, extractedText: { not: null } }
           });
@@ -252,6 +252,7 @@ export class AIService {
 
           // Record token usage in Prisma DB if available
           try {
+            const { prisma } = await import('../prisma');
             const tokensUsed = json?.usageMetadata?.totalTokenCount || 250;
             const costUsd = (tokensUsed / 1_000_000) * 0.075;
             await prisma.aiTokenUsage.create({
@@ -263,7 +264,6 @@ export class AIService {
                 operation: `Tender Ingestion Summary (${tender.externalId})`
               }
             });
-            await prisma.$disconnect();
           } catch (dbErr) {
             console.warn('[AIService] Не удалось сохранить запись AiTokenUsage:', dbErr);
           }

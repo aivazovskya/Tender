@@ -79,7 +79,30 @@ async function runTests() {
   assert.ok(answer.length > 0, 'RAG answer must not be empty');
   console.log('  ✅ Bug #19: AIService.answerRAGQuestion executes asynchronously and returns grounded response');
 
-  console.log('\n🎉 Ingestion & Security Fixes Test Suite (v5) completed successfully!');
+  // --- 4. Test Bug #20: POST /api/tenders/ask Server API Route ---
+  console.log('\n▶ Testing Bug #20: Server API Route POST /api/tenders/ask...');
+  const { POST: askHandler } = require('../../src/app/api/tenders/ask/route');
+  const mockAskReq = {
+    headers: { get: () => null },
+    cookies: { get: () => undefined },
+    json: async () => ({
+      externalId: '998877',
+      title: 'Поставка оборудования',
+      customerName: 'АО КазахСервис',
+      amount: 10000000,
+      region: 'г. Астана',
+      deadlineDate: new Date().toISOString(),
+      question: 'Какая сумма договора?'
+    })
+  };
+  const askRes = await askHandler(mockAskReq);
+  assert.strictEqual(askRes.status, 200, 'RAG API route must return HTTP 200 OK');
+  const askData = await askRes.json();
+  assert.strictEqual(askData.success, true);
+  assert.ok(typeof askData.answer === 'string' && askData.answer.length > 0);
+  console.log('  ✅ Bug #20: POST /api/tenders/ask server API route handles RAG Q&A without client side Prisma/LLM imports');
+
+  console.log('\n🎉 Ingestion & Security Fixes Test Suite (v5/v6) completed successfully!');
 }
 
 runTests().catch(err => {
