@@ -45,7 +45,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
 
   if (!tender) return null;
 
-  const handleSendQuestion = (e: React.FormEvent) => {
+  const handleSendQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputQuestion.trim()) return;
 
@@ -53,10 +53,8 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
     setRagMessages(prev => [...prev, { sender: 'user', text: userText }]);
     setInputQuestion('');
 
-    setTimeout(() => {
-      const aiReply = AIService.answerRAGQuestion(tender, userText);
-      setRagMessages(prev => [...prev, { sender: 'ai', text: aiReply }]);
-    }, 300);
+    const aiReply = await AIService.answerRAGQuestion(tender, userText);
+    setRagMessages(prev => [...prev, { sender: 'ai', text: aiReply }]);
   };
 
   return (

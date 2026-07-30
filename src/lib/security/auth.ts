@@ -58,8 +58,12 @@ export function validateApiAuth(
     };
   }
 
-  // 4. Resolve userId deterministically to prevent client header impersonation (Bug #13)
-  // In production mode, client x-user-id header is ignored unless derived from authenticated token.
+  // 4. Resolve userId deterministically for multi-tenancy isolation (Bug #13, Bug #17)
+  // Check for session cookie or session header to isolate users in production when unauthenticated by API token
+  const sessionCookie = request.cookies?.get('tender_session_id')?.value;
+  const sessionHeader = request.headers.get('x-session-id') || request.headers.get('X-Session-Id');
+  const sessionId = sessionCookie || sessionHeader;
+
   let userId: string;
   if (token) {
     if (isAdmin) {
@@ -67,6 +71,8 @@ export function validateApiAuth(
     } else {
       userId = `user-${crypto.createHash('sha256').update(token).digest('hex').substring(0, 12)}`;
     }
+  } else if (sessionId) {
+    userId = `user-sess-${crypto.createHash('sha256').update(sessionId).digest('hex').substring(0, 12)}`;
   } else if (!isProd && userIdHeader) {
     userId = userIdHeader;
   } else {

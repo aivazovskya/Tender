@@ -130,9 +130,64 @@ export class AIService {
   }
 
   /**
-   * Document-grounded RAG Question Answering over lot documentation
+   * Document-grounded RAG Question Answering over lot documentation using LLM API with heuristic fallback (Bug #19)
    */
-  static answerRAGQuestion(tender: Tender, question: string): string {
+  static async answerRAGQuestion(tender: Tender, question: string, documentText?: string): Promise<string> {
+    let contextText = documentText || '';
+
+    // If documentText wasn't passed directly, try retrieving extractedText from DB or tender documents
+    if (!contextText.trim()) {
+      if (Array.isArray(tender.documents)) {
+        const foundDoc = tender.documents.find(d => d.extractedText && d.extractedText.trim().length > 0);
+        if (foundDoc?.extractedText) {
+          contextText = foundDoc.extractedText;
+        }
+      }
+
+      if (!contextText.trim() && (tender as any).id) {
+        try {
+          const dbDoc = await prisma.tenderDocument.findFirst({
+            where: { tenderId: (tender as any).id, extractedText: { not: null } }
+          });
+          if (dbDoc?.extractedText) {
+            contextText = dbDoc.extractedText;
+          }
+        } catch (dbErr) {
+          // DB unreadable in standalone test mode, ignore
+        }
+      }
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY || process.env.LLM_API_KEY;
+    if (apiKey && apiKey.trim().length > 0 && !apiKey.includes('your_')) {
+      try {
+        const docSnippet = contextText.trim().length > 0
+          ? `\n\nТекст приложенной технической спецификации / ТЗ (выдержка):\n"${contextText.trim().substring(0, 10000)}"`
+          : '';
+
+        const prompt = `Ты — экспертный ИИ-ассистент по тендерам РК. Ответь на вопрос пользователя по лоту СТРОГО на основе приведенных данных и приложенного текста документации. Если ответа в документации нет — явно скажи, что информация не найдена в файлах лота.\n\nПараметры лота:\n- Заглавие: "${tender.title}"\n- Заказчик: "${tender.customerName}"\n- Сумма: ${tender.amount} KZT\n- Регион: ${tender.region}${docSnippet}\n\nВопрос пользователя: "${question}"\n\nДай четкий, грамотный ответ на русском языке без технической разметки.`;
+
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }]
+          })
+        });
+
+        if (res.ok) {
+          const json = await res.json();
+          const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (rawText && rawText.trim().length > 0) {
+            return rawText.trim();
+          }
+        }
+      } catch (err) {
+        console.warn('[AIService] Сбой обращения к LLM для RAG-ответа, переключение на эвристику:', err);
+      }
+    }
+
+    // Heuristic Fallback
     const qLower = question.toLowerCase();
 
     // 1. Security / Guarantee questions
@@ -160,10 +215,10 @@ export class AIService {
       if (tender.aiKeyRequirements && tender.aiKeyRequirements.length > 0) {
         return `Критерии квалификации из технической спецификации заказчика (${tender.customerName}):\n- ${tender.aiKeyRequirements.join('\n- ')}`;
       }
-      return `Извлеченные требования из ТЗ лота №${tender.externalId}: Заказчик "${tender.customerName}" установил стандартные квалификационные требования ЕГСЗ РК. См. приложенный файл "${tender.documents[0]?.fileName || 'ТЗ.pdf'}".`;
+      return `Извлеченные требования из ТЗ лота №${tender.externalId}: Заказчик "${tender.customerName}" установил стандартные квалификационные требования ЕГСЗ РК. См. приложенный файл "${tender.documents?.[0]?.fileName || 'ТЗ.pdf'}".`;
     }
 
-    return `В доступных материалах лота №${tender.externalId} ("${tender.title}") запрашиваемое условие явным образом не выведено. Рекомендуется изучить приложенный документ "${tender.documents[0]?.fileName || 'Спецификация.pdf'}" или перейти к первоисточнику по ссылке на ${tender.source}.`;
+    return `В доступных материалах лота №${tender.externalId} ("${tender.title}") запрашиваемое условие явным образом не выведено. Рекомендуется изучить приложенный документ "${tender.documents?.[0]?.fileName || 'Спецификация.pdf'}" или перейти к первоисточнику по ссылке на ${tender.source}.`;
   }
 
   /**
