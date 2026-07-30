@@ -28,8 +28,8 @@ export function validateApiAuth(
   const expectedAdminKey = process.env.ADMIN_API_KEY || process.env.API_SECRET_KEY;
   const isProd = process.env.NODE_ENV === 'production';
 
-  // 1. Mandatory Token Check in Production or when Admin key is set
-  if ((expectedAdminKey || isProd) && !token) {
+  // 1. Mandatory Token Check for ADMIN endpoints in production or when Admin key is set
+  if (requiredRole === 'ADMIN' && (expectedAdminKey || isProd) && !token) {
     return {
       authorized: false,
       userId: '',
@@ -41,8 +41,8 @@ export function validateApiAuth(
     };
   }
 
-  // 2. Determine actual user role securely from token
-  const isAdmin = expectedAdminKey ? token === expectedAdminKey : token?.startsWith('admin-');
+  // 2. Determine actual user role securely from token (Bug #15 fix: no fallback to startsWith('admin-'))
+  const isAdmin = !!expectedAdminKey && token === expectedAdminKey;
   const actualRole: 'ADMIN' | 'USER' = isAdmin ? 'ADMIN' : 'USER';
 
   // 3. Enforce RBAC Role Requirement (Bug #12)
