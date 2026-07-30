@@ -1,3 +1,4 @@
+require('tsx/cjs');
 const assert = require('assert');
 const { validateApiAuth } = require('../../src/lib/security/auth');
 const { AIService } = require('../../src/lib/services/ai.service');
