@@ -1,5 +1,6 @@
 import { Tender, CompanyProfileData } from '../types/tender';
 import { INITIAL_TENDERS } from '../mockData';
+import { prisma } from '../prisma';
 
 export class TelegrafBotService {
   private static botInstance: any = null;
@@ -23,30 +24,37 @@ export class TelegrafBotService {
       const bot = new Telegraf(token);
 
       bot.start(async (ctx: any) => {
-        const text = TelegrafBotService.handleBotCommand('/start', []);
-        await ctx.replyWithHTML(text);
+        const text = ctx.message?.text || '';
+        const args = text.split(/\s+/).slice(1);
+        const chatId = String(ctx.chat.id);
+        const replyText = await TelegrafBotService.handleBotCommandAsync('/start', args, chatId);
+        await ctx.replyWithHTML(replyText);
       });
 
       bot.command('search', async (ctx: any) => {
         const text = ctx.message?.text || '';
         const args = text.split(/\s+/).slice(1);
-        const replyText = await TelegrafBotService.handleBotCommandAsync('/search', args);
+        const chatId = String(ctx.chat.id);
+        const replyText = await TelegrafBotService.handleBotCommandAsync('/search', args, chatId);
         await ctx.replyWithHTML(replyText);
       });
 
       bot.command('digest', async (ctx: any) => {
-        const replyText = await TelegrafBotService.handleBotCommandAsync('/digest', []);
+        const chatId = String(ctx.chat.id);
+        const replyText = await TelegrafBotService.handleBotCommandAsync('/digest', [], chatId);
         await ctx.replyWithHTML(replyText);
       });
 
       bot.command('profile', async (ctx: any) => {
-        const replyText = await TelegrafBotService.handleBotCommandAsync('/profile', []);
+        const chatId = String(ctx.chat.id);
+        const replyText = await TelegrafBotService.handleBotCommandAsync('/profile', [], chatId);
         await ctx.replyWithHTML(replyText);
       });
 
       bot.command('help', async (ctx: any) => {
-        const text = TelegrafBotService.handleBotCommand('/start', []);
-        await ctx.replyWithHTML(text);
+        const chatId = String(ctx.chat.id);
+        const replyText = await TelegrafBotService.handleBotCommandAsync('/help', [], chatId);
+        await ctx.replyWithHTML(replyText);
       });
 
       TelegrafBotService.botInstance = bot;
@@ -70,16 +78,35 @@ export class TelegrafBotService {
    */
   static async handleBotCommandAsync(
     command: string,
-    args: string[]
+    args: string[],
+    chatId?: string
   ): Promise<string> {
     try {
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const cleanCmd = command.trim().toLowerCase();
+
+      // Auto-bind chatId if user accessed via deep-link: /start <userId>
+      if (cleanCmd === '/start' && args.length > 0 && chatId) {
+        const payload = args[0].trim();
+        const unboundProfile = await prisma.companyProfile.findFirst({
+          where: { OR: [{ userId: payload }, { id: payload }] }
+        });
+        if (unboundProfile) {
+          await prisma.companyProfile.update({
+            where: { id: unboundProfile.id },
+            data: { telegramChatId: chatId }
+          });
+        }
+      }
+
       const dbTenders = await prisma.tender.findMany({
         take: 50,
         orderBy: { createdAt: 'desc' }
       });
-      const profile = await prisma.companyProfile.findFirst();
+
+      // Bug #5 fix: Strictly look up profile by telegramChatId to prevent multi-tenant data leak
+      const profile = chatId
+        ? await prisma.companyProfile.findFirst({ where: { telegramChatId: chatId } })
+        : null;
 
       const tendersList: Tender[] = dbTenders.length > 0 ? dbTenders.map(t => ({
         id: t.id,
@@ -118,9 +145,9 @@ export class TelegrafBotService {
         minAmount: profile.minAmount,
         maxAmount: profile.maxAmount || 0,
         contactEmail: profile.contactEmail
-      } : undefined);
+      } : undefined, chatId);
     } catch {
-      return TelegrafBotService.handleBotCommand(command, args, INITIAL_TENDERS);
+      return TelegrafBotService.handleBotCommand(command, args, INITIAL_TENDERS, undefined, chatId);
     }
   }
 
@@ -131,13 +158,21 @@ export class TelegrafBotService {
     command: string, 
     args: string[], 
     tendersList: Tender[] = INITIAL_TENDERS,
-    profile?: CompanyProfileData
+    profile?: CompanyProfileData,
+    chatId?: string
   ): string {
     const cleanCmd = command.trim().toLowerCase();
     const activeTenders = tendersList.length > 0 ? tendersList : INITIAL_TENDERS;
 
     if (cleanCmd === '/start' || cleanCmd === '/help') {
-      return `🤖 <b>Добро пожаловать в TenderAI Казахстан!</b>\nВаш аккаунт привязан к системе мгновенных уведомлений.\n\nДоступные интерактивные команды:\n- <code>/search [запрос]</code> — ИИ-поиск по названию лота, категории и региону\n- <code>/digest</code> — Сводка за 24 часа по госзакупкам и B2B\n- <code>/profile</code> — Статус подписки, БИН и ключевые слова компании`;
+      let welcome = `🤖 <b>Добро пожаловать в TenderAI Казахстан!</b>\n`;
+      if (profile) {
+        welcome += `Ваш аккаунт привязан к компании <b>${profile.companyName}</b>.\n\n`;
+      } else {
+        welcome += `Ваш Telegram-чат пока не привязан к профилю компании.\n\n`;
+      }
+      welcome += `Доступные интерактивные команды:\n- <code>/search [запрос]</code> — ИИ-поиск по названию лота, категории и региону\n- <code>/digest</code> — Сводка за 24 часа по госзакупкам и B2B\n- <code>/profile</code> — Статус подписки, БИН и ключевые слова компании`;
+      return welcome;
     }
 
     if (cleanCmd === '/search') {
@@ -192,10 +227,14 @@ export class TelegrafBotService {
     }
 
     if (cleanCmd === '/profile') {
-      const compName = profile?.companyName || 'ТОО "КазИТ Сервис"';
-      const binNum = profile?.bin || '180940004512';
-      const kw = profile?.keywords?.join(', ') || 'Серверы, Сетевое оборудование, ИТ-услуги';
-      const reg = profile?.regions?.join(', ') || 'г. Астана, г. Алматы';
+      if (!profile) {
+        return `⚠️ <b>Профиль компании не привязан</b>\n\nВаш Telegram-чат (ID: <code>${chatId || 'не определен'}</code>) пока не привязан ни к одному аккаунту в TenderAI.\n\nЧтобы получать уведомления и персональную аналитику, укажите ваш Telegram Chat ID в <b>Личном Кабинете</b> веб-приложения или авторизуйтесь по ссылке.`;
+      }
+
+      const compName = profile.companyName;
+      const binNum = profile.bin;
+      const kw = profile.keywords?.join(', ') || 'Не указаны';
+      const reg = profile.regions?.join(', ') || 'Все регионы';
 
       return `👤 <b>Профиль компании ${compName}:</b>\n\n- БИН: <code>${binNum}</code>\n- Статус: <b>Подписка PRO активна</b>\n- Ключевые слова: ${kw}\n- Регионы: ${reg}`;
     }

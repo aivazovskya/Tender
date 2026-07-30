@@ -14,26 +14,38 @@ export const createTelegrafBot = () => {
   try {
     const bot = new Telegraf(token);
 
-    bot.start((ctx) => {
-      const reply = TelegrafBotService.handleBotCommand('/start', []);
-      ctx.replyWithHTML(reply);
-    });
-
-    bot.command('search', (ctx) => {
+    bot.start(async (ctx: any) => {
       const text = ctx.message?.text || '';
       const args = text.split(/\s+/).slice(1);
-      const reply = TelegrafBotService.handleBotCommand('/search', args);
-      ctx.replyWithHTML(reply);
+      const chatId = String(ctx.chat.id);
+      const reply = await TelegrafBotService.handleBotCommandAsync('/start', args, chatId);
+      await ctx.replyWithHTML(reply);
     });
 
-    bot.command('digest', (ctx) => {
-      const reply = TelegrafBotService.handleBotCommand('/digest', []);
-      ctx.replyWithHTML(reply);
+    bot.command('search', async (ctx: any) => {
+      const text = ctx.message?.text || '';
+      const args = text.split(/\s+/).slice(1);
+      const chatId = String(ctx.chat.id);
+      const reply = await TelegrafBotService.handleBotCommandAsync('/search', args, chatId);
+      await ctx.replyWithHTML(reply);
     });
 
-    bot.command('profile', (ctx) => {
-      const reply = TelegrafBotService.handleBotCommand('/profile', []);
-      ctx.replyWithHTML(reply);
+    bot.command('digest', async (ctx: any) => {
+      const chatId = String(ctx.chat.id);
+      const reply = await TelegrafBotService.handleBotCommandAsync('/digest', [], chatId);
+      await ctx.replyWithHTML(reply);
+    });
+
+    bot.command('profile', async (ctx: any) => {
+      const chatId = String(ctx.chat.id);
+      const reply = await TelegrafBotService.handleBotCommandAsync('/profile', [], chatId);
+      await ctx.replyWithHTML(reply);
+    });
+
+    bot.command('help', async (ctx: any) => {
+      const chatId = String(ctx.chat.id);
+      const reply = await TelegrafBotService.handleBotCommandAsync('/help', [], chatId);
+      await ctx.replyWithHTML(reply);
     });
 
     return bot;
