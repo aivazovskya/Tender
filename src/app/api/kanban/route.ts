@@ -22,6 +22,8 @@ export async function GET(request: NextRequest) {
         priority: c.priority,
         assignee: c.assignee,
         notes: c.notes,
+        stageEnteredAt: c.stageEnteredAt ? c.stageEnteredAt.toISOString() : undefined,
+        stageSlaHours: c.stageSlaHours ?? undefined,
         tender: c.tender,
         updatedAt: c.updatedAt.toISOString()
       }))
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { id, tenderId, stage, priority, assignee, notes } = body;
+    const { id, tenderId, stage, priority, assignee, notes, stageSlaHours } = body;
 
     if (!tenderId && !id) {
       return NextResponse.json({ success: false, message: 'Укажите tenderId или id карточки' }, { status: 400 });
@@ -59,9 +61,17 @@ export async function POST(request: NextRequest) {
           { status: 403 }
         );
       }
+      const stageChanged = stage && stage !== existing.stage;
       card = await prisma.kanbanCard.update({
         where: { id },
-        data: { stage, priority, assignee, notes },
+        data: {
+          stage,
+          priority,
+          assignee,
+          notes,
+          stageSlaHours,
+          ...(stageChanged ? { stageEnteredAt: new Date() } : {})
+        },
         include: { tender: true }
       });
     } else {
@@ -72,6 +82,8 @@ export async function POST(request: NextRequest) {
           priority: priority || 'MEDIUM',
           assignee,
           notes,
+          stageSlaHours,
+          stageEnteredAt: new Date(),
           userId: auth.userId
         },
         include: { tender: true }

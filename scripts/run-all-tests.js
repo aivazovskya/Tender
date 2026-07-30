@@ -16,7 +16,8 @@ const tests = [
   'scripts/tests/bot-spec-command.test.js',
   'scripts/tests/document-extraction.test.js',
   'scripts/tests/ingestion-unification.test.js',
-  'scripts/tests/ingestion-bugs-v5.test.js'
+  'scripts/tests/ingestion-bugs-v5.test.js',
+  'scripts/tests/product-features.test.js'
 ];
 
 console.log('🚀 Running TenderAI Automated Test Suite (npm test)...\n');

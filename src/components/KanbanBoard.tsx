@@ -105,34 +105,61 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
               {/* Items List */}
               <div className="space-y-3 flex-1 overflow-y-auto">
-                {stageItems.map((item) => (
-                  <div 
-                    key={item.id}
-                    className="p-3.5 rounded-xl bg-paper border border-hairline hover:border-mid-gray/40 shadow-subtle transition-all space-y-2.5 relative group"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-[10px] text-mid-gray font-mono">
-                        {getShortSourceBadge(item.tender.source, dataSources)} #{item.tender.externalId}
-                      </span>
-                      <button
-                        onClick={() => onRemoveItem(item.id)}
-                        className="text-mid-gray hover:text-ember transition-colors p-1"
-                        title="Удалить из воронки"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                {stageItems.map((item) => {
+                  const slaLimitHours = item.stageSlaHours ?? DEFAULT_STAGE_SLA_HOURS[item.stage] ?? 0;
+                  const enteredAtMs = item.stageEnteredAt ? new Date(item.stageEnteredAt).getTime() : new Date(item.updatedAt).getTime();
+                  const hoursOnStage = Math.floor((Date.now() - enteredAtMs) / (1000 * 60 * 60));
+                  const isSlaOverdue = slaLimitHours > 0 && hoursOnStage > slaLimitHours;
+                  const overdueHours = hoursOnStage - slaLimitHours;
 
-                    <h4 
-                      onClick={() => onOpenTenderDetails(item.tender)}
-                      className="text-xs font-semibold text-ink hover:text-ember cursor-pointer transition-colors line-clamp-2 leading-snug"
+                  const deadlineMs = new Date(item.tender.deadlineDate).getTime();
+                  const hoursToDeadline = (deadlineMs - Date.now()) / (1000 * 60 * 60);
+                  const isUrgentDeadline = hoursToDeadline > 0 && hoursToDeadline < 24 && !['SUBMITTED', 'WON', 'LOST'].includes(item.stage);
+
+                  return (
+                    <div 
+                      key={item.id}
+                      className={`p-3.5 rounded-xl bg-paper border ${isSlaOverdue ? 'border-red-400 bg-red-50/20' : isUrgentDeadline ? 'border-amber-400 bg-amber-50/20' : 'border-hairline'} hover:border-mid-gray/40 shadow-subtle transition-all space-y-2.5 relative group`}
                     >
-                      {item.tender.title}
-                    </h4>
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-[10px] text-mid-gray font-mono">
+                          {getShortSourceBadge(item.tender.source, dataSources)} #{item.tender.externalId}
+                        </span>
+                        <button
+                          onClick={() => onRemoveItem(item.id)}
+                          className="text-mid-gray hover:text-ember transition-colors p-1"
+                          title="Удалить из воронки"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
 
-                    <div className="text-xs font-bold text-ink font-mono">
-                      {item.tender.amount.toLocaleString('ru-RU')} ₸
-                    </div>
+                      {/* SLA / Deadline Badges */}
+                      {(isSlaOverdue || isUrgentDeadline) && (
+                        <div className="flex flex-wrap gap-1">
+                          {isSlaOverdue && (
+                            <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-bold flex items-center space-x-1">
+                              <span>⏰ SLA просрочен на {overdueHours}ч</span>
+                            </span>
+                          )}
+                          {isUrgentDeadline && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[9px] font-bold flex items-center space-x-1 animate-pulse">
+                              <span>⚡ Дедлайн &lt; 24ч ({Math.ceil(hoursToDeadline)}ч)</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      <h4 
+                        onClick={() => onOpenTenderDetails(item.tender)}
+                        className="text-xs font-semibold text-ink hover:text-ember cursor-pointer transition-colors line-clamp-2 leading-snug"
+                      >
+                        {item.tender.title}
+                      </h4>
+
+                      <div className="text-xs font-bold text-ink font-mono">
+                        {item.tender.amount.toLocaleString('ru-RU')} ₸
+                      </div>
 
                     {/* Interactive Team Member Assignee Selector */}
                     <div className="pt-2 border-t border-hairline space-y-1.5">
@@ -171,7 +198,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                     </div>
 
                   </div>
-                ))}
+                );
+              })}
               </div>
 
             </div>

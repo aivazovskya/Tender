@@ -1,4 +1,5 @@
 import { Tender, CompanyProfileData } from '../types/tender';
+import { detectLanguage } from '../utils/lang';
 
 export class AIService {
   /**
@@ -131,8 +132,9 @@ export class AIService {
   /**
    * Document-grounded RAG Question Answering over lot documentation using LLM API with heuristic fallback (Bug #19)
    */
-  static async answerRAGQuestion(tender: Tender, question: string, documentText?: string): Promise<string> {
+  static async answerRAGQuestion(tender: Tender, question: string, documentText?: string, lang?: 'ru' | 'kk'): Promise<string> {
     let contextText = documentText || '';
+    const targetLang = lang || detectLanguage(question);
 
     // If documentText wasn't passed directly, try retrieving extractedText from DB or tender documents
     if (!contextText.trim()) {
@@ -165,7 +167,11 @@ export class AIService {
           ? `\n\nТекст приложенной технической спецификации / ТЗ (выдержка):\n"${contextText.trim().substring(0, 10000)}"`
           : '';
 
-        const prompt = `Ты — экспертный ИИ-ассистент по тендерам РК. Ответь на вопрос пользователя по лоту СТРОГО на основе приведенных данных и приложенного текста документации. Если ответа в документации нет — явно скажи, что информация не найдена в файлах лота.\n\nПараметры лота:\n- Заглавие: "${tender.title}"\n- Заказчик: "${tender.customerName}"\n- Сумма: ${tender.amount} KZT\n- Регион: ${tender.region}${docSnippet}\n\nВопрос пользователя: "${question}"\n\nДай четкий, грамотный ответ на русском языке без технической разметки.`;
+        const langInstruction = targetLang === 'kk'
+          ? 'Жауапты міндетті түрде қазақ тілінде бер.'
+          : 'Дай четкий, грамотный ответ на русском языке.';
+
+        const prompt = `Ты — экспертный ИИ-ассистент по тендерам РК. Ответь на вопрос пользователя по лоту СТРОГО на основе приведенных данных и приложенного текста документации. Если ответа в документации нет — явно скажи, что информация не найдена в файлах лота.\n\nПараметры лота:\n- Заглавие: "${tender.title}"\n- Заказчик: "${tender.customerName}"\n- Сумма: ${tender.amount} KZT\n- Регион: ${tender.region}${docSnippet}\n\nВопрос пользователя: "${question}"\n\n${langInstruction} Без технической разметки.`;
 
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
           method: 'POST',
@@ -191,7 +197,13 @@ export class AIService {
     const qLower = question.toLowerCase();
 
     // 1. Security / Guarantee questions
-    if (qLower.includes('обеспечени') || qLower.includes('гарантия') || qLower.includes('залог')) {
+    if (qLower.includes('обеспечени') || qLower.includes('гарантия') || qLower.includes('залог') || qLower.includes('кепілдік') || qLower.includes('қамтамасыз')) {
+      if (targetLang === 'kk') {
+        if (tender.applicationSecurityAmount) {
+          return `Лот №${tender.externalId} бойынша өтінімді қамтамасыз ету сомасы ${tender.applicationSecurityAmount.toLocaleString('ru-RU')} KZT (${tender.applicationSecurityPercent || 1}% келісімшарт сомасынан) құрайды. Толық тәртібі ҚР ЕГСЗ ережелерінде көрсетілген.`;
+        }
+        return `Лот №${tender.externalId} бойынша нақты қамтамасыз ету сомасы көрсетілмеген. Порталдағы құжаттаманы тексеріңіз.`;
+      }
       if (tender.applicationSecurityAmount) {
         return `По лоту №${tender.externalId} сумма обеспечения заявки составляет ${tender.applicationSecurityAmount.toLocaleString('ru-RU')} KZT (${tender.applicationSecurityPercent || 1}% от суммы договора ${tender.amount.toLocaleString('ru-RU')} KZT). Подробный порядок внесения указан в правилах ЕГСЗ РК.`;
       }
@@ -199,19 +211,28 @@ export class AIService {
     }
 
     // 2. Deadlines
-    if (qLower.includes('срок') || qLower.includes('дедлайн') || qLower.includes('когда')) {
-      const deadlineStr = new Date(tender.deadlineDate).toLocaleDateString('ru-RU', { 
+    if (qLower.includes('срок') || qLower.includes('дедлайн') || qLower.includes('когда') || qLower.includes('мерзім') || qLower.includes('қашан')) {
+      const deadlineStr = new Date(tender.deadlineDate).toLocaleDateString(targetLang === 'kk' ? 'kk-KZ' : 'ru-RU', { 
         day: 'numeric', 
         month: 'long', 
         year: 'numeric', 
         hour: '2-digit', 
         minute: '2-digit' 
       });
+      if (targetLang === 'kk') {
+        return `"${tender.title}" лоты бойынша өтінімдерді қабылдаудың соңғы мерзімі — ${deadlineStr}.`;
+      }
       return `Окончательный срок подачи заявок по лоту "${tender.title}" — ${deadlineStr}.`;
     }
 
     // 3. Requirements / Qualifications
-    if (qLower.includes('требовани') || qLower.includes('документ') || qLower.includes('лицензи') || qLower.includes('опыт')) {
+    if (qLower.includes('требовани') || qLower.includes('документ') || qLower.includes('лицензи') || qLower.includes('опыт') || qLower.includes('талап') || qLower.includes('құжат')) {
+      if (targetLang === 'kk') {
+        if (tender.aiKeyRequirements && tender.aiKeyRequirements.length > 0) {
+          return `Тапсырыс берушінің (${tender.customerName}) техникалық ерекшелігінен біліктілік талаптары:\n- ${tender.aiKeyRequirements.join('\n- ')}`;
+        }
+        return `№${tender.externalId} лотының ТЗ-сынан алынған талаптар: Тапсырыс беруші "${tender.customerName}" ҚР ЕГСЗ стандартты біліктілік талаптарын орнатқан. Тіркелген құжатты қараңыз: "${tender.documents?.[0]?.fileName || 'ТЗ.pdf'}".`;
+      }
       if (tender.aiKeyRequirements && tender.aiKeyRequirements.length > 0) {
         return `Критерии квалификации из технической спецификации заказчика (${tender.customerName}):\n- ${tender.aiKeyRequirements.join('\n- ')}`;
       }

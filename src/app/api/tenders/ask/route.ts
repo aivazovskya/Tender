@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { tenderId, externalId, question } = body;
+    const { tenderId, externalId, question, lang } = body;
 
     if (!question || typeof question !== 'string' || !question.trim()) {
       return NextResponse.json(
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const answer = await AIService.answerRAGQuestion(tender, question.trim(), documentText);
+    const answer = await AIService.answerRAGQuestion(tender, question.trim(), documentText, lang);
 
     return NextResponse.json({
       success: true,

@@ -287,15 +287,39 @@ export const INITIAL_DATA_SOURCES: DataSourceStatus[] = [
   },
   {
     id: 'src-4',
-    name: 'B2B_PRIVATE',
-    displayName: 'Частные b2b-площадки РК (Фаза 2)',
+    name: 'SCRAPER:astana-akimat',
+    displayName: 'Портал госзакупок Акимата г. Астана (astana.gov.kz)',
     adapterType: 'SCRAPER',
-    isActive: false,
-    checkIntervalMins: 120,
-    lastSyncAt: '2026-07-20T12:00:00Z',
-    healthStatus: 'DOWN',
-    successRate24h: 0.0,
-    totalIngested: 450
+    isActive: true,
+    checkIntervalMins: 30,
+    lastSyncAt: '2026-07-30T10:00:00Z',
+    healthStatus: 'HEALTHY',
+    successRate24h: 98.9,
+    totalIngested: 3120
+  },
+  {
+    id: 'src-5',
+    name: 'SCRAPER:almaty-akimat',
+    displayName: 'Закупочный портал Акимата г. Алматы (almaty.gov.kz)',
+    adapterType: 'SCRAPER',
+    isActive: true,
+    checkIntervalMins: 30,
+    lastSyncAt: '2026-07-30T10:15:00Z',
+    healthStatus: 'HEALTHY',
+    successRate24h: 99.1,
+    totalIngested: 2840
+  },
+  {
+    id: 'src-6',
+    name: 'SCRAPER:kazmunaygas',
+    displayName: 'Тендерный портал АО НК "КазМунайГаз" (kmg.kz)',
+    adapterType: 'SCRAPER',
+    isActive: true,
+    checkIntervalMins: 60,
+    lastSyncAt: '2026-07-30T09:45:00Z',
+    healthStatus: 'HEALTHY',
+    successRate24h: 97.5,
+    totalIngested: 1450
   }
 ];
 

@@ -41,6 +41,17 @@ export default function HomePage() {
   const [maxAmount, setMaxAmount] = useState<string>('');
   const [sortBy, setSortBy] = useState<'date' | 'amount_desc' | 'risk_asc' | 'match_desc'>('date');
 
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('demo') === 'true') {
+        setIsDemoMode(true);
+      }
+    }
+  }, []);
+
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
@@ -121,9 +132,15 @@ export default function HomePage() {
       stage: 'UNDER_REVIEW',
       priority: 'MEDIUM',
       tender,
+      stageEnteredAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
     setKanbanItems(prev => [...prev, newItem]);
+
+    if (isDemoMode) {
+      showToast(`[Демо] Лот №${tender.externalId} добавлен в воронку!`, 'success');
+      return;
+    }
 
     fetch('/api/kanban', {
       method: 'POST',
@@ -151,7 +168,12 @@ export default function HomePage() {
     const targetItem = kanbanItems.find(k => k.id === itemId);
     if (!targetItem) return;
 
-    setKanbanItems(prev => prev.map(item => item.id === itemId ? { ...item, stage: newStage } : item));
+    setKanbanItems(prev => prev.map(item => item.id === itemId ? { ...item, stage: newStage, stageEnteredAt: new Date().toISOString() } : item));
+
+    if (isDemoMode) {
+      showToast('[Демо] Этап воронки обновлен', 'success');
+      return;
+    }
 
     fetch('/api/kanban', {
       method: 'POST',
@@ -175,6 +197,11 @@ export default function HomePage() {
     const previousItems = kanbanItems;
 
     setKanbanItems(prev => prev.filter(item => item.id !== itemId));
+
+    if (isDemoMode) {
+      showToast('[Демо] Лот удален из воронки', 'success');
+      return;
+    }
 
     fetch(`/api/kanban?id=${encodeURIComponent(itemId)}`, { method: 'DELETE' })
       .then(async res => {
@@ -221,6 +248,12 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-canvas text-ink font-geist">
+      {isDemoMode && (
+        <div className="bg-amber-500 text-white text-xs font-bold py-2.5 px-4 text-center flex items-center justify-center space-x-2 shadow-sm z-50 sticky top-0">
+          <span>💡 Демонстрационный режим: Работа на публичных мок-данных РК без сохранения в БД.</span>
+          <button onClick={() => setIsDemoMode(false)} className="underline hover:opacity-90 ml-2 font-bold">Выйти из демо-режима</button>
+        </div>
+      )}
       <Navigation
         activeTab={activeTab}
         setActiveTab={setActiveTab}

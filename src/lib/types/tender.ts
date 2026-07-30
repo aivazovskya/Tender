@@ -99,5 +99,7 @@ export interface KanbanItem {
   assignee?: string;
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
   tender: Tender;
+  stageEnteredAt?: string;
+  stageSlaHours?: number;
   updatedAt: string;
 }
