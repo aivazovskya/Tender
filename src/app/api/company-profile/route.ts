@@ -19,12 +19,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const profile = await prisma.companyProfile.findFirst({
-      where: {
-        OR: [
-          { userId: auth.userId },
-          { userId: null }
-        ]
-      }
+      where: { userId: auth.userId }
     });
 
     if (profile) {

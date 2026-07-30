@@ -74,7 +74,11 @@ npm run dev
   ```
 
 ### 6. Запуск через Docker Compose
+> **ВАЖНО**: Для предотвращения случайного запуска в продакшене с дефолтными секретами, `docker-compose.yml` содержит строгую валидацию переменных окружения. Перед вызовом `docker compose up` **обязательно** создайте файл `.env` с заполненными переменными `POSTGRES_PASSWORD`, `DATABASE_URL` и `KASPI_WEBHOOK_SECRET`. Без этих переменных запуск контейнеров намеренно блокируется с ошибкой конфигурации.
+
 ```bash
+cp .env.example .env
+# Отредактируйте .env и установите свой пароль POSTGRES_PASSWORD и секрет KASPI_WEBHOOK_SECRET
 docker compose up --build -d
 ```
 Docker Compose поднимет сервисы: `web` (Next.js), `worker` (BullMQ Ingestion), `bot` (Telegram Bot), `db` (PostgreSQL), `redis` (Redis).

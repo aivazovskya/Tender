@@ -10,9 +10,11 @@ services:
     restart: always
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD:-postgres_secure_pass_2026}@db:5432/tender_db?schema=public}
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL environment variable is required}
       - REDIS_URL=redis://redis:6379
       - KASPI_WEBHOOK_SECRET=${KASPI_WEBHOOK_SECRET}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
@@ -32,9 +34,11 @@ services:
     container_name: tender_worker
     restart: always
     command: ["node", "scripts/ingestion-worker.js"]
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD:-postgres_secure_pass_2026}@db:5432/tender_db?schema=public}
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL environment variable is required}
       - REDIS_URL=redis://redis:6379
       - GOSZAKUP_API_TOKEN=${GOSZAKUP_API_TOKEN}
 
@@ -52,9 +56,11 @@ services:
     container_name: tender_bot
     restart: always
     command: ["node", "scripts/telegram-bot.js"]
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD:-postgres_secure_pass_2026}@db:5432/tender_db?schema=public}
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL environment variable is required}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
     depends_on:
       db:
@@ -65,9 +71,11 @@ services:
     image: postgres:16-alpine
     container_name: tender_postgres
     restart: always
+    env_file:
+      - .env
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_pass_2026}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD environment variable is required}
       POSTGRES_DB: tender_db
     ports:
       - "5432:5432"

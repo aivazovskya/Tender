@@ -7,12 +7,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const cards = await prisma.kanbanCard.findMany({
-      where: {
-        OR: [
-          { userId: auth.userId },
-          { userId: null }
-        ]
-      },
+      where: { userId: auth.userId },
       include: { tender: true },
       orderBy: { updatedAt: 'desc' }
     });
@@ -58,7 +53,7 @@ export async function POST(request: NextRequest) {
       if (!existing) {
         return NextResponse.json({ success: false, message: 'Карточка не найдена' }, { status: 404 });
       }
-      if (existing.userId && existing.userId !== auth.userId) {
+      if (!existing || existing.userId !== auth.userId) {
         return NextResponse.json(
           { success: false, message: 'Forbidden: Нет прав на редактирование чужой карточки' },
           { status: 403 }
@@ -107,15 +102,13 @@ export async function DELETE(request: NextRequest) {
 
     if (!id.startsWith('temp-') && !id.startsWith('kanban-')) {
       const existing = await prisma.kanbanCard.findUnique({ where: { id } });
-      if (existing) {
-        if (existing.userId && existing.userId !== auth.userId) {
-          return NextResponse.json(
-            { success: false, message: 'Forbidden: Нет прав на удаление чужой карточки' },
-            { status: 403 }
-          );
-        }
-        await prisma.kanbanCard.delete({ where: { id } });
+      if (!existing || existing.userId !== auth.userId) {
+        return NextResponse.json(
+          { success: false, message: 'Forbidden: Нет прав на удаление чужой карточки' },
+          { status: 403 }
+        );
       }
+      await prisma.kanbanCard.delete({ where: { id } });
     }
 
     return NextResponse.json({ success: true });
