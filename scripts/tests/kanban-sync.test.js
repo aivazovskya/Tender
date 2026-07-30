@@ -3,7 +3,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-console.log('🧪 [Test Suite] Testing Kanban Sync Integrity & State Rollback Protection (Bug #10)...');
+console.log('🧪 [Test Suite] Testing Kanban Sync Integrity, State Rollback & IDOR Ownership Protection (Bug #10, Task 0.4d)...');
 
 // 1. Static check: Verify page.tsx validates response status and handles error rollbacks
 const pageContent = fs.readFileSync(
@@ -41,4 +41,17 @@ assert.ok(
 
 console.log('  ✅ api/kanban/route.ts returns HTTP 500 status and success: false on failure');
 
-console.log('🎉 Kanban Sync & Rollback Test Suite completed successfully!');
+// 3. Static check: Verify kanban route checks ownership (existing.userId !== auth.userId) before update and delete (Task 0.4d IDOR)
+assert.ok(
+  kanbanRouteContent.includes('existing.userId !== auth.userId'),
+  'api/kanban/route.ts MUST verify existing.userId against auth.userId to prevent IDOR vulnerabilities (Task 0.4d)'
+);
+
+assert.ok(
+  kanbanRouteContent.includes('{ status: 403 }'),
+  'api/kanban/route.ts MUST return HTTP 403 Forbidden when attempting unauthorized update or delete on another user\'s card'
+);
+
+console.log('  ✅ api/kanban/route.ts IDOR ownership verification (HTTP 403 on unauthorized update/delete) verified (Task 0.4d)');
+
+console.log('🎉 Kanban Sync, Rollback & IDOR Test Suite completed successfully!');

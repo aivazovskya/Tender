@@ -12,7 +12,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://postgres:postgres_secure_pass_2026@db:5432/tender_db?schema=public
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD:-postgres_secure_pass_2026}@db:5432/tender_db?schema=public}
       - REDIS_URL=redis://redis:6379
       - KASPI_WEBHOOK_SECRET=${KASPI_WEBHOOK_SECRET}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
@@ -34,7 +34,7 @@ services:
     command: ["node", "scripts/ingestion-worker.js"]
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://postgres:postgres_secure_pass_2026@db:5432/tender_db?schema=public
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD:-postgres_secure_pass_2026}@db:5432/tender_db?schema=public}
       - REDIS_URL=redis://redis:6379
       - GOSZAKUP_API_TOKEN=${GOSZAKUP_API_TOKEN}
 
@@ -54,7 +54,7 @@ services:
     command: ["node", "scripts/telegram-bot.js"]
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://postgres:postgres_secure_pass_2026@db:5432/tender_db?schema=public
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD:-postgres_secure_pass_2026}@db:5432/tender_db?schema=public}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
     depends_on:
       db:
@@ -67,7 +67,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres_secure_pass_2026
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_pass_2026}
       POSTGRES_DB: tender_db
     ports:
       - "5432:5432"
