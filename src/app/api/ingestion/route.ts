@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { GoszakupApiAdapter } from '@/lib/ingestion/goszakup.adapter';
 import { SamrukApiAdapter } from '@/lib/ingestion/samruk.adapter';
 import { ConfigurableScraperAdapter } from '@/lib/ingestion/scraper.adapter';
@@ -8,7 +8,7 @@ import { AIService } from '@/lib/services/ai.service';
 import { validateApiAuth } from '@/lib/security/auth';
 import { diffTenderFields } from '@/lib/ingestion/diff';
 
-const prisma = new PrismaClient();
+
 
 export async function POST(request: NextRequest) {
   const auth = validateApiAuth(request, 'ADMIN');

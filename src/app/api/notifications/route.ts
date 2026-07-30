@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
-
-const prisma = new PrismaClient();
 
 const defaultSettings = {
   telegramNotify: true,

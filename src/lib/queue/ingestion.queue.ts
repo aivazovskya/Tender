@@ -1,6 +1,6 @@
 import { Queue, Worker, Job } from 'bullmq';
 import Redis from 'ioredis';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../prisma';
 import { GoszakupApiAdapter } from '../ingestion/goszakup.adapter';
 import { SamrukApiAdapter } from '../ingestion/samruk.adapter';
 import { ConfigurableScraperAdapter } from '../ingestion/scraper.adapter';
@@ -9,7 +9,7 @@ import { AIService } from '../services/ai.service';
 import { diffTenderFields } from '../ingestion/diff';
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-const prisma = new PrismaClient();
+
 
 export const connection = new Redis(redisUrl, {
   maxRetriesPerRequest: null,

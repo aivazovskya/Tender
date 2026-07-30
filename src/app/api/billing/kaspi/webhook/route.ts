@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
+import { TARIFF_PLANS } from '@/lib/services/kaspi.service';
 
 /**
  * Helper to safely verify Kaspi Pay HMAC-SHA256 signature
@@ -68,18 +67,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Idempotency Check (Check if transaction was already processed)
+    // 4. Check existing payment & price tampering (Bug #8 defense in depth)
+    const paidAmount = parseFloat(amount) || 0;
+    const targetPlan = TARIFF_PLANS.find(p => p.id === (tariffPlanId || 'PRO'));
+    const expectedMinAmount = targetPlan ? targetPlan.priceKztMonth : 0;
+
     const existingPayment = await prisma.payment.findUnique({
-      where: { kaspiTransactionId }
+      where: { orderId }
     });
 
-    if (existingPayment && existingPayment.status === 'PAID') {
-      console.log(`[Kaspi Webhook] Idempotent hit for already processed transaction: ${kaspiTransactionId}`);
-      return NextResponse.json({
-        success: true,
-        message: 'Transaction already processed (Idempotent OK)',
-        status: 'PAID'
-      });
+    if (existingPayment) {
+      if (existingPayment.status === 'PAID') {
+        console.log(`[Kaspi Webhook] Idempotent hit for already processed transaction: ${kaspiTransactionId}`);
+        return NextResponse.json({
+          success: true,
+          message: 'Transaction already processed (Idempotent OK)',
+          status: 'PAID'
+        });
+      }
+      // Security check: ensure paid amount is not less than the original order price
+      if (paidAmount < existingPayment.amount) {
+        console.error(`[SECURITY ALERT] Kaspi webhook paid amount (${paidAmount} KZT) is less than order price (${existingPayment.amount} KZT) for Order #${orderId}`);
+        return NextResponse.json(
+          { success: false, error: 'Payment amount mismatch: Paid amount is less than required order amount' },
+          { status: 400 }
+        );
+      }
+    } else if (expectedMinAmount > 0 && paidAmount < expectedMinAmount) {
+      console.error(`[SECURITY ALERT] Kaspi webhook paid amount (${paidAmount} KZT) is less than plan price (${expectedMinAmount} KZT) for Tariff ${tariffPlanId}`);
+      return NextResponse.json(
+        { success: false, error: 'Payment amount mismatch: Paid amount is less than tariff price' },
+        { status: 400 }
+      );
     }
 
     // 5. Atomic Update in Database
@@ -92,7 +111,7 @@ export async function POST(req: NextRequest) {
         update: {
           kaspiTransactionId,
           status: 'PAID',
-          amount: parseFloat(amount) || 0,
+          amount: paidAmount,
           tariffPlanId: tariffPlanId || 'PRO',
           rawWebhookPayload: rawBody,
           confirmedAt: new Date()
@@ -101,7 +120,7 @@ export async function POST(req: NextRequest) {
           orderId,
           kaspiTransactionId,
           status: 'PAID',
-          amount: parseFloat(amount) || 0,
+          amount: paidAmount,
           tariffPlanId: tariffPlanId || 'PRO',
           rawWebhookPayload: rawBody,
           confirmedAt: new Date()

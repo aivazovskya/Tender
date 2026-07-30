@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
-
-const prisma = new PrismaClient();
+import { TARIFF_PLANS } from '@/lib/services/kaspi.service';
 
 export async function POST(request: NextRequest) {
   const auth = validateApiAuth(request);
 
   try {
     const body = await request.json();
-    const { tariffId, amountKzt } = body;
+    const { tariffId } = body;
+
+    // Security check (Bug #8): Validate tariffId and calculate price server-side
+    const plan = TARIFF_PLANS.find(p => p.id === (tariffId || 'PRO'));
+    if (!plan) {
+      return NextResponse.json({ success: false, message: 'Неизвестный или недействительный тариф' }, { status: 400 });
+    }
+
+    const amountKzt = plan.priceKztMonth;
+    const effectiveTariffId = plan.id;
 
     const orderId = `ORD-KZ-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
@@ -29,7 +37,7 @@ export async function POST(request: NextRequest) {
             orderId,
             amount: amountKzt,
             currency: 'KZT',
-            comment: `Оплата подписки TenderAI (${tariffId})`
+            comment: `Оплата подписки TenderAI (${effectiveTariffId})`
           })
         });
 
@@ -62,7 +70,7 @@ export async function POST(request: NextRequest) {
       data: {
         orderId,
         amount: amountKzt,
-        tariffPlanId: tariffId || 'PRO',
+        tariffPlanId: effectiveTariffId,
         status: 'PENDING',
         userId: auth.userId !== 'demo-user-id' ? auth.userId : undefined
       }
@@ -74,7 +82,7 @@ export async function POST(request: NextRequest) {
         paymentId: orderId,
         qrPayload,
         amountKzt,
-        tariffPlanId: tariffId,
+        tariffPlanId: effectiveTariffId,
         status: 'PENDING',
         expiresAt: expiresAt.toISOString()
       }

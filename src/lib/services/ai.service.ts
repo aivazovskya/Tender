@@ -1,4 +1,5 @@
 import { Tender, CompanyProfileData } from '../types/tender';
+import { prisma } from '../prisma';
 
 export class AIService {
   /**
@@ -189,8 +190,6 @@ export class AIService {
 
           // Record token usage in Prisma DB if available
           try {
-            const { PrismaClient } = await import('@prisma/client');
-            const prisma = new PrismaClient();
             const tokensUsed = json?.usageMetadata?.totalTokenCount || 250;
             const costUsd = (tokensUsed / 1_000_000) * 0.075;
             await prisma.aiTokenUsage.create({

@@ -1,7 +1,5 @@
 import { createIngestionWorker, scheduleAllActiveSources, connection } from '../src/lib/queue/ingestion.queue';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../src/lib/prisma';
 
 async function main() {
   console.log('🚀 [Worker] Запуск фонового BullMQ воркера инжеста тендеров...');

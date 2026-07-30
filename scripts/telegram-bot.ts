@@ -1,9 +1,9 @@
-import { createTelegrafBot } from '../src/lib/telegram/bot.runner';
+import { TelegrafBotService } from '../src/lib/telegram/bot.service';
 
 async function main() {
   console.log('🤖 [Telegram Bot] Запуск сервиса Telegram-бота TenderAI...');
 
-  const bot = createTelegrafBot();
+  const bot = await TelegrafBotService.initBot();
 
   if (!bot) {
     console.warn('⚠️ [Telegram Bot] TELEGRAM_BOT_TOKEN не настроен или содержит плейсхолдер. Сервис находится в режиме ожидания.');

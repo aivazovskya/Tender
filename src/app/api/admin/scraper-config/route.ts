@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
 import { validateUrlForSSRF } from '@/lib/security/ssrf';
-
-const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest) {
   const auth = validateApiAuth(request, 'ADMIN');
