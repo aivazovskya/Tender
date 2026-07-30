@@ -4,11 +4,8 @@ import { GoszakupApiAdapter } from '@/lib/ingestion/goszakup.adapter';
 import { SamrukApiAdapter } from '@/lib/ingestion/samruk.adapter';
 import { ConfigurableScraperAdapter } from '@/lib/ingestion/scraper.adapter';
 import { ScraperSourceConfigData } from '@/lib/types/scraper';
-import { AIService } from '@/lib/services/ai.service';
 import { validateApiAuth } from '@/lib/security/auth';
-import { diffTenderFields } from '@/lib/ingestion/diff';
-
-
+import { IngestionProcessorService } from '@/lib/services/ingestion-processor.service';
 
 export async function POST(request: NextRequest) {
   const auth = validateApiAuth(request, 'ADMIN');
@@ -55,99 +52,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: `Источник '${source}' не найден или конфигурация не задана` }, { status: 400 });
     }
 
-    // Persist normalized tenders into PostgreSQL database via Prisma upsert & TenderAuditTrail
+    // Persist normalized tenders into PostgreSQL database via unified IngestionProcessorService
     if (result && result.status !== 'ERROR' && Array.isArray(result.tenders) && result.tenders.length > 0) {
-      for (const t of result.tenders) {
-        let aiSummary = t.aiSummary;
-        let aiKeyRequirements = t.aiKeyRequirements || [];
-        let riskScore = t.riskScore || 0;
-
-        try {
-          const aiAnalysis = await AIService.generateLLMSummary(t);
-          if (aiAnalysis) {
-            aiSummary = aiAnalysis.summary;
-            aiKeyRequirements = aiAnalysis.requirements;
-            riskScore = aiAnalysis.riskScore;
-          }
-        } catch (aiErr) {
-          console.warn(`[Ingestion API] Не удалось сгенерировать AI-суммаризацию для лота #${t.externalId}:`, aiErr);
-        }
-
-        const existing = await prisma.tender.findUnique({
-          where: {
-            source_externalId: {
-              source: t.source,
-              externalId: t.externalId
-            }
-          }
-        });
-
-        let auditLogsToCreate: Array<{ field: string; oldValue: string | null; newValue: string | null }> = [];
-        if (existing) {
-          auditLogsToCreate = diffTenderFields(existing, t);
-        }
-
-        const savedTender = await prisma.tender.upsert({
-          where: {
-            source_externalId: {
-              source: t.source,
-              externalId: t.externalId
-            }
-          },
-          update: {
-            title: t.title,
-            description: t.description || '',
-            customerName: t.customerName,
-            customerBin: t.customerBin,
-            category: t.category,
-            industryTags: t.industryTags || [],
-            amount: t.amount,
-            currency: t.currency || 'KZT',
-            region: t.region,
-            publishDate: new Date(t.publishDate),
-            deadlineDate: new Date(t.deadlineDate),
-            applicationSecurityAmount: t.applicationSecurityAmount,
-            applicationSecurityPercent: t.applicationSecurityPercent,
-            sourceUrl: t.sourceUrl,
-            aiSummary,
-            aiKeyRequirements,
-            riskScore
-          },
-          create: {
-            source: t.source,
-            externalId: t.externalId,
-            title: t.title,
-            description: t.description || '',
-            customerName: t.customerName,
-            customerBin: t.customerBin,
-            category: t.category,
-            industryTags: t.industryTags || [],
-            amount: t.amount,
-            currency: t.currency || 'KZT',
-            region: t.region,
-            publishDate: new Date(t.publishDate),
-            deadlineDate: new Date(t.deadlineDate),
-            applicationSecurityAmount: t.applicationSecurityAmount,
-            applicationSecurityPercent: t.applicationSecurityPercent,
-            sourceUrl: t.sourceUrl,
-            aiSummary,
-            aiKeyRequirements,
-            riskScore
-          }
-        });
-
-        if (existing && auditLogsToCreate.length > 0) {
-          await prisma.tenderAuditTrail.createMany({
-            data: auditLogsToCreate.map(change => ({
-              tenderId: savedTender.id,
-              field: change.field,
-              oldValue: change.oldValue,
-              newValue: change.newValue,
-              changedBy: 'System Parser'
-            }))
-          });
-        }
-      }
+      await IngestionProcessorService.processIngestedTenders(result.tenders);
     }
 
     // Log connector execution metrics in database

@@ -8,7 +8,7 @@ import { ScraperSourceConfigData } from '../types/scraper';
 import { AIService } from '../services/ai.service';
 import { diffTenderFields } from '../ingestion/diff';
 
-import { DocumentExtractionService } from '../services/document-extraction.service';
+import { IngestionProcessorService } from '../services/ingestion-processor.service';
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
@@ -61,154 +61,9 @@ export const createIngestionWorker = () => {
         }
       }
 
-      // Persist tenders into DB with document text extraction, AI summary generation & TenderAuditTrail
+      // Persist tenders into DB using unified IngestionProcessorService
       if (result && result.status !== 'ERROR' && Array.isArray(result.tenders) && result.tenders.length > 0) {
-        for (const t of result.tenders) {
-          let extractedDocTexts: string[] = [];
-
-          // Process attached specification documents
-          if (Array.isArray(t.documents) && t.documents.length > 0) {
-            for (const doc of t.documents) {
-              if (doc.fileUrl) {
-                try {
-                  const extracted = await DocumentExtractionService.extractTextFromDocumentUrl(doc.fileUrl);
-                  if (extracted) {
-                    doc.extractedText = extracted;
-                    extractedDocTexts.push(extracted);
-                  }
-                } catch (docErr) {
-                  console.warn(`[BullMQ Worker] Ошибка извлечения текста из файла '${doc.fileUrl}':`, docErr);
-                }
-              }
-            }
-          }
-
-          const fullDocText = extractedDocTexts.join('\n\n');
-
-          let aiSummary = t.aiSummary;
-          let aiKeyRequirements = t.aiKeyRequirements || [];
-          let riskScore = t.riskScore || 0;
-
-          try {
-            const aiAnalysis = await AIService.generateLLMSummary(t, fullDocText);
-            if (aiAnalysis) {
-              aiSummary = aiAnalysis.summary;
-              aiKeyRequirements = aiAnalysis.requirements;
-              riskScore = aiAnalysis.riskScore;
-            }
-          } catch (aiErr) {
-            console.warn(`[BullMQ Worker] Ошибка AI-суммаризации для лота #${t.externalId}:`, aiErr);
-          }
-
-          const existing = await prisma.tender.findUnique({
-            where: {
-              source_externalId: {
-                source: t.source,
-                externalId: t.externalId
-              }
-            }
-          });
-
-          let auditLogsToCreate: Array<{ field: string; oldValue: string | null; newValue: string | null }> = [];
-          if (existing) {
-            auditLogsToCreate = diffTenderFields(existing, t);
-          }
-
-          const savedTender = await prisma.tender.upsert({
-            where: {
-              source_externalId: {
-                source: t.source,
-                externalId: t.externalId
-              }
-            },
-            update: {
-              title: t.title,
-              description: t.description || '',
-              customerName: t.customerName,
-              customerBin: t.customerBin,
-              category: t.category,
-              industryTags: t.industryTags || [],
-              amount: t.amount,
-              currency: t.currency || 'KZT',
-              region: t.region,
-              publishDate: new Date(t.publishDate),
-              deadlineDate: new Date(t.deadlineDate),
-              applicationSecurityAmount: t.applicationSecurityAmount,
-              applicationSecurityPercent: t.applicationSecurityPercent,
-              sourceUrl: t.sourceUrl,
-              aiSummary,
-              aiKeyRequirements,
-              riskScore
-            },
-            create: {
-              source: t.source,
-              externalId: t.externalId,
-              title: t.title,
-              description: t.description || '',
-              customerName: t.customerName,
-              customerBin: t.customerBin,
-              category: t.category,
-              industryTags: t.industryTags || [],
-              amount: t.amount,
-              currency: t.currency || 'KZT',
-              region: t.region,
-              publishDate: new Date(t.publishDate),
-              deadlineDate: new Date(t.deadlineDate),
-              applicationSecurityAmount: t.applicationSecurityAmount,
-              applicationSecurityPercent: t.applicationSecurityPercent,
-              sourceUrl: t.sourceUrl,
-              aiSummary,
-              aiKeyRequirements,
-              riskScore
-            }
-          });
-
-          // Save / update TenderDocument records in DB
-          if (Array.isArray(t.documents) && t.documents.length > 0) {
-            for (const doc of t.documents) {
-              if (doc.fileUrl) {
-                const existingDoc = await prisma.tenderDocument.findFirst({
-                  where: { tenderId: savedTender.id, fileUrl: doc.fileUrl }
-                });
-
-                if (existingDoc) {
-                  await prisma.tenderDocument.update({
-                    where: { id: existingDoc.id },
-                    data: {
-                      fileName: doc.fileName || 'ТЗ.pdf',
-                      fileSize: doc.fileSize,
-                      docType: doc.docType || 'TECHNICAL_SPEC',
-                      extractedText: doc.extractedText || existingDoc.extractedText
-                    }
-                  });
-                } else {
-                  await prisma.tenderDocument.create({
-                    data: {
-                      tenderId: savedTender.id,
-                      fileName: doc.fileName || 'ТЗ.pdf',
-                      fileUrl: doc.fileUrl,
-                      fileSize: doc.fileSize,
-                      docType: doc.docType || 'TECHNICAL_SPEC',
-                      extractedText: doc.extractedText || null
-                    }
-                  });
-                }
-              }
-            }
-          }
-
-          if (existing && auditLogsToCreate.length > 0) {
-            await prisma.tenderAuditTrail.createMany({
-              data: auditLogsToCreate.map(change => ({
-                tenderId: savedTender.id,
-                field: change.field,
-                oldValue: change.oldValue,
-                newValue: change.newValue,
-                changedBy: 'System Parser'
-              }))
-            });
-          }
-        }
+        await IngestionProcessorService.processIngestedTenders(result.tenders);
       }
 
       return result;

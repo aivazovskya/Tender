@@ -23,6 +23,11 @@ export class GoszakupApiAdapter extends BaseTenderAdapter {
               regionRu
               publishDate
               endDate
+              Files {
+                nameRu
+                filePath
+                fileSize
+              }
             }
           }
         `;
@@ -52,7 +57,12 @@ export class GoszakupApiAdapter extends BaseTenderAdapter {
               end_date: b.endDate || new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
               security_sum: Math.round((Number(b.totalSum) || 0) * 0.03),
               trade_buy_name_ru: 'Открытый конкурс',
-              ref_buy_status_id: 'PUBLISHED'
+              ref_buy_status_id: 'PUBLISHED',
+              files: Array.isArray(b.Files || b.files) ? (b.Files || b.files).map((f: any) => ({
+                name: f.nameRu || f.name || 'ТЗ_Спецификация.pdf',
+                path: f.filePath || f.path || f.url || '',
+                size: f.fileSize ? `${Math.round(Number(f.fileSize) / 1024)} KB` : '1.2 MB'
+              })) : []
             }));
           }
         }
@@ -77,40 +87,61 @@ export class GoszakupApiAdapter extends BaseTenderAdapter {
         security_sum: 372000.0,
         trade_buy_name_ru: 'Открытый конкурс',
         ref_buy_status_id: 'PUBLISHED',
+        files: [
+          { name: 'ТЗ_Лицензии_ПО.pdf', path: '/docs/tz_software.pdf', size: '1.1 MB' }
+        ]
       }
     ];
   }
 
   normalize(rawData: any[]): Tender[] {
-    return rawData.map((raw) => ({
-      id: `gos-${raw.id}`,
-      source: 'GOSZAKUP',
-      externalId: raw.number_anno,
-      title: raw.name_ru,
-      description: 'Автоматически импортировано из веб-сервисов ЕГСЗ goszakup.gov.kz.',
-      customerName: raw.customer_name_ru,
-      customerBin: raw.customer_bin,
-      category: 'ИТ и ПО',
-      industryTags: ['ПО', 'Лицензии', 'Образование'],
-      procurementMethod: 'OPEN_TENDER',
-      amount: raw.total_sum,
-      currency: 'KZT',
-      region: raw.region_ru,
-      publishDate: raw.publish_date,
-      deadlineDate: raw.end_date,
-      applicationSecurityAmount: raw.security_sum,
-      applicationSecurityPercent: 3,
-      status: 'ACTIVE',
-      sourceUrl: `https://goszakup.gov.kz/ru/announce/index/${raw.id}`,
-      aiSummary: 'Лот на закупку лицензий ПО для учебных заведений Астаны. Включает техническую поддержку 12 месяцев.',
-      aiKeyRequirements: ['Наличие статуса официального партнера разработчика ПО', 'Сертификат соответствия'],
-      riskScore: 10,
-      riskFlags: [],
-      documents: [
-        { id: `doc-${raw.id}-1`, fileName: 'ТЗ_Лицензии_ПО.pdf', fileUrl: '/docs/tz_software.pdf', fileSize: '1.1 MB', fileType: 'pdf' }
-      ],
-      history: []
-    }));
+    return rawData.map((raw) => {
+      const docs = Array.isArray(raw.files) && raw.files.length > 0
+        ? raw.files.map((f: any, idx: number) => {
+            const rawPath = f.path || f.filePath || '';
+            const fileUrl = rawPath.startsWith('http://') || rawPath.startsWith('https://') || rawPath.startsWith('/')
+              ? rawPath
+              : `https://v3.goszakup.gov.kz/uploads/${rawPath}`;
+            return {
+              id: `doc-${raw.id}-${idx + 1}`,
+              fileName: f.name || 'Техническая_спецификация.pdf',
+              fileUrl,
+              fileSize: f.size || '1.0 MB',
+              docType: 'TECHNICAL_SPEC'
+            };
+          })
+        : [
+            { id: `doc-${raw.id}-1`, fileName: 'ТЗ_Лицензии_ПО.pdf', fileUrl: '/docs/tz_software.pdf', fileSize: '1.1 MB', fileType: 'pdf' }
+          ];
+
+      return {
+        id: `gos-${raw.id}`,
+        source: 'GOSZAKUP',
+        externalId: raw.number_anno,
+        title: raw.name_ru,
+        description: 'Автоматически импортировано из веб-сервисов ЕГСЗ goszakup.gov.kz.',
+        customerName: raw.customer_name_ru,
+        customerBin: raw.customer_bin,
+        category: 'ИТ и ПО',
+        industryTags: ['ПО', 'Лицензии', 'Образование'],
+        procurementMethod: 'OPEN_TENDER',
+        amount: raw.total_sum,
+        currency: 'KZT',
+        region: raw.region_ru,
+        publishDate: raw.publish_date,
+        deadlineDate: raw.end_date,
+        applicationSecurityAmount: raw.security_sum,
+        applicationSecurityPercent: 3,
+        status: 'ACTIVE',
+        sourceUrl: `https://goszakup.gov.kz/ru/announce/index/${raw.id}`,
+        aiSummary: 'Лот на закупку лицензий ПО для учебных заведений Астаны. Включает техническую поддержку 12 месяцев.',
+        aiKeyRequirements: ['Наличие статуса официального партнера разработчика ПО', 'Сертификат соответствия'],
+        riskScore: 10,
+        riskFlags: [],
+        documents: docs,
+        history: []
+      };
+    });
   }
 
   override async run(): Promise<IngestionResult> {

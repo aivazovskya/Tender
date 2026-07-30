@@ -14,7 +14,8 @@ const tests = [
   'scripts/tests/kanban-sync.test.js',
   'scripts/tests/rbac-security.test.js',
   'scripts/tests/bot-spec-command.test.js',
-  'scripts/tests/document-extraction.test.js'
+  'scripts/tests/document-extraction.test.js',
+  'scripts/tests/ingestion-unification.test.js'
 ];
 
 console.log('🚀 Running TenderAI Automated Test Suite (npm test)...\n');
