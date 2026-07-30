@@ -61,119 +61,124 @@ export class IngestionProcessorService {
           console.warn(`[IngestionProcessorService] Ошибка AI-суммаризации для лота #${t.externalId}:`, aiErr);
         }
 
-        // 3. Compute audit trail field deltas
-        const existing = await prisma.tender.findUnique({
-          where: {
-            source_externalId: {
-              source: t.source,
-              externalId: t.externalId
+        // 3. Persist into PostgreSQL Database (if DB connection is available)
+        try {
+          const existing = await prisma.tender.findUnique({
+            where: {
+              source_externalId: {
+                source: t.source,
+                externalId: t.externalId
+              }
             }
+          });
+
+          let auditLogsToCreate: Array<{ field: string; oldValue: string | null; newValue: string | null }> = [];
+          if (existing) {
+            auditLogsToCreate = diffTenderFields(existing, t);
           }
-        });
 
-        let auditLogsToCreate: Array<{ field: string; oldValue: string | null; newValue: string | null }> = [];
-        if (existing) {
-          auditLogsToCreate = diffTenderFields(existing, t);
-        }
-
-        // 4. Upsert Tender in Prisma DB
-        const savedTender = await prisma.tender.upsert({
-          where: {
-            source_externalId: {
+          // 4. Upsert Tender in Prisma DB
+          const savedTender = await prisma.tender.upsert({
+            where: {
+              source_externalId: {
+                source: t.source,
+                externalId: t.externalId
+              }
+            },
+            update: {
+              title: t.title,
+              description: t.description || '',
+              customerName: t.customerName,
+              customerBin: t.customerBin,
+              category: t.category,
+              industryTags: t.industryTags || [],
+              amount: t.amount,
+              currency: t.currency || 'KZT',
+              region: t.region,
+              publishDate: new Date(t.publishDate),
+              deadlineDate: new Date(t.deadlineDate),
+              applicationSecurityAmount: t.applicationSecurityAmount,
+              applicationSecurityPercent: t.applicationSecurityPercent,
+              sourceUrl: t.sourceUrl,
+              aiSummary,
+              aiKeyRequirements,
+              riskScore
+            },
+            create: {
               source: t.source,
-              externalId: t.externalId
+              externalId: t.externalId,
+              title: t.title,
+              description: t.description || '',
+              customerName: t.customerName,
+              customerBin: t.customerBin,
+              category: t.category,
+              industryTags: t.industryTags || [],
+              amount: t.amount,
+              currency: t.currency || 'KZT',
+              region: t.region,
+              publishDate: new Date(t.publishDate),
+              deadlineDate: new Date(t.deadlineDate),
+              applicationSecurityAmount: t.applicationSecurityAmount,
+              applicationSecurityPercent: t.applicationSecurityPercent,
+              sourceUrl: t.sourceUrl,
+              aiSummary,
+              aiKeyRequirements,
+              riskScore
             }
-          },
-          update: {
-            title: t.title,
-            description: t.description || '',
-            customerName: t.customerName,
-            customerBin: t.customerBin,
-            category: t.category,
-            industryTags: t.industryTags || [],
-            amount: t.amount,
-            currency: t.currency || 'KZT',
-            region: t.region,
-            publishDate: new Date(t.publishDate),
-            deadlineDate: new Date(t.deadlineDate),
-            applicationSecurityAmount: t.applicationSecurityAmount,
-            applicationSecurityPercent: t.applicationSecurityPercent,
-            sourceUrl: t.sourceUrl,
-            aiSummary,
-            aiKeyRequirements,
-            riskScore
-          },
-          create: {
-            source: t.source,
-            externalId: t.externalId,
-            title: t.title,
-            description: t.description || '',
-            customerName: t.customerName,
-            customerBin: t.customerBin,
-            category: t.category,
-            industryTags: t.industryTags || [],
-            amount: t.amount,
-            currency: t.currency || 'KZT',
-            region: t.region,
-            publishDate: new Date(t.publishDate),
-            deadlineDate: new Date(t.deadlineDate),
-            applicationSecurityAmount: t.applicationSecurityAmount,
-            applicationSecurityPercent: t.applicationSecurityPercent,
-            sourceUrl: t.sourceUrl,
-            aiSummary,
-            aiKeyRequirements,
-            riskScore
-          }
-        });
+          });
 
-        // 5. Upsert TenderDocument records with extractedText in Prisma DB
-        if (Array.isArray(t.documents) && t.documents.length > 0) {
-          for (const doc of t.documents) {
-            if (doc.fileUrl) {
-              const existingDoc = await prisma.tenderDocument.findFirst({
-                where: { tenderId: savedTender.id, fileUrl: doc.fileUrl }
-              });
+          // 5. Upsert TenderDocument records with extractedText in Prisma DB
+          if (Array.isArray(t.documents) && t.documents.length > 0) {
+            for (const doc of t.documents) {
+              if (doc.fileUrl) {
+                const existingDoc = await prisma.tenderDocument.findFirst({
+                  where: { tenderId: savedTender.id, fileUrl: doc.fileUrl }
+                });
 
-              if (existingDoc) {
-                await prisma.tenderDocument.update({
-                  where: { id: existingDoc.id },
-                  data: {
-                    fileName: doc.fileName || 'ТЗ.pdf',
-                    fileSize: doc.fileSize,
-                    docType: doc.docType || 'TECHNICAL_SPEC',
-                    extractedText: doc.extractedText || existingDoc.extractedText
-                  }
-                });
-              } else {
-                await prisma.tenderDocument.create({
-                  data: {
-                    tenderId: savedTender.id,
-                    fileName: doc.fileName || 'ТЗ.pdf',
-                    fileUrl: doc.fileUrl,
-                    fileSize: doc.fileSize,
-                    docType: doc.docType || 'TECHNICAL_SPEC',
-                    extractedText: doc.extractedText || null
-                  }
-                });
+                if (existingDoc) {
+                  await prisma.tenderDocument.update({
+                    where: { id: existingDoc.id },
+                    data: {
+                      fileName: doc.fileName || 'ТЗ.pdf',
+                      fileSize: doc.fileSize,
+                      docType: doc.docType || 'TECHNICAL_SPEC',
+                      extractedText: doc.extractedText || existingDoc.extractedText
+                    }
+                  });
+                } else {
+                  await prisma.tenderDocument.create({
+                    data: {
+                      tenderId: savedTender.id,
+                      fileName: doc.fileName || 'ТЗ.pdf',
+                      fileUrl: doc.fileUrl,
+                      fileSize: doc.fileSize,
+                      docType: doc.docType || 'TECHNICAL_SPEC',
+                      extractedText: doc.extractedText || null
+                    }
+                  });
+                }
               }
             }
           }
-        }
 
-        // 6. Save audit trail logs if fields changed
-        if (existing && auditLogsToCreate.length > 0) {
-          await prisma.tenderAuditTrail.createMany({
-            data: auditLogsToCreate.map(change => ({
-              tenderId: savedTender.id,
-              field: change.field,
-              oldValue: change.oldValue,
-              newValue: change.newValue,
-              changedBy: 'System Parser'
-            }))
-          });
-        }
+          // 6. Save audit trail logs if fields changed
+          if (existing && auditLogsToCreate.length > 0) {
+            await prisma.tenderAuditTrail.createMany({
+              data: auditLogsToCreate.map(change => ({
+                tenderId: savedTender.id,
+                field: change.field,
+                oldValue: change.oldValue,
+                newValue: change.newValue,
+                changedBy: 'System Parser'
+              }))
+            });
+          }
 
-        savedTenders.push(savedTender);
+          savedTenders.push(savedTender);
+        } catch (dbErr: any) {
+          console.warn(`[IngestionProcessorService] БД недоступна для персистентности лота #${t.externalId}: ${dbErr?.message || dbErr}`);
+          savedTenders.push({ ...t, aiSummary, aiKeyRequirements, riskScore });
+        }
       } catch (err) {
         console.error(`[IngestionProcessorService] Ошибка обработки лота #${t.externalId}:`, err);
       }
