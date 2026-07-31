@@ -29,6 +29,14 @@ const STAGES: Array<{ id: KanbanStage; title: string; color: string; icon: any }
   { id: 'LOST', title: 'Проиграли', color: 'bg-red-50 text-red-700 border-red-200', icon: XCircle },
 ];
 
+const DEFAULT_STAGE_SLA_HOURS: Record<KanbanStage, number> = {
+  UNDER_REVIEW: 24,
+  PREPARING_BID: 72,
+  SUBMITTED: 0,
+  WON: 0,
+  LOST: 0
+};
+
 const TEAM_MEMBERS = [
   'Не назначен',
   'Серик А. (Главный тендерщик)',

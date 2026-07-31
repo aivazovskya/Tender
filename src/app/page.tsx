@@ -46,7 +46,8 @@ export default function HomePage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('demo') === 'true') {
+      const isDemoPath = window.location.pathname.startsWith('/demo');
+      if (isDemoPath || urlParams.get('demo') === 'true') {
         setIsDemoMode(true);
       }
     }
@@ -74,6 +75,10 @@ export default function HomePage() {
 
   const setCompanyProfile = (newProfile: CompanyProfileData) => {
     setCompanyProfileState(newProfile);
+    if (isDemoMode) {
+      showToast('[Демо-режим] Изменения профиля применены без сохранения в БД', 'success');
+      return;
+    }
     fetch('/api/company-profile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -83,6 +88,18 @@ export default function HomePage() {
 
   // Fetch initial profile & kanban items from REST API
   useEffect(() => {
+    if (isDemoMode) {
+      fetch('/api/demo/kanban')
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && Array.isArray(data.cards)) {
+            setKanbanItems(data.cards);
+          }
+        })
+        .catch(() => {});
+      return;
+    }
+
     fetch('/api/company-profile')
       .then(res => res.json())
       .then(data => {
@@ -100,9 +117,9 @@ export default function HomePage() {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [isDemoMode]);
 
-  // Fetch tenders via REST API (/api/tenders)
+  // Fetch tenders via REST API (/api/tenders or /api/demo/tenders)
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams();
@@ -111,7 +128,9 @@ export default function HomePage() {
     if (selectedCategory !== 'Все категории') params.set('category', selectedCategory);
     if (selectedSource !== 'ALL') params.set('source', selectedSource);
 
-    fetch(`/api/tenders?${params.toString()}`)
+    const apiEndpoint = isDemoMode ? `/api/demo/tenders?${params.toString()}` : `/api/tenders?${params.toString()}`;
+
+    fetch(apiEndpoint)
       .then(res => res.json())
       .then(data => {
         if (data.success && data.tenders) {
@@ -120,7 +139,7 @@ export default function HomePage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [searchQuery, selectedRegion, selectedCategory, selectedSource]);
+  }, [searchQuery, selectedRegion, selectedCategory, selectedSource, isDemoMode]);
 
   // Kanban Handlers with API Sync & State Rollback Protection (Bug #10)
   const handleAddToKanban = (tender: Tender) => {
@@ -249,9 +268,18 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col bg-canvas text-ink font-geist">
       {isDemoMode && (
-        <div className="bg-amber-500 text-white text-xs font-bold py-2.5 px-4 text-center flex items-center justify-center space-x-2 shadow-sm z-50 sticky top-0">
-          <span>💡 Демонстрационный режим: Работа на публичных мок-данных РК без сохранения в БД.</span>
-          <button onClick={() => setIsDemoMode(false)} className="underline hover:opacity-90 ml-2 font-bold">Выйти из демо-режима</button>
+        <div className="bg-amber-500 text-white text-xs font-bold py-2.5 px-4 text-center flex items-center justify-center space-x-3 shadow-sm z-50 sticky top-0">
+          <span>💡 Это демонстрационная версия TenderAI. Данные не сохраняются в БД.</span>
+          <button 
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.location.href = '/';
+              }
+            }} 
+            className="px-2.5 py-1 bg-white text-amber-900 rounded-md font-extrabold hover:bg-amber-50 transition-colors shadow-subtle text-[11px]"
+          >
+            Зарегистрироваться / Войти
+          </button>
         </div>
       )}
       <Navigation

@@ -81,7 +81,83 @@ async function main() {
     }
   });
 
-  console.log('✅ Источники данных и Scraper-конфигурации успешно добавлены');
+  // Onboard Astana Akimat Procurement Scraper Source
+  const astanaSource = await prisma.dataSource.upsert({
+    where: { name: 'ASTANA_AKIMAT' },
+    update: { adapterType: 'SCRAPER' },
+    create: {
+      name: 'ASTANA_AKIMAT',
+      displayName: 'Акимат г. Астана (astana.gov.kz)',
+      adapterType: 'SCRAPER',
+      isActive: true,
+      checkIntervalMins: 30,
+      healthStatus: 'HEALTHY',
+      successRate24h: 100.0,
+      totalIngested: 850
+    }
+  });
+
+  await prisma.scraperSourceConfig.upsert({
+    where: { dataSourceId: astanaSource.id },
+    update: {},
+    create: {
+      dataSourceId: astanaSource.id,
+      renderMode: 'STATIC',
+      listUrlTemplate: 'https://astana.gov.kz/ru/tenders?page={page}',
+      pagination: { startPage: 1, maxPages: 3, stopOnEmpty: true },
+      listItemSelector: '.tender-card',
+      fields: {
+        externalId: { selector: '.card-id', attr: 'text', transform: 'trim' },
+        title: { selector: '.card-title', attr: 'text', transform: 'trim' },
+        detailUrl: { selector: 'a.card-link', attr: 'href', transform: 'absoluteUrl' },
+        amount: { selector: '.card-price', attr: 'text', transform: 'parseAmountKzt' },
+        region: { selector: '.card-region', attr: 'text', transform: 'trim' },
+        deadlineDate: { selector: '.card-deadline', attr: 'text', transform: 'parseDateRu' }
+      },
+      respectRobotsTxt: true,
+      active: true
+    }
+  });
+
+  // Onboard KEGOC Sector Platform Scraper Source
+  const kegocSource = await prisma.dataSource.upsert({
+    where: { name: 'KEGOC_PROCUREMENT' },
+    update: { adapterType: 'SCRAPER' },
+    create: {
+      name: 'KEGOC_PROCUREMENT',
+      displayName: 'Портал закупок АО KEGOC (kegoc.kz)',
+      adapterType: 'SCRAPER',
+      isActive: true,
+      checkIntervalMins: 45,
+      healthStatus: 'HEALTHY',
+      successRate24h: 100.0,
+      totalIngested: 430
+    }
+  });
+
+  await prisma.scraperSourceConfig.upsert({
+    where: { dataSourceId: kegocSource.id },
+    update: {},
+    create: {
+      dataSourceId: kegocSource.id,
+      renderMode: 'STATIC',
+      listUrlTemplate: 'https://kegoc.kz/ru/zakupki?page={page}',
+      pagination: { startPage: 1, maxPages: 3, stopOnEmpty: true },
+      listItemSelector: '.procurement-row',
+      fields: {
+        externalId: { selector: '.proc-id', attr: 'text', transform: 'trim' },
+        title: { selector: '.proc-title', attr: 'text', transform: 'trim' },
+        detailUrl: { selector: 'a.proc-link', attr: 'href', transform: 'absoluteUrl' },
+        amount: { selector: '.proc-sum', attr: 'text', transform: 'parseAmountKzt' },
+        region: { selector: '.proc-region', attr: 'text', transform: 'trim' },
+        deadlineDate: { selector: '.proc-date', attr: 'text', transform: 'parseDateRu' }
+      },
+      respectRobotsTxt: true,
+      active: true
+    }
+  });
+
+  console.log('✅ Источники данных Акимата Астаны и АО KEGOC успешно добавлены в БД');
 
   // 2. Seed Initial Tenders
   const tender1 = await prisma.tender.upsert({

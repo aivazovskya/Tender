@@ -320,6 +320,30 @@ export const INITIAL_DATA_SOURCES: DataSourceStatus[] = [
     healthStatus: 'HEALTHY',
     successRate24h: 97.5,
     totalIngested: 1450
+  },
+  {
+    id: 'src-7',
+    name: 'SCRAPER:astana-akimat',
+    displayName: 'Закупочный раздел Акимата г. Астана (astana.gov.kz)',
+    adapterType: 'SCRAPER',
+    isActive: true,
+    checkIntervalMins: 30,
+    lastSyncAt: '2026-07-30T11:00:00Z',
+    healthStatus: 'HEALTHY',
+    successRate24h: 100.0,
+    totalIngested: 850
+  },
+  {
+    id: 'src-8',
+    name: 'SCRAPER:kegoc',
+    displayName: 'Портал закупок АО "KEGOC" (kegoc.kz)',
+    adapterType: 'SCRAPER',
+    isActive: true,
+    checkIntervalMins: 45,
+    lastSyncAt: '2026-07-30T10:30:00Z',
+    healthStatus: 'HEALTHY',
+    successRate24h: 100.0,
+    totalIngested: 430
   }
 ];
 

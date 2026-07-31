@@ -239,6 +239,9 @@ export class AIService {
       return `Извлеченные требования из ТЗ лота №${tender.externalId}: Заказчик "${tender.customerName}" установил стандартные квалификационные требования ЕГСЗ РК. См. приложенный файл "${tender.documents?.[0]?.fileName || 'ТЗ.pdf'}".`;
     }
 
+    if (targetLang === 'kk') {
+      return `№${tender.externalId} ("${tender.title}") лотының қолжетімді материалдарында сұратылған шарт анық табылған жоқ. Тіркелген құжатты оқып шығуды ("${tender.documents?.[0]?.fileName || 'Спецификация.pdf'}") немесе ${tender.source} порталындағы первоисточник сілтемесіне өтуді ұсынамыз.`;
+    }
     return `В доступных материалах лота №${tender.externalId} ("${tender.title}") запрашиваемое условие явным образом не выведено. Рекомендуется изучить приложенный документ "${tender.documents?.[0]?.fileName || 'Спецификация.pdf'}" или перейти к первоисточнику по ссылке на ${tender.source}.`;
   }
 

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import crypto from 'crypto';
 
 export function middleware(request: NextRequest) {
   // Read existing session cookie or session header

@@ -1,6 +1,7 @@
 import { Tender, CompanyProfileData } from '../types/tender';
 import { INITIAL_TENDERS } from '../mockData';
 import { prisma } from '../prisma';
+import { detectLanguage } from '../utils/lang';
 
 export class TelegrafBotService {
   private static botInstance: any = null;
@@ -273,6 +274,7 @@ export class TelegrafBotService {
         return `⚠️ Пожалуйста, укажите поисковый запрос.\nПример: <code>/search серверы Астана</code>`;
       }
 
+      const isKk = detectLanguage(query) === 'kk';
       const lowerQ = query.toLowerCase();
       const matched = activeTenders.filter(t => 
         t.title.toLowerCase().includes(lowerQ) || 
@@ -282,6 +284,9 @@ export class TelegrafBotService {
       ).slice(0, 3);
 
       if (matched.length === 0) {
+        if (isKk) {
+          return `🔍 "<b>${query}</b>" сұранысы бойынша жүйеде белсенді лоттар табылмады.`;
+        }
         return `🔍 По запросу "<b>${query}</b>" активных лотов в системе не найдено. Настройте автоуведомления в ЛК.`;
       }
 
@@ -293,12 +298,15 @@ export class TelegrafBotService {
         }).catch(() => {});
       }
 
-      let res = `🔍 <b>Найдено лотов по запросу "${query}":</b>\n\n`;
+      let res = isKk
+        ? `🔍 <b>"${query}" сұранысы бойынша табылған лоттар:</b>\n\n`
+        : `🔍 <b>Найдено лотов по запросу "${query}":</b>\n\n`;
+
       matched.forEach((t, idx) => {
         res += `${idx + 1}. <b>${t.title}</b>\n`;
-        res += `💰 Сумма: <code>${t.amount.toLocaleString('ru-RU')} ₸</code> | 📍 ${t.region}\n`;
-        res += `🏛️ Заказчик: ${t.customerName}\n`;
-        res += `🔗 <a href="${t.sourceUrl}">Ссылка на портал (${t.source})</a>\n\n`;
+        res += `💰 ${isKk ? 'Сомасы' : 'Сумма'}: <code>${t.amount.toLocaleString('ru-RU')} ₸</code> | 📍 ${t.region}\n`;
+        res += `🏛️ ${isKk ? 'Тапсырыс беруші' : 'Заказчик'}: ${t.customerName}\n`;
+        res += `🔗 <a href="${t.sourceUrl}">${isKk ? 'Порталға сілтеме' : 'Ссылка на портал'} (${t.source})</a>\n\n`;
       });
 
       return res;

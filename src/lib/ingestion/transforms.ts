@@ -19,6 +19,21 @@ export class TransformRegistry {
     'декабря': '12', 'декабрь': '12', 'дек': '12',
   };
 
+  private static MONTHS_KK: Record<string, string> = {
+    'қаңтар': '01', 'қаң': '01',
+    'ақпан': '02', 'ақп': '02',
+    'наурыз': '03', 'нау': '03',
+    'сәуір': '04', 'сәү': '04',
+    'мамыр': '05', 'мам': '05',
+    'маусым': '06', 'маус': '06',
+    'шілде': '07', 'шіл': '07',
+    'тамыз': '08', 'там': '08',
+    'қыркүйек': '09', 'қыр': '09',
+    'қазан': '10', 'қаз': '10',
+    'қараша': '11', 'қар': '11',
+    'желтоқсан': '12', 'жел': '12',
+  };
+
   public static apply(value: any, transformName?: TransformName, transformParam?: string, baseUrl?: string): any {
     if (value === null || value === undefined) return '';
     const strVal = String(value);
@@ -107,12 +122,12 @@ export class TransformRegistry {
       return new Date(`${year}-${month}-${day}T00:00:00Z`).toISOString();
     }
 
-    // Check textual Russian date format "25 июля 2026"
-    const textMatch = clean.match(/(\d{1,2})\s+([а-яяА-Я]+)\s+(\d{4})/);
+    // Check textual Russian or Kazakh date format "25 июля 2026" / "15 тамыз 2026"
+    const textMatch = clean.match(/(\d{1,2})\s+([а-яяА-ЯәғқңөұүһіӘҒҚҢӨҰҮҺІ]+)\s+(\d{4})/);
     if (textMatch) {
       const day = textMatch[1].padStart(2, '0');
-      const monthStr = textMatch[2];
-      const month = TransformRegistry.MONTHS_RU[monthStr] || '01';
+      const monthStr = textMatch[2].toLowerCase();
+      const month = TransformRegistry.MONTHS_RU[monthStr] || TransformRegistry.MONTHS_KK[monthStr] || '01';
       const year = textMatch[3];
       return new Date(`${year}-${month}-${day}T00:00:00Z`).toISOString();
     }
