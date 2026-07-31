@@ -265,3 +265,41 @@ model NotificationSetting {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
+
+enum ReputationEntityType {
+  CUSTOMER
+  SUPPLIER
+}
+
+model ReputationCheck {
+  id               String               @id @default(cuid())
+  bin              String
+  entityType       ReputationEntityType
+  isBlacklisted    Boolean              @default(false)
+  registryRecordId String?
+  reason           String?
+  banStartDate     DateTime?
+  banEndDate       DateTime?
+  rawResponse      Json?
+  checkedAt        DateTime             @default(now())
+  expiresAt        DateTime
+
+  @@unique([bin, entityType])
+  @@index([bin])
+}
+
+model TenderParticipationStat {
+  id                 String            @id @default(cuid())
+  category           String
+  region             String
+  procurementMethod  ProcurementMethod
+  avgParticipants    Float?
+  sampleSize         Int               @default(0)
+  wonCount           Int               @default(0)
+  lostCount          Int               @default(0)
+  updatedAt          DateTime          @updatedAt
+
+  @@unique([category, region, procurementMethod])
+}
+
+

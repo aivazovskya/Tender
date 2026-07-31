@@ -86,6 +86,7 @@ export default function HomePage() {
   };
 
   const [userTariff, setUserTariff] = useState<string>('TEAM');
+  const [isProfileFallback, setIsProfileFallback] = useState<boolean>(false);
 
   // Company Profile for Matching
   const [companyProfile, setCompanyProfileState] = useState<CompanyProfileData>({

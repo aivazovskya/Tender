@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Tender } from '../lib/types/tender';
+import React, { useState, useEffect } from 'react';
+import { Tender, CompetitionEstimate } from '../lib/types/tender';
 import { getSourceLabel, DataSourceMeta } from '../lib/utils/sourceLabel';
 import { 
   X, 
@@ -14,7 +14,8 @@ import {
   AlertTriangle,
   Download,
   ShieldCheck,
-  Sparkles
+  Sparkles,
+  Users
 } from 'lucide-react';
 
 import { useTranslation } from '../lib/i18n/useTranslation';
@@ -50,6 +51,19 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
     }
   ]);
   const [inputQuestion, setInputQuestion] = useState('');
+  const [competitionEstimate, setCompetitionEstimate] = useState<CompetitionEstimate | null>(null);
+
+  useEffect(() => {
+    if (!tender) return;
+    fetch(`/api/tenders/competition?tenderId=${tender.id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data) {
+          setCompetitionEstimate(data.data);
+        }
+      })
+      .catch(() => {});
+  }, [tender?.id]);
 
   if (!tender) return null;
 
@@ -210,7 +224,18 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
                   </div>
                   <div>
                     <span className="text-mid-gray block text-[11px]">{t.tenderDetail.customerBin}</span>
-                    <span className="font-mono text-ink">{tender.customerBin}</span>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-mono text-ink">{tender.customerBin}</span>
+                      {tender.riskFlags.some(f => f.code === 'CUSTOMER_BLACKLISTED' || f.title.includes('недобросовестных')) ? (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200" title="Заказчик внесен в Реестр недобросовестных участников">
+                          ⚠️ В реестре недобросовестных
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200" title="Заказчик не числится в РНУ ГЗ">
+                          ✅ Не найден в РНУ
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <span className="text-mid-gray block text-[11px]">{t.tenderDetail.deliveryRegion}</span>
@@ -325,6 +350,89 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
                 <p className="text-[10px] text-mid-gray italic pt-2">
                   {t.tenderDetail.riskNote}
                 </p>
+              </div>
+
+              {/* Competition & Win Probability Assessment Card (Phase 1) */}
+              <div className="p-5 rounded-2xl bg-surface-alt border border-hairline space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 text-ink font-semibold text-xs">
+                    <Users className="w-4 h-4 text-sky-600" />
+                    <span>Оценка конкуренции и вероятности победы</span>
+                  </div>
+                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-paper border border-hairline text-ink-soft">
+                    Phase 1: Статистический движок
+                  </span>
+                </div>
+
+                {competitionEstimate && (
+                  <div className="space-y-3 text-xs">
+                    <div className="p-4 rounded-xl bg-paper border border-hairline space-y-2 shadow-subtle">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center space-x-2">
+                          <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                            competitionEstimate.competitionLevel === 'LOW'
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              : competitionEstimate.competitionLevel === 'MEDIUM'
+                              ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                              : 'bg-rose-100 text-rose-800 border border-rose-200'
+                          }`}>
+                            {competitionEstimate.isSingleSource
+                              ? 'Конкуренция отсутствует (Один источник)'
+                              : competitionEstimate.competitionLevel === 'LOW'
+                              ? '🟢 Низкая конкуренция'
+                              : competitionEstimate.competitionLevel === 'MEDIUM'
+                              ? '🟡 Средняя конкуренция'
+                              : '🔴 Высокая конкуренция'}
+                          </span>
+
+                          {competitionEstimate.estimatedParticipants && (
+                            <span className="text-mid-gray font-medium">
+                              (~{competitionEstimate.estimatedParticipants} участн.)
+                            </span>
+                          )}
+                        </div>
+
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                          competitionEstimate.confidence === 'HIGH'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : competitionEstimate.confidence === 'MEDIUM'
+                            ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}>
+                          Точность: {competitionEstimate.confidence === 'HIGH' ? 'Высокая' : competitionEstimate.confidence === 'MEDIUM' ? 'Средняя' : 'Низкая'}
+                        </span>
+                      </div>
+
+                      <p className="text-ink-soft text-xs pt-1">
+                        {competitionEstimate.basis}
+                      </p>
+                    </div>
+
+                    {/* Win Probability Card */}
+                    <div className="p-4 rounded-xl bg-paper border border-hairline space-y-1 shadow-subtle">
+                      <span className="text-[10px] font-bold text-ink uppercase tracking-wider block">
+                        Шанс на победу (Персональная оценка)
+                      </span>
+
+                      {competitionEstimate.winProbability !== null ? (
+                        <div className="flex items-center justify-between pt-1">
+                          <p className="text-sm font-bold text-emerald-700 font-mono">
+                            ~{competitionEstimate.winProbability}% вероятность победы
+                          </p>
+                          <span className="text-[11px] text-mid-gray">
+                            (На основе {competitionEstimate.userHistoryCount} закрытых сделок в категории)
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-mid-gray pt-1">
+                          {competitionEstimate.winProbabilityReason === 'single_source'
+                            ? 'Шанс победы не рассчитывается для закупок из одного источника.'
+                            : `Персональная оценка появится после первых 5 закрытых сделок в этой категории (сейчас сделок: ${competitionEstimate.userHistoryCount || 0}/5).`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
             </div>

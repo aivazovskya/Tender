@@ -2,6 +2,7 @@ import { Tender } from '../types/tender';
 import { prisma } from '../prisma';
 import { DocumentExtractionService } from './document-extraction.service';
 import { AIService } from './ai.service';
+import { ReputationService } from './reputation.service';
 import { diffTenderFields } from '../ingestion/diff';
 
 export class IngestionProcessorService {
@@ -10,9 +11,10 @@ export class IngestionProcessorService {
    * Pipeline:
    * 1. Extract text from attached specification documents (PDF/DOCX) via DocumentExtractionService.
    * 2. Generate LLM summary & risk score grounded on document text via AIService.
+   * 2.1 Check Customer reputation against Goszakup RNU (РНУ ГЗ).
    * 3. Compute audit trail field deltas via diffTenderFields.
    * 4. Upsert Tender into PostgreSQL database.
-   * 5. Upsert TenderDocument records with extractedText into PostgreSQL database.
+   * 5. Upsert TenderDocument & RiskFlag records into PostgreSQL database.
    * 6. Create TenderAuditTrail records if fields changed.
    */
   static async processIngestedTenders(tenders: Tender[]): Promise<any[]> {
@@ -49,6 +51,7 @@ export class IngestionProcessorService {
         let aiSummary = t.aiSummary;
         let aiKeyRequirements = t.aiKeyRequirements || [];
         let riskScore = t.riskScore || 0;
+        let riskFlags = [...(t.riskFlags || [])];
 
         try {
           const aiAnalysis = await AIService.generateLLMSummary(t, fullDocText);
@@ -60,6 +63,31 @@ export class IngestionProcessorService {
         } catch (aiErr) {
           console.warn(`[IngestionProcessorService] Ошибка AI-суммаризации для лота #${t.externalId}:`, aiErr);
         }
+
+        // 2.1 Check Customer Reputation against Goszakup RNU (РНУ ГЗ)
+        if (t.customerBin && ReputationService.isValidBin(t.customerBin)) {
+          try {
+            const repCheck = await ReputationService.checkBin(t.customerBin, 'CUSTOMER');
+            if (repCheck && repCheck.isBlacklisted) {
+              const alreadyHasFlag = riskFlags.some(f => f.code === 'CUSTOMER_BLACKLISTED' || f.title.includes('недобросовестных'));
+              if (!alreadyHasFlag) {
+                riskFlags.push({
+                  id: `rf-rnu-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                  code: 'CUSTOMER_BLACKLISTED',
+                  severity: 'CRITICAL',
+                  title: 'Заказчик в реестре недобросовестных участников',
+                  description: repCheck.reason || 'Заказчик числится в Реестре недобросовестных участников Госзакупок'
+                });
+              }
+              riskScore = Math.min(100, riskScore + 30);
+            }
+          } catch (repErr) {
+            console.warn(`[IngestionProcessorService] Ошибка проверки РНУ для БИН ${t.customerBin}:`, repErr);
+          }
+        }
+
+        t.riskFlags = riskFlags;
+        t.riskScore = riskScore;
 
         // 3. Persist into PostgreSQL Database atomically via prisma.$transaction (Bug #18)
         try {
@@ -158,6 +186,25 @@ export class IngestionProcessorService {
                       }
                     });
                   }
+                }
+              }
+            }
+
+            // 5.1 Save RiskFlags atomically
+            if (Array.isArray(riskFlags) && riskFlags.length > 0) {
+              for (const rf of riskFlags) {
+                const existingRf = await tx.riskFlag.findFirst({
+                  where: { tenderId: tender.id, title: rf.title }
+                });
+                if (!existingRf) {
+                  await tx.riskFlag.create({
+                    data: {
+                      tenderId: tender.id,
+                      title: rf.title,
+                      description: rf.description,
+                      severity: rf.severity || 'MEDIUM'
+                    }
+                  });
                 }
               }
             }

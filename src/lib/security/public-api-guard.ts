@@ -113,7 +113,7 @@ export async function listApiKeysForUser(userId: string): Promise<StoredApiKey[]
     });
 
     if (dbKeys && dbKeys.length > 0) {
-      return dbKeys.map(k => ({
+      return dbKeys.map((k: any) => ({
         id: k.id,
         userId: k.userId,
         keyHash: k.keyHash,

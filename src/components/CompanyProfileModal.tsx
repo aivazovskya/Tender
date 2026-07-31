@@ -6,6 +6,7 @@ import { KZ_REGIONS } from '../lib/mockData';
 import { Sparkles, Tag, Check, Save } from 'lucide-react';
 
 import { useTranslation } from '../lib/i18n/useTranslation';
+import { ReputationCheckWidget } from './ReputationCheckWidget';
 
 interface CompanyProfileModalProps {
   profile: CompanyProfileData;
@@ -219,6 +220,11 @@ export const CompanyProfileModal: React.FC<CompanyProfileModalProps> = ({
         </div>
 
       </form>
+
+      {/* Embedded Reputation Check Widget (Phase 1: RNU) */}
+      <div className="pt-6 border-t border-hairline">
+        <ReputationCheckWidget userPlan={profile.subscriptionPlan || 'FREE'} />
+      </div>
     </div>
   );
 };

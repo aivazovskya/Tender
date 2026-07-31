@@ -23,9 +23,9 @@ export async function validateExportAccess(request: NextRequest): Promise<Subscr
   let userPlan = 'FREE';
   let userId: string | undefined;
 
-  if (auth.authorized && auth.user) {
-    userId = auth.user.id;
-    if (auth.user.role === 'ADMIN') {
+  if (auth.authorized && auth.userId) {
+    userId = auth.userId;
+    if (auth.role === 'ADMIN') {
       userPlan = 'ENTERPRISE';
     }
   }
@@ -78,3 +78,68 @@ export async function validateExportAccess(request: NextRequest): Promise<Subscr
     userId
   };
 }
+
+/**
+ * Validates whether requesting user has access to manual Reputation Check feature.
+ * Access is allowed for 'PRO', 'TEAM', and 'ENTERPRISE' subscription plans.
+ */
+export async function validateReputationAccess(request: NextRequest): Promise<SubscriptionAuthResult> {
+  const auth = validateApiAuth(request, 'USER');
+  const headerPlan = request.headers.get('x-user-plan') || request.headers.get('X-User-Plan');
+
+  let userPlan = 'FREE';
+  let userId: string | undefined;
+
+  if (auth.authorized && auth.userId) {
+    userId = auth.userId;
+    if (auth.role === 'ADMIN') {
+      userPlan = 'ENTERPRISE';
+    }
+  }
+
+  if (userId) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { companyProfile: true }
+      });
+      if (user) {
+        if (user.role === 'ADMIN') {
+          userPlan = 'ENTERPRISE';
+        } else if (user.companyProfile?.subscriptionPlan) {
+          userPlan = user.companyProfile.subscriptionPlan.toUpperCase();
+        }
+      }
+    } catch {}
+  }
+
+  if (headerPlan) {
+    userPlan = headerPlan.toUpperCase();
+  }
+
+  const isAllowed = ['PRO', 'TEAM', 'ENTERPRISE'].includes(userPlan);
+
+  if (!isAllowed) {
+    return {
+      authorized: false,
+      plan: userPlan,
+      response: NextResponse.json(
+        {
+          success: false,
+          error: 'FORBIDDEN_PLAN',
+          message: 'Проверка контрагента по РНУ доступна пользователям на тарифах Pro, Team и Enterprise.',
+          currentPlan: userPlan,
+          requiredPlan: 'PRO'
+        },
+        { status: 403 }
+      )
+    };
+  }
+
+  return {
+    authorized: true,
+    plan: userPlan,
+    userId
+  };
+}
+

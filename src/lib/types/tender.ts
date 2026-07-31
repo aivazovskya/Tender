@@ -89,6 +89,7 @@ export interface CompanyProfileData {
   maxAmount: number;
   contactEmail: string;
   telegramChatId?: string;
+  subscriptionPlan?: string;
 }
 
 export interface KanbanItem {
@@ -103,3 +104,40 @@ export interface KanbanItem {
   stageSlaHours?: number;
   updatedAt: string;
 }
+
+export type ReputationEntityType = 'CUSTOMER' | 'SUPPLIER';
+
+export interface ReputationCheckResult {
+  bin: string;
+  entityType: ReputationEntityType;
+  isBlacklisted: boolean;
+  registryRecordId?: string | null;
+  reason?: string | null;
+  banStartDate?: string | null;
+  banEndDate?: string | null;
+  status: 'CLEAN' | 'BLACKLISTED' | 'NOT_FOUND' | 'UNKNOWN';
+  stale?: boolean;
+  checkedAt?: string;
+  expiresAt?: string;
+  source: string;
+}
+
+export type CompetitionLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+export type EstimateConfidence = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export interface CompetitionEstimate {
+  tenderId: string;
+  competitionLevel: CompetitionLevel;
+  estimatedParticipants: number | null;
+  procurementMethod: ProcurementMethod;
+  isSingleSource: boolean;
+  confidence: EstimateConfidence;
+  sampleSize: number;
+  basis: string;
+  winProbability: number | null;
+  winProbabilityReason?: string | null;
+  userHistoryCount?: number;
+  hideDetailedCounts?: boolean;
+}
+
+
