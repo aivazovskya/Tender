@@ -9,7 +9,7 @@ import {
 
 // In-memory fallback for stats in offline/demo mode without active DB
 const memoryParticipationStats = new Map<string, {
-  avgParticipants: number;
+  winRateProxy: number;
   sampleSize: number;
   wonCount: number;
   lostCount: number;
@@ -18,6 +18,11 @@ const memoryParticipationStats = new Map<string, {
 /**
  * Service for calculating competition level and personal win probability for a tender.
  * Phase 1: Statistical Heuristic & Anonymous Kanban/Tender aggregation engine.
+ * 
+ * Note regarding Defect #1 fix:
+ * Participant count ('estimatedParticipants') is calculated strictly via financial lot amount heuristics.
+ * Because Goszakup GraphQL API does not expose lot participant count protocol data, 'confidence' for participant
+ * count estimation is ALWAYS 'LOW' (never 'HIGH' or 'MEDIUM').
  */
 export class CompetitionService {
   /**
@@ -74,44 +79,33 @@ export class CompetitionService {
       statRecord = memoryParticipationStats.get(statKey) || null;
     }
 
-    let competitionLevel: CompetitionLevel = 'MEDIUM';
-    let estimatedParticipants: number = 4;
-    let confidence: EstimateConfidence = 'LOW';
     let sampleSize = statRecord ? statRecord.sampleSize : 0;
-    let basis = '';
     let hideDetailedCounts = sampleSize < 3; // Criteria #5: Privacy guard when sampleSize < 3
 
-    if (statRecord && statRecord.sampleSize >= 5) {
-      // Sufficient statistical sample size (>= 5)
-      const avg = statRecord.avgParticipants || 4;
-      estimatedParticipants = Math.round(avg);
+    // Calculate estimatedParticipants exclusively via lot amount financial heuristic (Defect #1 Fix)
+    const amount = tender.amount || 0;
+    let estimatedParticipants: number;
+    let competitionLevel: CompetitionLevel;
 
-      if (estimatedParticipants <= 2) {
-        competitionLevel = 'LOW';
-      } else if (estimatedParticipants <= 5) {
-        competitionLevel = 'MEDIUM';
-      } else {
-        competitionLevel = 'HIGH';
-      }
-
-      confidence = statRecord.sampleSize >= 20 ? 'HIGH' : 'MEDIUM';
-      basis = `На основе ${statRecord.sampleSize} завершённых сделок по категории «${category}» (${region})`;
+    if (amount >= 100_000_000) {
+      estimatedParticipants = 7;
+      competitionLevel = 'HIGH';
+    } else if (amount >= 10_000_000) {
+      estimatedParticipants = 4;
+      competitionLevel = 'MEDIUM';
     } else {
-      // Insufficient sample size (< 5) -> Fallback heuristic based on lot amount (Criteria #2)
-      const amount = tender.amount || 0;
-      if (amount >= 100_000_000) {
-        estimatedParticipants = 7;
-        competitionLevel = 'HIGH';
-      } else if (amount >= 10_000_000) {
-        estimatedParticipants = 4;
-        competitionLevel = 'MEDIUM';
-      } else {
-        estimatedParticipants = 2;
-        competitionLevel = 'LOW';
-      }
+      estimatedParticipants = 2;
+      competitionLevel = 'LOW';
+    }
 
-      confidence = 'LOW';
-      basis = `Базовый финансовый расчёт по сумме лота (недостаточно локальной статистики: ${sampleSize} сделок)`;
+    // CRITICAL: Participant count confidence is ALWAYS 'LOW' because we do NOT have actual lot participant count protocol data!
+    const confidence: EstimateConfidence = 'LOW';
+    let basis: string;
+
+    if (statRecord && statRecord.sampleSize >= 5) {
+      basis = `Финансовая эвристика по сумме лота (на основе ${statRecord.sampleSize} прошлых сделок по категории «${category}» в ${region}, без протокола участников)`;
+    } else {
+      basis = `Базовый финансовый расчёт по сумме лота (недостаточно локальной статистики: ${sampleSize} сделок, без протокола участников)`;
     }
 
     // 3. Calculate Personal Win Probability (Criteria #3)
@@ -186,7 +180,8 @@ export class CompetitionService {
   }
 
   /**
-   * Background job method to anonymously aggregate KanbanCard statistics into TenderParticipationStat
+   * Background job method to anonymously aggregate KanbanCard statistics into TenderParticipationStat.
+   * Note: avgParticipants represents winRateProxy (total/won ratio), NOT actual participant count from procurement protocol.
    */
   static async recomputeStats(): Promise<{ processedCount: number; updatedStatsCount: number }> {
     try {
@@ -230,7 +225,8 @@ export class CompetitionService {
 
       let updatedCount = 0;
       for (const g of groups.values()) {
-        const avgParticipants = Math.max(2.0, Math.round((g.total / Math.max(1, g.won)) * 10) / 10);
+        // winRateProxy ratio (total / won), NOT actual participant count from protocol
+        const winRateProxy = Math.max(2.0, Math.round((g.total / Math.max(1, g.won)) * 10) / 10);
 
         try {
           await (prisma as any).tenderParticipationStat.upsert({
@@ -242,7 +238,7 @@ export class CompetitionService {
               }
             },
             update: {
-              avgParticipants,
+              avgParticipants: winRateProxy,
               sampleSize: g.total,
               wonCount: g.won,
               lostCount: g.lost
@@ -251,7 +247,7 @@ export class CompetitionService {
               category: g.category,
               region: g.region,
               procurementMethod: g.procurementMethod as any,
-              avgParticipants,
+              avgParticipants: winRateProxy,
               sampleSize: g.total,
               wonCount: g.won,
               lostCount: g.lost
@@ -260,7 +256,7 @@ export class CompetitionService {
           updatedCount++;
         } catch {
           memoryParticipationStats.set(`${g.category}_${g.region}_${g.procurementMethod}`, {
-            avgParticipants,
+            winRateProxy,
             sampleSize: g.total,
             wonCount: g.won,
             lostCount: g.lost

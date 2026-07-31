@@ -293,6 +293,7 @@ model TenderParticipationStat {
   category           String
   region             String
   procurementMethod  ProcurementMethod
+  /// Note: Internal platform win rate proxy ratio (total/won), NOT actual participant count from procurement protocol
   avgParticipants    Float?
   sampleSize         Int               @default(0)
   wonCount           Int               @default(0)

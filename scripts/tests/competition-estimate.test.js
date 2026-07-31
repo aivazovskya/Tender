@@ -80,6 +80,20 @@ async function runTests() {
   assert(typeof est2.sampleSize === 'number', 'sampleSize must be present');
   console.log('  ✅ Fallback heuristic returns LOW confidence and explicit basis!');
 
+  // --- Test 2b: Large Sample Size (sampleSize >= 20) Confidence Check (Defect #1 Fix) ---
+  console.log('\n▶ 2b. Testing Large Sample Size (sampleSize >= 20) Confidence Check (Defect #1 Fix)...');
+  const openTenderLargeSample = {
+    ...openTenderSmall,
+    id: 't-open-large-sample',
+    amount: 150000000 // 150M KZT
+  };
+  const estLargeSample = await CompetitionService.estimate(openTenderLargeSample);
+  assert.strictEqual(estLargeSample.confidence, 'LOW', 'Estimated participants confidence MUST be LOW without real participant count protocol data');
+  assert.notStrictEqual(estLargeSample.confidence, 'HIGH', 'Estimated participants confidence MUST NOT be HIGH without protocol data');
+  assert.notStrictEqual(estLargeSample.confidence, 'MEDIUM', 'Estimated participants confidence MUST NOT be MEDIUM without protocol data');
+  assert.strictEqual(estLargeSample.estimatedParticipants, 7, '150M KZT lot must return 7 estimated participants');
+  console.log('  ✅ Large sample size (sampleSize >= 20) strictly retains confidence = LOW for estimated participants!');
+
   // --- Test 3: Personal Win Probability Hard Threshold (Criteria #3) ---
   console.log('\n▶ 3. Testing Personal Win Probability Hard Threshold (4 vs 5 deals)...');
   
@@ -142,8 +156,8 @@ async function runTests() {
   console.log('\n▶ 6. Verifying Research Spike & Module 9 Documentation in README.md (Criteria #7)...');
   const readmeContent = fs.readFileSync(path.join(process.cwd(), 'README.md'), 'utf8');
   assert(readmeContent.includes('Module 9'), 'README.md must document Module 9');
-  assert(readmeContent.includes('Research Spike'), 'README.md must mention Research Spike findings');
-  console.log('  ✅ README.md explicitly documents Module 9 & Goszakup GraphQL Research Spike!');
+  assert(readmeContent.includes('estimatedParticipants'), 'README.md must explain estimatedParticipants heuristic');
+  console.log('  ✅ README.md explicitly documents Module 9 & estimatedParticipants heuristic!');
 
   console.log('\n🎉 Competition & Win Probability Engine Test Suite completed successfully!');
 }

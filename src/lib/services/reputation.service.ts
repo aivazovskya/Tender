@@ -12,6 +12,12 @@ const rateLimiter = new RateLimiter(500, 3);
  * Service for checking customer/supplier reputation against Kazakhstani Registries.
  * Phase 1: Integrated with Goszakup RNU (Реестр недобросовестных участников ГЗ).
  * Note: Bankruptcy, Tax Debt, and Court Decisions are scheduled for Phase 2 backlog.
+ * 
+ * ReputationCheckResult Status Semantics:
+ * - 'CLEAN': Successfully queried RNU API and no active blacklisting records were found.
+ * - 'BLACKLISTED': Active blacklisting record found in RNU.
+ * - 'NOT_FOUND': Reserved for subject lookup integration (when BIN is not a registered procurement subject).
+ * - 'UNKNOWN': API HTTP error (404/500), network failure, invalid JSON response, or service unavailable.
  */
 export class ReputationService {
   /**
@@ -132,7 +138,6 @@ export class ReputationService {
           }
         });
       } catch {
-        // Fallback memory cache
         memoryReputationCache.set(cacheKey, {
           bin: cleanedBin,
           entityType,
@@ -148,7 +153,7 @@ export class ReputationService {
 
       return resultData;
     } catch (apiErr: any) {
-      console.warn(`[ReputationService] Внешняя проверка РНУ недоступна: ${apiErr?.message || apiErr}`);
+      console.error(`[ReputationService] Внешняя проверка РНУ завершилась ошибкой: ${apiErr?.message || apiErr}`);
 
       // 3. Fallback: Return stale cache if available, or UNKNOWN/stale without crashing
       if (cachedRecord) {
@@ -174,7 +179,7 @@ export class ReputationService {
         entityType,
         isBlacklisted: false,
         registryRecordId: null,
-        reason: 'Внешний сервис РНУ временно недоступен',
+        reason: `Внешний сервис РНУ недоступен: ${apiErr?.message || 'Ошибка сети/API'}`,
         banStartDate: null,
         banEndDate: null,
         status: 'UNKNOWN',
@@ -198,7 +203,8 @@ export class ReputationService {
   }
 
   /**
-   * Internal API client for Goszakup OWS RNU service
+   * Internal API client for Goszakup OWS RNU service.
+   * Throws explicit error on HTTP non-200, network error, or invalid JSON so checkBin returns UNKNOWN/stale.
    */
   private static async fetchGoszakupRnuApi(bin: string): Promise<{
     isBlacklisted: boolean;
@@ -206,55 +212,75 @@ export class ReputationService {
     reason?: string;
     banStartDate?: Date;
     banEndDate?: Date;
-    status: 'CLEAN' | 'BLACKLISTED' | 'NOT_FOUND';
+    status: 'CLEAN' | 'BLACKLISTED' | 'NOT_FOUND' | 'UNKNOWN';
     raw?: any;
   }> {
     const token = process.env.GOSZAKUP_API_TOKEN || process.env.SAMRUK_API_TOKEN;
 
-    if (token && !token.includes('your_goszakup')) {
-      try {
-        const url = `https://ows.goszakup.gov.kz/v3/rnu/bin/${encodeURIComponent(bin)}`;
-        const response = await fetch(url, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json'
-          }
-        });
+    if (!token || token.includes('your_goszakup')) {
+      // Demo/Unconfigured API token mode: return clean mock without throwing
+      return {
+        isBlacklisted: false,
+        status: 'CLEAN'
+      };
+    }
 
-        if (response.ok) {
-          const json = await response.json();
-          const items = Array.isArray(json) ? json : json?.items || json?.data || [];
-
-          if (items.length > 0) {
-            const activeRecord = items.find((rec: any) => {
-              const endDateStr = rec.end_date || rec.ban_end_date || rec.endDate;
-              if (!endDateStr) return true;
-              return new Date(endDateStr).getTime() >= Date.now();
-            });
-
-            if (activeRecord) {
-              const startDateStr = activeRecord.start_date || activeRecord.ban_start_date || activeRecord.startDate;
-              const endDateStr = activeRecord.end_date || activeRecord.ban_end_date || activeRecord.endDate;
-              return {
-                isBlacklisted: true,
-                registryRecordId: String(activeRecord.id || activeRecord.rnu_id || `RNU-${bin}`),
-                reason: activeRecord.reason || activeRecord.description || 'Включен в Реестр недобросовестных участников Госзакупок РК',
-                banStartDate: startDateStr ? new Date(startDateStr) : undefined,
-                banEndDate: endDateStr ? new Date(endDateStr) : undefined,
-                status: 'BLACKLISTED',
-                raw: json
-              };
-            }
-          }
+    const url = `https://ows.goszakup.gov.kz/v3/rnu/bin/${encodeURIComponent(bin)}`;
+    
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
         }
-      } catch (err) {
-        console.warn(`[ReputationService] Ошибка вызова Goszakup OWS API:`, err);
+      });
+    } catch (netErr: any) {
+      console.error(`[ReputationService] Ошибка сети при запросе OWS API (${url}):`, netErr?.message || netErr);
+      throw new Error(`Ошибка сети OWS API: ${netErr?.message || 'Network failure'}`);
+    }
+
+    if (!response.ok) {
+      console.error(`[ReputationService] OWS API вернул HTTP ${response.status} ${response.statusText} (${url})`);
+      throw new Error(`OWS API HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    let json: any;
+    try {
+      json = await response.json();
+    } catch (parseErr: any) {
+      console.error(`[ReputationService] Некорректный JSON от OWS API:`, parseErr?.message || parseErr);
+      throw new Error(`Некорректный JSON от OWS API: ${parseErr?.message}`);
+    }
+
+    const items = Array.isArray(json) ? json : json?.items || json?.data || [];
+
+    if (items.length > 0) {
+      const activeRecord = items.find((rec: any) => {
+        const endDateStr = rec.end_date || rec.ban_end_date || rec.endDate;
+        if (!endDateStr) return true;
+        return new Date(endDateStr).getTime() >= Date.now();
+      });
+
+      if (activeRecord) {
+        const startDateStr = activeRecord.start_date || activeRecord.ban_start_date || activeRecord.startDate;
+        const endDateStr = activeRecord.end_date || activeRecord.ban_end_date || activeRecord.endDate;
+        return {
+          isBlacklisted: true,
+          registryRecordId: String(activeRecord.id || activeRecord.rnu_id || `RNU-${bin}`),
+          reason: activeRecord.reason || activeRecord.description || 'Включен в Реестр недобросовестных участников Госзакупок РК',
+          banStartDate: startDateStr ? new Date(startDateStr) : undefined,
+          banEndDate: endDateStr ? new Date(endDateStr) : undefined,
+          status: 'BLACKLISTED',
+          raw: json
+        };
       }
     }
 
     return {
       isBlacklisted: false,
-      status: 'CLEAN'
+      status: 'CLEAN',
+      raw: json
     };
   }
 }

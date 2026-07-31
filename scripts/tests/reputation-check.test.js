@@ -9,45 +9,49 @@ const { GET } = require('../../src/app/api/reputation/check/route');
 async function runTests() {
   console.log('🧪 [Test Suite] Testing Customer/Supplier Reputation Check & Goszakup RNU Integration (Phase 1)...\n');
 
-  // Test 1: BIN Format Validation
+  // Test 1: 12-digit BIN/IIN Format Validation
   console.log('▶ 1. Testing 12-digit BIN/IIN Format Validation...');
-  assert.strictEqual(ReputationService.isValidBin('180940004512'), true, 'Valid 12-digit BIN must pass');
-  assert.strictEqual(ReputationService.isValidBin('12345'), false, 'Short BIN must fail');
-  assert.strictEqual(ReputationService.isValidBin('180940004512999'), false, 'Long BIN must fail');
-  assert.strictEqual(ReputationService.isValidBin('abc123456789'), false, 'Non-numeric BIN must fail');
+  assert.strictEqual(ReputationService.isValidBin('180940004512'), true);
+  assert.strictEqual(ReputationService.isValidBin('12345'), false);
+  assert.strictEqual(ReputationService.isValidBin('180940004512999'), false);
+  assert.strictEqual(ReputationService.isValidBin('abc1809400045'), false);
   console.log('  ✅ BIN format validation works correctly!');
 
-  // Test 2: Expired vs Active RNU Ban Evaluation (Criteria #2)
+  // Test 2: Active vs Expired (Historical) Ban Evaluation (Criteria #2)
   console.log('\n▶ 2. Testing Active vs Historical (Expired) Ban Evaluation (Criteria #2)...');
-  const pastDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
-  const futureDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days in future
-
-  const expiredBanCheck = ReputationService.evaluateBanStatus(true, pastDate);
-  assert.strictEqual(expiredBanCheck, false, 'Expired ban (banEndDate in past) must result in isBlacklisted = false');
-
-  const activeBanCheck = ReputationService.evaluateBanStatus(true, futureDate);
-  assert.strictEqual(activeBanCheck, true, 'Active ban (banEndDate in future) must result in isBlacklisted = true');
-
-  const indefiniteBanCheck = ReputationService.evaluateBanStatus(true, null);
-  assert.strictEqual(indefiniteBanCheck, true, 'Indefinite ban (no banEndDate) must result in isBlacklisted = true');
+  
+  // 2a. Expired ban in past -> isBlacklisted must evaluate to false
+  const pastBanDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
+  const isPastBanned = ReputationService['evaluateBanStatus'](true, pastBanDate);
+  assert.strictEqual(isPastBanned, false, 'Expired ban (end_date in past) must result in isBlacklisted = false');
   console.log('  ✅ Expired ban correctly ignored (isBlacklisted = false)!');
+
+  // 2b. Active ban in future -> isBlacklisted must evaluate to true
+  const futureBanDate = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000); // +180 days
+  const isActiveBanned = ReputationService['evaluateBanStatus'](true, futureBanDate);
+  assert.strictEqual(isActiveBanned, true, 'Active ban (end_date in future) must result in isBlacklisted = true');
+
+  // 2c. Indefinite ban (no end date) -> isBlacklisted must evaluate to true
+  const isIndefiniteBanned = ReputationService['evaluateBanStatus'](true, null);
+  assert.strictEqual(isIndefiniteBanned, true, 'Indefinite ban (no end date) must result in isBlacklisted = true');
   console.log('  ✅ Active & indefinite bans correctly detected (isBlacklisted = true)!');
 
-  // Test 3: ReputationService checkBin Caching (Criteria #3) & Fallback (Criteria #4)
+  // Test 3: 24h Caching & Fallback Behavior (Criteria #3 & #4)
   console.log('\n▶ 3. Testing 24h Caching & Fallback Behavior (Criteria #3 & #4)...');
-  const testBin = '990102030405';
-  const check1 = await ReputationService.checkBin(testBin, 'CUSTOMER');
-  assert.strictEqual(check1.bin, '990102030405');
-  assert.strictEqual(check1.entityType, 'CUSTOMER');
-  assert.strictEqual(typeof check1.isBlacklisted, 'boolean');
-  assert.strictEqual(check1.source, 'Goszakup RNU (РНУ ГЗ)');
+  const testBin = '990101300999';
+  const result1 = await ReputationService.checkBin(testBin, 'CUSTOMER');
+  assert.strictEqual(result1.bin, testBin);
+  assert.strictEqual(result1.entityType, 'CUSTOMER');
+  assert.strictEqual(typeof result1.isBlacklisted, 'boolean');
+  assert.strictEqual(result1.stale, false);
 
-  // Repeat check should hit cache (check1.expiresAt in future)
-  const check2 = await ReputationService.checkBin(testBin, 'CUSTOMER');
-  assert.strictEqual(check2.stale, false, 'Cached result within 24h TTL must have stale = false');
+  // Second check immediately -> should be served from fresh cache
+  const result2 = await ReputationService.checkBin(testBin, 'CUSTOMER');
+  assert.strictEqual(result2.stale, false);
+  assert.strictEqual(result2.checkedAt, result1.checkedAt);
   console.log('  ✅ 24h Caching & Fallback verified successfully!');
 
-  // Test 4: Ingestion Pipeline Auto-Enrichment (Criteria #1)
+  // Test 4: Ingestion Pipeline Customer RNU Check & RiskFlag Creation (Criteria #1)
   console.log('\n▶ 4. Testing Ingestion Pipeline Auto-Enrichment & RiskFlag Creation (Criteria #1)...');
   const mockTenders = [
     {
@@ -121,6 +125,24 @@ async function runTests() {
   assert(readmeContent.includes('РНУ'), 'README.md must mention RNU integration');
   assert(readmeContent.includes('Phase 2'), 'README.md must document Phase 2 backlog scope');
   console.log('  ✅ README.md explicitly documents Phase 1 РНУ ГЗ coverage and Phase 2 backlog!');
+
+  // Test 7: External API Error Handling (Defect #2 Fix)
+  console.log('\n▶ 7. Testing External API Error Handling (Defect #2 Fix)...');
+  const errorBin = '888888888888';
+  const originalFetchRnu = ReputationService['fetchGoszakupRnuApi'];
+  ReputationService['fetchGoszakupRnuApi'] = async () => {
+    throw new Error('OWS API HTTP 404: Not Found');
+  };
+
+  const errResult = await ReputationService.checkBin(errorBin, 'SUPPLIER');
+  assert.strictEqual(errResult.status, 'UNKNOWN', 'API error must return status = UNKNOWN');
+  assert.strictEqual(errResult.isBlacklisted, false);
+  assert.strictEqual(errResult.stale, true);
+  assert.notStrictEqual(errResult.status, 'CLEAN', 'API error MUST NOT return status = CLEAN');
+  console.log('  ✅ External API HTTP 404/500 errors correctly return status = UNKNOWN/stale (never CLEAN)!');
+
+  // Restore original fetch method
+  ReputationService['fetchGoszakupRnuApi'] = originalFetchRnu;
 
   console.log('\n🎉 Customer/Supplier Reputation Check & Goszakup RNU Test Suite completed successfully!');
 }
