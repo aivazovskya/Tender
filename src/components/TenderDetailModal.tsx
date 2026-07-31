@@ -24,6 +24,8 @@ interface TenderDetailModalProps {
   onClose: () => void;
   onAddToKanban: (tender: Tender) => void;
   isInKanban: boolean;
+  onExportPDF?: (tenderId: string, externalId: string) => void;
+  userPlan?: string;
   dataSources?: DataSourceMeta[];
   language?: 'RU' | 'KK';
 }
@@ -33,6 +35,8 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
   onClose,
   onAddToKanban,
   isInKanban,
+  onExportPDF,
+  userPlan,
   dataSources,
   language = 'RU'
 }) => {
@@ -422,6 +426,22 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
           </a>
 
           <div className="flex items-center space-x-3">
+            {onExportPDF && (
+              <button
+                onClick={() => onExportPDF(tender.id, tender.externalId)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-paper border border-hairline text-ink hover:bg-surface-alt transition-colors shadow-subtle flex items-center space-x-1.5"
+                title="Скачать отчёт по лоту в формате PDF"
+              >
+                <Download className="w-3.5 h-3.5 text-ink" />
+                <span>Скачать PDF</span>
+                {(!userPlan || !['TEAM', 'ENTERPRISE'].includes(userPlan.toUpperCase())) && (
+                  <span className="ml-1 px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[9px] font-bold">
+                    Team
+                  </span>
+                )}
+              </button>
+            )}
+
             <button
               onClick={onClose}
               className="px-4 py-2 rounded-xl text-xs font-semibold bg-paper border border-hairline text-ink hover:bg-surface-alt transition-colors shadow-subtle"

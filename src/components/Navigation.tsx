@@ -8,7 +8,8 @@ import {
   CreditCard, 
   Send, 
   Activity,
-  Layers
+  Layers,
+  Key
 } from 'lucide-react';
 
 import { useTranslation } from '../lib/i18n/useTranslation';
@@ -19,6 +20,7 @@ interface NavigationProps {
   language: 'RU' | 'KK';
   setLanguage: (lang: 'RU' | 'KK') => void;
   kanbanCount: number;
+  onOpenApiKeyModal?: () => void;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
@@ -26,7 +28,8 @@ export const Navigation: React.FC<NavigationProps> = ({
   setActiveTab,
   language,
   setLanguage,
-  kanbanCount
+  kanbanCount,
+  onOpenApiKeyModal
 }) => {
   const t = useTranslation(language);
 
@@ -115,6 +118,18 @@ export const Navigation: React.FC<NavigationProps> = ({
           {/* Right Action Bar */}
           <div className="flex items-center space-x-2.5">
             
+            {/* API Keys Modal Launcher */}
+            {onOpenApiKeyModal && (
+              <button
+                onClick={onOpenApiKeyModal}
+                className="hidden lg:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-surface-alt border border-hairline text-ink hover:bg-paper text-xs font-medium transition-colors shadow-subtle"
+                title="Управление API-ключами REST API (1С/CRM)"
+              >
+                <Key className="w-3.5 h-3.5 text-amber-600" />
+                <span>API REST</span>
+              </button>
+            )}
+
             {/* Telegram Bot shortcut */}
             <button
               onClick={() => setActiveTab('telegram')}

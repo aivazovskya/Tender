@@ -210,6 +210,19 @@ model User {
   companyProfile      CompanyProfile?
   kanbanCards         KanbanCard[]
   notificationSetting NotificationSetting?
+  apiKeys             ApiKey[]
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  keyHash     String    @unique
+  keyPrefix   String
+  label       String
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
 }
 
 model Payment {

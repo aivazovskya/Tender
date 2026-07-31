@@ -17,9 +17,12 @@ import {
   Search, 
   Sparkles, 
   RefreshCw, 
-  CheckCircle2
+  CheckCircle2,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 
+import { ApiKeyModal } from '../components/ApiKeyModal';
 import { useTranslation } from '../lib/i18n/useTranslation';
 
 export default function HomePage() {
@@ -82,7 +85,7 @@ export default function HomePage() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const [isProfileFallback, setIsProfileFallback] = useState<boolean>(false);
+  const [userTariff, setUserTariff] = useState<string>('TEAM');
 
   // Company Profile for Matching
   const [companyProfile, setCompanyProfileState] = useState<CompanyProfileData>({
@@ -99,6 +102,9 @@ export default function HomePage() {
 
   const setCompanyProfile = (newProfile: CompanyProfileData) => {
     setCompanyProfileState(newProfile);
+    if (newProfile.subscriptionPlan) {
+      setUserTariff(newProfile.subscriptionPlan);
+    }
     if (isDemoMode) {
       showToast(t.toast.profileSaved, 'success');
       return;
@@ -319,6 +325,138 @@ export default function HomePage() {
     }
   };
 
+  // Export Tenders Catalog to Excel
+  const handleExportTendersExcel = async () => {
+    if (!['TEAM', 'ENTERPRISE'].includes(userTariff.toUpperCase())) {
+      showToast('Экспорт каталога тендеров в Excel доступен с тарифа Team', 'error');
+      setActiveTab('billing');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/export/tenders', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-User-Plan': userTariff
+        },
+        body: JSON.stringify({
+          region: selectedRegion,
+          category: selectedCategory,
+          source: selectedSource,
+          searchQuery,
+          minAmount,
+          maxAmount
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        if (res.status === 403) {
+          showToast('Экспорт в Excel доступен только на тарифах Team и Enterprise', 'error');
+          setActiveTab('billing');
+          return;
+        }
+        throw new Error(errData.message || 'Ошибка выгрузки Excel');
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tenders_catalog_${Date.now()}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      showToast('Файл Excel с каталогом тендеров успешно скачан!', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Сбой выгрузки Excel', 'error');
+    }
+  };
+
+  // Export Kanban Funnel Cards to Excel
+  const handleExportKanbanExcel = async () => {
+    if (!['TEAM', 'ENTERPRISE'].includes(userTariff.toUpperCase())) {
+      showToast('Экспорт воронки Kanban в Excel доступен с тарифа Team', 'error');
+      setActiveTab('billing');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/export/kanban', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-User-Plan': userTariff
+        }
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        if (res.status === 403) {
+          showToast('Экспорт Kanban доступен только на тарифах Team и Enterprise', 'error');
+          setActiveTab('billing');
+          return;
+        }
+        throw new Error(errData.message || 'Ошибка выгрузки Kanban');
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `kanban_funnel_${Date.now()}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      showToast('Файл Excel воронки Kanban успешно скачан!', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Сбой выгрузки Kanban', 'error');
+    }
+  };
+
+  // Export Single Tender Card to PDF
+  const handleExportTenderPDF = async (tenderId: string, externalId: string) => {
+    if (!['TEAM', 'ENTERPRISE'].includes(userTariff.toUpperCase())) {
+      showToast('Скачивание PDF-отчета по лоту доступно с тарифа Team', 'error');
+      setActiveTab('billing');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/export/tenders/${encodeURIComponent(tenderId)}/pdf`, {
+        headers: {
+          'X-User-Plan': userTariff
+        }
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        if (res.status === 403) {
+          showToast('PDF-отчет доступен только на тарифах Team и Enterprise', 'error');
+          setActiveTab('billing');
+          return;
+        }
+        throw new Error(errData.message || 'Ошибка генерации PDF');
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tender_report_${externalId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      showToast('PDF-отчет лота успешно скачан!', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Сбой скачивания PDF', 'error');
+    }
+  };
+
   const matchedTenders = useMemo(() => {
     return AIClientService.matchCompanyProfile(companyProfile, tenders);
   }, [companyProfile, tenders]);
@@ -343,6 +481,8 @@ export default function HomePage() {
 
   const totalVolumeKzt = useMemo(() => tenders.reduce((acc, t) => acc + t.amount, 0), [tenders]);
 
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
+
   return (
     <div className="min-h-screen flex flex-col bg-canvas text-ink font-geist">
       {isDemoMode && (
@@ -366,6 +506,7 @@ export default function HomePage() {
         language={language}
         setLanguage={setLanguage}
         kanbanCount={kanbanItems.length}
+        onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
       />
 
       {toast && (
@@ -506,12 +647,29 @@ export default function HomePage() {
             {/* Results Grid */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-bold text-ink tracking-tight">
-                  {t.hero.foundTenders} <span className="text-ember">{filteredTenders.length}</span>
+                <h2 className="text-base font-bold text-ink tracking-tight flex items-center space-x-3">
+                  <span>{t.hero.foundTenders} <span className="text-ember">{filteredTenders.length}</span></span>
                 </h2>
-                <span className="text-xs text-mid-gray">
-                  {t.hero.updatedByApi}
-                </span>
+                
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={handleExportTendersExcel}
+                    className="px-3.5 py-1.5 rounded-xl bg-paper hover:bg-surface-alt border border-hairline text-ink font-semibold text-xs flex items-center space-x-1.5 transition-all shadow-subtle"
+                    title="Скачать отфильтрованный реестр тендеров в формате Excel"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Скачать Excel</span>
+                    {!['TEAM', 'ENTERPRISE'].includes(userTariff.toUpperCase()) && (
+                      <span className="ml-1 px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[9px] font-bold">
+                        Team
+                      </span>
+                    )}
+                  </button>
+
+                  <span className="text-xs text-mid-gray hidden sm:inline">
+                    {t.hero.updatedByApi}
+                  </span>
+                </div>
               </div>
 
               {loading ? (
@@ -583,6 +741,8 @@ export default function HomePage() {
             onUpdateCard={handleUpdateKanbanCard}
             onRemoveItem={handleRemoveKanbanItem}
             onOpenTenderDetails={(t) => setSelectedTender(t)}
+            onExportExcel={handleExportKanbanExcel}
+            userPlan={userTariff}
             dataSources={dataSources}
             language={language}
           />
@@ -606,6 +766,8 @@ export default function HomePage() {
           onClose={() => setSelectedTender(null)}
           onAddToKanban={handleAddToKanban}
           isInKanban={kanbanItems.some(k => k.tenderId === selectedTender.id)}
+          onExportPDF={handleExportTenderPDF}
+          userPlan={userTariff}
           dataSources={dataSources}
           language={language}
         />
@@ -621,6 +783,14 @@ export default function HomePage() {
           onClose={() => setActiveTab('catalog')}
           profile={companyProfile}
           tenders={tenders}
+        />
+      )}
+
+      {isApiKeyModalOpen && (
+        <ApiKeyModal
+          onClose={() => setIsApiKeyModalOpen(false)}
+          userPlan={userTariff}
+          language={language}
         />
       )}
 

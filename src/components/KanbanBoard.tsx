@@ -14,7 +14,8 @@ import {
   Flag,
   FileText,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Download
 } from 'lucide-react';
 
 import { useTranslation } from '../lib/i18n/useTranslation';
@@ -27,6 +28,8 @@ interface KanbanBoardProps {
   onUpdateCard?: (itemId: string, changes: Partial<{ priority: PriorityType; notes: string; assignee: string; stage: KanbanStage }>) => void;
   onRemoveItem: (itemId: string) => void;
   onOpenTenderDetails: (tender: any) => void;
+  onExportExcel?: () => void;
+  userPlan?: string;
   dataSources?: DataSourceMeta[];
   language?: 'RU' | 'KK';
 }
@@ -253,6 +256,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onUpdateCard,
   onRemoveItem,
   onOpenTenderDetails,
+  onExportExcel,
+  userPlan,
   dataSources,
   language = 'RU'
 }) => {
@@ -282,7 +287,23 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center space-x-6">
+        <div className="flex items-center space-x-4 flex-wrap gap-y-2">
+          {onExportExcel && (
+            <button
+              onClick={onExportExcel}
+              className="px-3.5 py-2 rounded-xl bg-surface-alt hover:bg-paper border border-hairline text-ink font-semibold text-xs flex items-center space-x-1.5 transition-all shadow-subtle"
+              title="Выгрузить карточки Kanban в Excel"
+            >
+              <Download className="w-3.5 h-3.5 text-ink" />
+              <span>Экспорт Excel</span>
+              {(!userPlan || !['TEAM', 'ENTERPRISE'].includes(userPlan.toUpperCase())) && (
+                <span className="ml-1 px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[9px] font-bold">
+                  Team
+                </span>
+              )}
+            </button>
+          )}
+
           <div className="text-right">
             <span className="text-xs text-mid-gray block">{t.kanban.totalPipeline.replace('{count}', String(items.length))}</span>
             <span className="text-base font-bold text-ink font-mono tracking-tight">
@@ -290,7 +311,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             </span>
           </div>
 
-          <div className="text-right border-l border-hairline pl-6">
+          <div className="text-right border-l border-hairline pl-4">
             <span className="text-xs text-mid-gray block">{t.kanban.wonPortfolio}</span>
             <span className="text-base font-bold text-emerald-700 font-mono tracking-tight">
               {wonAmount.toLocaleString('ru-RU')} ₸

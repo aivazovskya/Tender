@@ -200,4 +200,40 @@ npm run check:client-secrets
 4. **Регистрация записи в БД**:
    Заведите запись `DataSource` в базе данных (через `npm run seed` или панель администрирования по кнопке `+ API-источник`), указав поле `name`, совпадающее с ключом реестра (`CUSTOM_PORTAL`).
 
+---
 
+## 🔑 Публичный REST API v1 (тариф Enterprise)
+
+Подписчикам тарифа **Enterprise (199 000 ₸/мес)** доступен программный REST API для интеграции тендерной воронки и каталога с внешними системами учета (1С:Управление торговлей, CRM Битрикс24, amoCRM, SAP, ERP).
+
+### Формат авторизации
+Все запросы к публичным эндпоинтам требуют передачи API-ключа в заголовке запроса:
+```http
+x-api-key: tnd_ai_a1b2c3d4e5f6...
+```
+или через схему HTTP Bearer Authorization:
+```http
+Authorization: Bearer tnd_ai_a1b2c3d4e5f6...
+```
+
+### Доступные эндпоинты
+
+| Метод | Эндпоинт | Описание |
+|---|---|---|
+| `GET` | `/api/public/v1/tenders` | Получить отфильтрованный список лотов (параметры: `region`, `category`, `source`, `minAmount`, `maxAmount`, `q`) |
+| `GET` | `/api/public/v1/tenders/{id}` | Получить полные детали лота по ID или `externalId` |
+| `GET` | `/api/public/v1/kanban` | Получить карточки воронки Kanban текущего аккаунта |
+| `POST` | `/api/public/v1/kanban` | Создать или обновить этап, приоритет, заметки и ответственного карточки из 1С/CRM |
+
+### Пример cURL-запроса
+```bash
+curl -X GET "https://tender-ai.kz/api/public/v1/tenders?region=%D0%B3.+%D0%90%D1%81%D1%82%D0%B0%D0%BD%D0%B0&minAmount=5000000" \
+     -H "x-api-key: tnd_ai_9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c" \
+     -H "Content-Type: application/json"
+```
+
+### Коды ответов
+- `200 OK` — Запрос выполнен успешно.
+- `401 Unauthorized` — Неверный, отозванный API-ключ или отсутствие подписки Enterprise.
+- `403 Forbidden` — Недостаточно прав для выполнения действия.
+- `404 Not Found` — Запрашиваемый ресурс (тендер/карточка) не найден.
