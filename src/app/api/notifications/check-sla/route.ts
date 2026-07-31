@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { TelegramBotService } from '@/lib/services/telegram.service';
+import { validateApiAuth } from '@/lib/security/auth';
 import { KanbanStage } from '@/lib/types/tender';
 
 const DEFAULT_STAGE_SLA_HOURS: Record<KanbanStage, number> = {
@@ -11,10 +12,43 @@ const DEFAULT_STAGE_SLA_HOURS: Record<KanbanStage, number> = {
   LOST: 0
 };
 
-// In-memory idempotency cache for notified cards (cardId:type => timestamp)
+// Fallback in-memory idempotency cache for notified cards (cardId:type => timestamp)
 const notifiedCache = new Map<string, number>();
 
+async function isNotifiedRecently(cacheKey: string, now: number, twentyFourHoursMs: number): Promise<boolean> {
+  try {
+    const { connection } = await import('@/lib/queue/ingestion.queue');
+    const val = await connection.get(cacheKey);
+    if (val) return true;
+  } catch {
+    const lastNotified = notifiedCache.get(cacheKey) || 0;
+    if (now - lastNotified <= twentyFourHoursMs) return true;
+  }
+  return false;
+}
+
+async function markAsNotified(cacheKey: string, now: number): Promise<void> {
+  try {
+    const { connection } = await import('@/lib/queue/ingestion.queue');
+    await connection.set(cacheKey, '1', 'EX', 86400);
+  } catch {
+    notifiedCache.set(cacheKey, now);
+  }
+}
+
 export async function GET(request: NextRequest) {
+  // Bug #22 fix: Cron & Admin Authentication Guard
+  const cronSecretHeader = request.headers.get('x-cron-secret') || request.headers.get('X-Cron-Secret');
+  const expectedSecret = process.env.CRON_SECRET || process.env.ADMIN_API_KEY;
+  const isProd = process.env.NODE_ENV === 'production';
+
+  if ((expectedSecret || isProd) && cronSecretHeader !== expectedSecret) {
+    const auth = validateApiAuth(request, 'ADMIN');
+    if (!auth.authorized && auth.response) {
+      return auth.response;
+    }
+  }
+
   try {
     const cards = await prisma.kanbanCard.findMany({
       where: {
@@ -48,14 +82,16 @@ export async function GET(request: NextRequest) {
 
       // 1. Process Overdue SLA notification
       if (isSlaOverdue) {
-        const cacheKey = `sla:${card.id}`;
-        const lastNotified = notifiedCache.get(cacheKey) || 0;
-        if (now - lastNotified > twentyFourHoursMs) {
-          notifiedCache.set(cacheKey, now);
-          const msg = `⚠️ <b>SLA просрочен!</b>\nЛот №${card.tender.externalId} ("${card.tender.title}") находится на этапе <b>${card.stage}</b> уже ${hoursOnStage}ч (норма: ${slaLimitHours}ч).`;
+        const cacheKey = `sla_notified:${card.id}:sla`;
+        const alreadySent = await isNotifiedRecently(cacheKey, now, twentyFourHoursMs);
+
+        if (!alreadySent) {
+          await markAsNotified(cacheKey, now);
+          const msg = `⚠️ <b>SLA просрочен!</b>\n\nЛот №${card.tender.externalId} ("${card.tender.title}") находится на этапе <b>${card.stage}</b> уже ${hoursOnStage}ч (норма: ${slaLimitHours}ч).\n\n🏛️ Заказчик: ${card.tender.customerName}\n💰 Сумма: ${card.tender.amount.toLocaleString('ru-RU')} ₸`;
           
           if (telegramChatId) {
-            TelegramBotService.sendNotification(card.tender as any, telegramChatId);
+            // Bug #21 fix: Pass custom message as 3rd parameter
+            await TelegramBotService.sendNotification(card.tender as any, telegramChatId, msg);
           }
 
           notificationsSent.push({
@@ -70,14 +106,16 @@ export async function GET(request: NextRequest) {
 
       // 2. Process Urgent Deadline notification
       if (isUrgentDeadline) {
-        const cacheKey = `deadline:${card.id}`;
-        const lastNotified = notifiedCache.get(cacheKey) || 0;
-        if (now - lastNotified > twentyFourHoursMs) {
-          notifiedCache.set(cacheKey, now);
-          const msg = `⚡ <b>Срочный дедлайн < 24ч!</b>\nПо лоту №${card.tender.externalId} ("${card.tender.title}") осталось ${Math.ceil(hoursToDeadline)}ч до завершения приема заявок!`;
+        const cacheKey = `sla_notified:${card.id}:deadline`;
+        const alreadySent = await isNotifiedRecently(cacheKey, now, twentyFourHoursMs);
+
+        if (!alreadySent) {
+          await markAsNotified(cacheKey, now);
+          const msg = `⚡ <b>Срочный дедлайн < 24ч!</b>\n\nПо лоту №${card.tender.externalId} ("${card.tender.title}") осталось ${Math.ceil(hoursToDeadline)}ч до завершения приема заявок!\n\n🏛️ Заказчик: ${card.tender.customerName}\n💰 Сумма: ${card.tender.amount.toLocaleString('ru-RU')} ₸`;
 
           if (telegramChatId) {
-            TelegramBotService.sendNotification(card.tender as any, telegramChatId);
+            // Bug #21 fix: Pass custom message as 3rd parameter
+            await TelegramBotService.sendNotification(card.tender as any, telegramChatId, msg);
           }
 
           notificationsSent.push({

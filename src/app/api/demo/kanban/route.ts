@@ -1,39 +1,73 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { INITIAL_TENDERS } from '@/lib/mockData';
 
-// Demo in-memory store for guest kanban cards per session
-const demoSessionCards: Record<string, any[]> = {};
+interface DemoSession {
+  cards: any[];
+  lastAccess: number;
+}
 
-function getInitialDemoCards(sessionId: string) {
-  if (!demoSessionCards[sessionId]) {
-    demoSessionCards[sessionId] = [
-      {
-        id: 'demo-card-1',
-        tenderId: INITIAL_TENDERS[0].id,
-        stage: 'UNDER_REVIEW',
-        priority: 'HIGH',
-        assignee: 'Серик А. (Главный тендерщик)',
-        notes: 'Демо-карточка лота',
-        stageEnteredAt: new Date().toISOString(),
-        stageSlaHours: 24,
-        tender: INITIAL_TENDERS[0],
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: 'demo-card-2',
-        tenderId: INITIAL_TENDERS[1].id,
-        stage: 'PREPARING_BID',
-        priority: 'MEDIUM',
-        assignee: 'Гульнара К. (Юрист)',
-        notes: 'Подготовка ТЗ для демо',
-        stageEnteredAt: new Date().toISOString(),
-        stageSlaHours: 72,
-        tender: INITIAL_TENDERS[1],
-        updatedAt: new Date().toISOString()
-      }
-    ];
+// Bug #23 fix: Bounded in-memory store for guest kanban cards per session with TTL & LRU eviction
+const MAX_DEMO_SESSIONS = 500;
+const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+const demoSessions = new Map<string, DemoSession>();
+
+function cleanStaleDemoSessions() {
+  const now = Date.now();
+  // 1. Evict sessions inactive for longer than 2 hours
+  for (const [key, val] of demoSessions.entries()) {
+    if (now - val.lastAccess > TWO_HOURS_MS) {
+      demoSessions.delete(key);
+    }
   }
-  return demoSessionCards[sessionId];
+  // 2. Capacity cap eviction: remove oldest session if capacity exceeded
+  if (demoSessions.size >= MAX_DEMO_SESSIONS) {
+    const oldestKey = demoSessions.keys().next().value;
+    if (oldestKey) {
+      demoSessions.delete(oldestKey);
+    }
+  }
+}
+
+function getInitialDemoCards(sessionId: string): any[] {
+  cleanStaleDemoSessions();
+  let session = demoSessions.get(sessionId);
+
+  if (!session) {
+    session = {
+      lastAccess: Date.now(),
+      cards: [
+        {
+          id: 'demo-card-1',
+          tenderId: INITIAL_TENDERS[0].id,
+          stage: 'UNDER_REVIEW',
+          priority: 'HIGH',
+          assignee: 'Серик А. (Главный тендерщик)',
+          notes: 'Демо-карточка лота',
+          stageEnteredAt: new Date().toISOString(),
+          stageSlaHours: 24,
+          tender: INITIAL_TENDERS[0],
+          updatedAt: new Date().toISOString()
+        },
+        {
+          id: 'demo-card-2',
+          tenderId: INITIAL_TENDERS[1].id,
+          stage: 'PREPARING_BID',
+          priority: 'MEDIUM',
+          assignee: 'Гульнара К. (Юрист)',
+          notes: 'Подготовка ТЗ для демо',
+          stageEnteredAt: new Date().toISOString(),
+          stageSlaHours: 72,
+          tender: INITIAL_TENDERS[1],
+          updatedAt: new Date().toISOString()
+        }
+      ]
+    };
+    demoSessions.set(sessionId, session);
+  } else {
+    session.lastAccess = Date.now();
+  }
+
+  return session.cards;
 }
 
 export async function GET(request: NextRequest) {
@@ -100,8 +134,10 @@ export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
 
-  if (id && demoSessionCards[sessionId]) {
-    demoSessionCards[sessionId] = demoSessionCards[sessionId].filter(c => c.id !== id);
+  const session = demoSessions.get(sessionId);
+  if (id && session) {
+    session.cards = session.cards.filter(c => c.id !== id);
+    session.lastAccess = Date.now();
   }
 
   return NextResponse.json({

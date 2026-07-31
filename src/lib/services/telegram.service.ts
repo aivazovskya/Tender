@@ -12,18 +12,20 @@ export class TelegramBotService {
   /**
    * Sends real Telegram notification via Telegram Bot API HTTP POST
    */
-  static async sendNotification(tender: Tender, chatId?: string): Promise<TelegramDeliveryResult> {
+  static async sendNotification(tender: Tender, chatId?: string, customMessage?: string): Promise<TelegramDeliveryResult> {
     const targetChatId = chatId || process.env.TELEGRAM_DEFAULT_CHAT_ID;
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
-    const messageText = `🚨 <b>Новый релевантный тендер!</b>\n\n` +
+    const messageText = customMessage || (
+      `🚨 <b>Новый релевантный тендер!</b>\n\n` +
       `<b>${tender.title}</b>\n` +
       `💰 Сумма: <b>${tender.amount.toLocaleString('ru-RU')} KZT</b>\n` +
       `🏛️ Заказчик: ${tender.customerName} (БИН: ${tender.customerBin})\n` +
       `📍 Регион: ${tender.region}\n` +
       `⏳ Дедлайн: ${new Date(tender.deadlineDate).toLocaleDateString('ru-RU')}\n` +
       `🛡️ Риск-индекс: ${tender.riskScore}/100\n\n` +
-      `🔗 <a href="${tender.sourceUrl}">Перейти на ${tender.source}</a>`;
+      `🔗 <a href="${tender.sourceUrl}">Перейти на ${tender.source}</a>`
+    );
 
     const logEntry = `[${new Date().toLocaleTimeString()}] Alert for Tender #${tender.externalId} -> ${targetChatId || 'No Chat ID'}`;
     this.mockLogs.unshift(logEntry);
