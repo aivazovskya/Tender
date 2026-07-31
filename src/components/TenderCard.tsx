@@ -16,6 +16,8 @@ import {
   Send
 } from 'lucide-react';
 
+import { useTranslation } from '../lib/i18n/useTranslation';
+
 interface TenderCardProps {
   tender: Tender;
   onOpenDetails: (tender: Tender) => void;
@@ -35,6 +37,7 @@ export const TenderCard: React.FC<TenderCardProps> = ({
   language,
   dataSources
 }) => {
+  const t = useTranslation(language);
   const [showSummary, setShowSummary] = useState(false);
 
   // Format currency
@@ -47,9 +50,9 @@ export const TenderCard: React.FC<TenderCardProps> = ({
 
   // Risk Badge Color
   const getRiskBadge = (score: number) => {
-    if (score >= 60) return { bg: 'bg-red-50 text-red-700 border-red-200', label: 'Высокий риск' };
-    if (score >= 30) return { bg: 'bg-amber-50 text-amber-700 border-amber-200', label: 'Средний риск' };
-    return { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: 'Низкий риск' };
+    if (score >= 60) return { bg: 'bg-red-50 text-red-700 border-red-200', label: t.tenderCard.highRisk };
+    if (score >= 30) return { bg: 'bg-amber-50 text-amber-700 border-amber-200', label: t.tenderCard.mediumRisk };
+    return { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: t.tenderCard.lowRisk };
   };
 
   const risk = getRiskBadge(tender.riskScore);
@@ -101,7 +104,7 @@ export const TenderCard: React.FC<TenderCardProps> = ({
             <div className="flex items-center space-x-1">
               <Calendar className="w-3.5 h-3.5 text-mid-gray" />
               <span className={daysLeft <= 3 ? 'text-ember font-semibold' : ''}>
-                {daysLeft > 0 ? `Осталось ${daysLeft} дн.` : 'Завершен'}
+                {daysLeft > 0 ? t.tenderCard.daysLeft.replace('{days}', String(daysLeft)) : t.tenderCard.completed}
               </span>
             </div>
           </div>
@@ -110,14 +113,14 @@ export const TenderCard: React.FC<TenderCardProps> = ({
         {/* Budget & Security */}
         <div className="p-3 rounded-xl bg-surface-alt border border-hairline flex items-center justify-between mb-4">
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-mid-gray font-medium">Сумма договора</p>
+            <p className="text-[10px] uppercase tracking-wider text-mid-gray font-medium">{t.tenderCard.contractAmount}</p>
             <p className="text-base font-bold text-ink font-mono tracking-tight">
               {formattedAmount} ₸
             </p>
           </div>
           {tender.applicationSecurityAmount && (
             <div className="text-right">
-              <p className="text-[10px] uppercase tracking-wider text-mid-gray font-medium">Обеспечение (3%)</p>
+              <p className="text-[10px] uppercase tracking-wider text-mid-gray font-medium">{t.tenderCard.applicationSecurity}</p>
               <p className="text-xs font-semibold text-ink-soft font-mono">
                 {tender.applicationSecurityAmount.toLocaleString('ru-RU')} ₸
               </p>
@@ -134,7 +137,7 @@ export const TenderCard: React.FC<TenderCardProps> = ({
             >
               <div className="flex items-center space-x-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-ember" />
-                <span>ИИ-Суммаризация ТЗ</span>
+                <span>{t.tenderCard.aiSummaryToggle}</span>
               </div>
               {showSummary ? <ChevronUp className="w-3.5 h-3.5 text-mid-gray" /> : <ChevronDown className="w-3.5 h-3.5 text-mid-gray" />}
             </button>
@@ -144,7 +147,7 @@ export const TenderCard: React.FC<TenderCardProps> = ({
                 <p>{tender.aiSummary}</p>
                 {tender.aiKeyRequirements && tender.aiKeyRequirements.length > 0 && (
                   <div className="pt-2 border-t border-hairline">
-                    <span className="font-semibold text-ink block mb-1">Ключевые требования:</span>
+                    <span className="font-semibold text-ink block mb-1">{t.tenderCard.keyRequirements}</span>
                     <ul className="list-disc list-inside space-y-0.5 text-mid-gray">
                       {tender.aiKeyRequirements.map((req, idx) => (
                         <li key={idx}>{req}</li>
@@ -172,7 +175,7 @@ export const TenderCard: React.FC<TenderCardProps> = ({
           
           <button
             onClick={() => onSendToTelegram(tender)}
-            title="Отправить в Telegram"
+            title={t.tenderCard.sendTelegramTitle}
             className="p-1.5 rounded-lg bg-surface-alt hover:bg-paper border border-hairline text-ink transition-all shadow-subtle"
           >
             <Send className="w-3.5 h-3.5" />
@@ -190,12 +193,12 @@ export const TenderCard: React.FC<TenderCardProps> = ({
             {isInKanban ? (
               <>
                 <Check className="w-3.5 h-3.5 text-emerald-600" />
-                <span>В воронке</span>
+                <span>{t.tenderCard.inKanban}</span>
               </>
             ) : (
               <>
                 <PlusCircle className="w-3.5 h-3.5" />
-                <span>В работу</span>
+                <span>{t.tenderCard.addToWork}</span>
               </>
             )}
           </button>

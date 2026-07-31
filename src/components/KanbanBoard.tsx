@@ -13,20 +13,23 @@ import {
   UserCheck
 } from 'lucide-react';
 
+import { useTranslation } from '../lib/i18n/useTranslation';
+
 interface KanbanBoardProps {
   items: KanbanItem[];
   onUpdateStage: (itemId: string, newStage: KanbanStage) => void;
   onRemoveItem: (itemId: string) => void;
   onOpenTenderDetails: (tender: any) => void;
   dataSources?: DataSourceMeta[];
+  language?: 'RU' | 'KK';
 }
 
-const STAGES: Array<{ id: KanbanStage; title: string; color: string; icon: any }> = [
-  { id: 'UNDER_REVIEW', title: 'На рассмотрении', color: 'bg-paper text-ink border-hairline', icon: Clock },
-  { id: 'PREPARING_BID', title: 'Готовим заявку', color: 'bg-paper text-ink border-hairline', icon: Send },
-  { id: 'SUBMITTED', title: 'Подано в портал', color: 'bg-paper text-ink border-hairline', icon: CheckCircle },
-  { id: 'WON', title: 'Выиграли 🏆', color: 'bg-emerald-50 text-emerald-800 border-emerald-200', icon: Trophy },
-  { id: 'LOST', title: 'Проиграли', color: 'bg-red-50 text-red-700 border-red-200', icon: XCircle },
+const STAGES: Array<{ id: KanbanStage; color: string; icon: any }> = [
+  { id: 'UNDER_REVIEW', color: 'bg-paper text-ink border-hairline', icon: Clock },
+  { id: 'PREPARING_BID', color: 'bg-paper text-ink border-hairline', icon: Send },
+  { id: 'SUBMITTED', color: 'bg-paper text-ink border-hairline', icon: CheckCircle },
+  { id: 'WON', color: 'bg-emerald-50 text-emerald-800 border-emerald-200', icon: Trophy },
+  { id: 'LOST', color: 'bg-red-50 text-red-700 border-red-200', icon: XCircle },
 ];
 
 const DEFAULT_STAGE_SLA_HOURS: Record<KanbanStage, number> = {
@@ -50,8 +53,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onUpdateStage,
   onRemoveItem,
   onOpenTenderDetails,
-  dataSources
+  dataSources,
+  language = 'RU'
 }) => {
+  const t = useTranslation(language);
   const totalPipelineAmount = items.reduce((acc, item) => acc + item.tender.amount, 0);
   const wonAmount = items.filter(i => i.stage === 'WON').reduce((acc, item) => acc + item.tender.amount, 0);
 
@@ -62,23 +67,23 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       <div className="bg-paper border border-hairline rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-subtle">
         <div>
           <h2 className="text-lg font-bold text-ink flex items-center space-x-2 tracking-tight">
-            <span>Командная воронка тендеров</span>
+            <span>{t.kanban.title}</span>
           </h2>
           <p className="text-xs text-mid-gray mt-1">
-            Отслеживание этапов подготовки заявок, назначения ответственных и учет результатов в KZT.
+            {t.kanban.subtitle}
           </p>
         </div>
 
         <div className="flex items-center space-x-6">
           <div className="text-right">
-            <span className="text-xs text-mid-gray block">Вся воронка ({items.length} лотов):</span>
+            <span className="text-xs text-mid-gray block">{t.kanban.totalPipeline.replace('{count}', String(items.length))}</span>
             <span className="text-base font-bold text-ink font-mono tracking-tight">
               {totalPipelineAmount.toLocaleString('ru-RU')} ₸
             </span>
           </div>
 
           <div className="text-right border-l border-hairline pl-6">
-            <span className="text-xs text-mid-gray block">Выиграно в портфеле:</span>
+            <span className="text-xs text-mid-gray block">{t.kanban.wonPortfolio}</span>
             <span className="text-base font-bold text-emerald-700 font-mono tracking-tight">
               {wonAmount.toLocaleString('ru-RU')} ₸
             </span>
@@ -92,6 +97,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           const stageItems = items.filter(item => item.stage === stage.id);
           const StageIcon = stage.icon;
           const stageTotal = stageItems.reduce((acc, i) => acc + i.tender.amount, 0);
+          const stageTitle = t.kanban.stages[stage.id] || stage.id;
 
           return (
             <div key={stage.id} className="flex flex-col rounded-2xl bg-surface-alt border border-hairline p-3 min-h-[500px]">
@@ -100,7 +106,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               <div className={`p-2.5 rounded-xl border mb-2.5 flex items-center justify-between shadow-subtle ${stage.color}`}>
                 <div className="flex items-center space-x-1.5">
                   <StageIcon className="w-3.5 h-3.5" />
-                  <span className="text-xs font-semibold">{stage.title}</span>
+                  <span className="text-xs font-semibold">{stageTitle}</span>
                 </div>
                 <span className="px-2 py-0.2 text-[10px] font-bold rounded-full bg-surface-alt border border-hairline text-ink">
                   {stageItems.length}
@@ -136,7 +142,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                         <button
                           onClick={() => onRemoveItem(item.id)}
                           className="text-mid-gray hover:text-ember transition-colors p-1"
-                          title="Удалить из воронки"
+                          title={t.kanban.deleteTitle}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -147,12 +153,12 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                         <div className="flex flex-wrap gap-1">
                           {isSlaOverdue && (
                             <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-bold flex items-center space-x-1">
-                              <span>⏰ SLA просрочен на {overdueHours}ч</span>
+                              <span>{t.kanban.slaOverdue.replace('{hours}', String(overdueHours))}</span>
                             </span>
                           )}
                           {isUrgentDeadline && (
                             <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[9px] font-bold flex items-center space-x-1 animate-pulse">
-                              <span>⚡ Дедлайн &lt; 24ч ({Math.ceil(hoursToDeadline)}ч)</span>
+                              <span>{t.kanban.urgentDeadline.replace('{hours}', String(Math.ceil(hoursToDeadline)))}</span>
                             </span>
                           )}
                         </div>
@@ -174,32 +180,32 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                       <div className="flex items-center justify-between text-[10px]">
                         <span className="text-mid-gray flex items-center space-x-1">
                           <UserCheck className="w-3 h-3 text-ink" />
-                          <span>Ответственный:</span>
+                          <span>{t.kanban.assigneeLabel}</span>
                         </span>
 
                         <select
-                          value={item.assignee || 'Не назначен'}
+                          value={item.assignee || t.kanban.unassigned}
                           onChange={(e) => {
                             item.assignee = e.target.value;
                           }}
                           className="bg-surface-alt text-ink border border-hairline rounded px-1.5 py-0.5 text-[10px] focus:outline-none max-w-[120px] truncate"
                         >
                           {TEAM_MEMBERS.map(m => (
-                            <option key={m} value={m}>{m}</option>
+                            <option key={m} value={m}>{m === 'Не назначен' ? t.kanban.unassigned : m}</option>
                           ))}
                         </select>
                       </div>
 
                       {/* Stage Switcher */}
                       <div className="flex items-center justify-between text-[10px] pt-1">
-                        <span className="text-mid-gray">Этап:</span>
+                        <span className="text-mid-gray">{t.kanban.stageLabel}</span>
                         <select
                           value={item.stage}
                           onChange={(e) => onUpdateStage(item.id, e.target.value as KanbanStage)}
                           className="bg-surface-alt text-ink border border-hairline rounded px-1.5 py-0.5 text-[10px] focus:outline-none"
                         >
                           {STAGES.map(s => (
-                            <option key={s.id} value={s.id}>{s.title}</option>
+                            <option key={s.id} value={s.id}>{t.kanban.stages[s.id] || s.id}</option>
                           ))}
                         </select>
                       </div>

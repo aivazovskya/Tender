@@ -17,12 +17,15 @@ import {
   Sparkles
 } from 'lucide-react';
 
+import { useTranslation } from '../lib/i18n/useTranslation';
+
 interface TenderDetailModalProps {
   tender: Tender | null;
   onClose: () => void;
   onAddToKanban: (tender: Tender) => void;
   isInKanban: boolean;
   dataSources?: DataSourceMeta[];
+  language?: 'RU' | 'KK';
 }
 
 export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
@@ -30,14 +33,16 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
   onClose,
   onAddToKanban,
   isInKanban,
-  dataSources
+  dataSources,
+  language = 'RU'
 }) => {
+  const t = useTranslation(language);
   const [activeTab, setActiveTab] = useState<'overview' | 'ai' | 'rag' | 'audit'>('overview');
   
   const [ragMessages, setRagMessages] = useState<Array<{ sender: 'user' | 'ai'; text: string }>>([
     {
       sender: 'ai',
-      text: 'Здравствуйте! Я ИИ-ассистент TenderAI по данному лоту. Отвечаю исключительно по фактам из приложенной технической спецификации и параметров Заказчика.'
+      text: t.tenderDetail.ragWelcome
     }
   ]);
   const [inputQuestion, setInputQuestion] = useState('');
@@ -72,10 +77,10 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
       if (data.success && data.answer) {
         setRagMessages(prev => [...prev, { sender: 'ai', text: data.answer }]);
       } else {
-        setRagMessages(prev => [...prev, { sender: 'ai', text: data.error || 'Не удалось получить ответ от сервера.' }]);
+        setRagMessages(prev => [...prev, { sender: 'ai', text: data.error || t.tenderDetail.ragError }]);
       }
     } catch (err) {
-      setRagMessages(prev => [...prev, { sender: 'ai', text: 'Ошибка соединения с сервером при отправке вопроса.' }]);
+      setRagMessages(prev => [...prev, { sender: 'ai', text: t.tenderDetail.ragConnError }]);
     }
   };
 
@@ -93,7 +98,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
               </span>
               <span className="text-xs text-mid-gray font-mono">№ {tender.externalId}</span>
               <span className="px-2 py-0.5 text-xs rounded bg-surface-alt border border-hairline text-ink-soft">
-                {tender.procurementMethod === 'OPEN_TENDER' ? 'Открытый конкурс' : 'Запрос ценовых предложений'}
+                {tender.procurementMethod === 'OPEN_TENDER' ? t.tenderDetail.openTender : t.tenderDetail.priceQuote}
               </span>
             </div>
             <h2 className="text-xl font-bold text-ink leading-snug tracking-tight">
@@ -120,7 +125,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
             }`}
           >
             <FileText className="w-4 h-4" />
-            <span>Условия лота</span>
+            <span>{t.tenderDetail.tabOverview}</span>
           </button>
 
           <button
@@ -132,7 +137,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
             }`}
           >
             <Sparkles className="w-4 h-4 text-ember" />
-            <span>ИИ-Анализ & Риски</span>
+            <span>{t.tenderDetail.tabAi}</span>
           </button>
 
           <button
@@ -144,7 +149,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
             }`}
           >
             <Bot className="w-4 h-4 text-sky-600" />
-            <span>RAG-Чат по документации</span>
+            <span>{t.tenderDetail.tabRag}</span>
           </button>
 
           <button
@@ -156,7 +161,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
             }`}
           >
             <History className="w-4 h-4 text-emerald-600" />
-            <span>История изменений ({tender.history.length})</span>
+            <span>{t.tenderDetail.tabAudit.replace('{count}', String(tender.history.length))}</span>
           </button>
         </div>
 
@@ -169,21 +174,21 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 rounded-2xl bg-surface-alt border border-hairline">
-                  <p className="text-xs text-mid-gray mb-1">Сумма лота (KZT)</p>
+                  <p className="text-xs text-mid-gray mb-1">{t.tenderDetail.lotAmount}</p>
                   <p className="text-xl font-bold text-ink font-mono tracking-tight">
                     {tender.amount.toLocaleString('ru-RU')} ₸
                   </p>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-surface-alt border border-hairline">
-                  <p className="text-xs text-mid-gray mb-1">Обеспечение заявки</p>
+                  <p className="text-xs text-mid-gray mb-1">{t.tenderDetail.applicationSecurity}</p>
                   <p className="text-base font-bold text-ink-soft font-mono">
                     {tender.applicationSecurityAmount?.toLocaleString('ru-RU')} ₸ ({tender.applicationSecurityPercent || 1}%)
                   </p>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-surface-alt border border-hairline">
-                  <p className="text-xs text-mid-gray mb-1">Дедлайн подачи</p>
+                  <p className="text-xs text-mid-gray mb-1">{t.tenderDetail.deadline}</p>
                   <p className="text-sm font-bold text-ember">
                     {new Date(tender.deadlineDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </p>
@@ -192,23 +197,23 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
 
               <div className="p-5 rounded-2xl bg-surface-alt border border-hairline space-y-3">
                 <h3 className="text-xs font-bold text-ink uppercase tracking-wider">
-                  Информация о заказчике
+                  {t.tenderDetail.customerInfo}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-ink-soft">
                   <div>
-                    <span className="text-mid-gray block text-[11px]">Наименование:</span>
+                    <span className="text-mid-gray block text-[11px]">{t.tenderDetail.customerName}</span>
                     <span className="font-semibold text-ink">{tender.customerName}</span>
                   </div>
                   <div>
-                    <span className="text-mid-gray block text-[11px]">БИН Заказчика:</span>
+                    <span className="text-mid-gray block text-[11px]">{t.tenderDetail.customerBin}</span>
                     <span className="font-mono text-ink">{tender.customerBin}</span>
                   </div>
                   <div>
-                    <span className="text-mid-gray block text-[11px]">Регион поставки:</span>
+                    <span className="text-mid-gray block text-[11px]">{t.tenderDetail.deliveryRegion}</span>
                     <span>{tender.region}</span>
                   </div>
                   <div>
-                    <span className="text-mid-gray block text-[11px]">Категория / Отрасль:</span>
+                    <span className="text-mid-gray block text-[11px]">{t.tenderDetail.category}</span>
                     <span>{tender.category}</span>
                   </div>
                 </div>
@@ -217,7 +222,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
               {tender.description && (
                 <div className="p-5 rounded-2xl bg-surface-alt border border-hairline">
                   <h3 className="text-xs font-bold text-ink uppercase tracking-wider mb-2">
-                    Описание предмета закупки
+                    {t.tenderDetail.purchaseDescription}
                   </h3>
                   <p className="text-xs text-ink-soft leading-relaxed">{tender.description}</p>
                 </div>
@@ -225,7 +230,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
 
               <div className="p-5 rounded-2xl bg-surface-alt border border-hairline">
                 <h3 className="text-xs font-bold text-ink uppercase tracking-wider mb-3">
-                  Вложенная конкурсная документация ({tender.documents.length})
+                  {t.tenderDetail.documents.replace('{count}', String(tender.documents.length))}
                 </h3>
                 <div className="space-y-2">
                   {tender.documents.map((doc) => (
@@ -234,7 +239,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
                         <FileText className="w-4 h-4 text-ink" />
                         <div>
                           <p className="text-xs font-semibold text-ink">{doc.fileName}</p>
-                          <p className="text-[11px] text-mid-gray">{doc.fileSize || 'Файл документации'}</p>
+                          <p className="text-[11px] text-mid-gray">{doc.fileSize || t.tenderDetail.docFile}</p>
                         </div>
                       </div>
                       <a
@@ -244,7 +249,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
                         className="px-3 py-1.5 rounded-lg bg-surface-alt border border-hairline text-xs font-semibold text-ink hover:bg-paper flex items-center space-x-1.5 transition-all shadow-subtle"
                       >
                         <Download className="w-3.5 h-3.5" />
-                        <span>Скачать</span>
+                        <span>{t.tenderDetail.download}</span>
                       </a>
                     </div>
                   ))}
@@ -261,7 +266,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
               <div className="p-5 rounded-2xl bg-surface-alt border border-hairline space-y-3">
                 <div className="flex items-center space-x-2 text-ink font-semibold text-xs">
                   <Sparkles className="w-4 h-4 text-ember" />
-                  <span>Автоматическое ИИ-резюме ТЗ</span>
+                  <span>{t.tenderDetail.aiSummaryTitle}</span>
                 </div>
                 <p className="text-xs text-ink-soft leading-relaxed">
                   {tender.aiSummary}
@@ -270,7 +275,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
                 {tender.aiKeyRequirements && (
                   <div className="pt-3 border-t border-hairline">
                     <span className="text-[10px] font-bold text-ink uppercase tracking-wider block mb-2">
-                      Главные критерии допуска:
+                      {t.tenderDetail.mainCriteria}
                     </span>
                     <ul className="space-y-1.5 text-xs text-ink-soft">
                       {tender.aiKeyRequirements.map((req, idx) => (
@@ -287,17 +292,17 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
               <div className="p-5 rounded-2xl bg-surface-alt border border-hairline space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-ink uppercase tracking-wider">
-                    Предварительная оценка рисков участия
+                    {t.tenderDetail.riskAssessment}
                   </h3>
                   <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-paper border border-hairline text-ink shadow-subtle">
-                    Индекс риска: {tender.riskScore}/100
+                    {t.tenderDetail.riskIndex} {tender.riskScore}/100
                   </span>
                 </div>
 
                 {tender.riskFlags.length === 0 ? (
                   <p className="text-xs text-emerald-700 font-medium flex items-center space-x-2">
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Критичеcких системных рисков по данному лоту не обнаружено.</span>
+                    <span>{t.tenderDetail.noRisks}</span>
                   </p>
                 ) : (
                   <div className="space-y-3">
@@ -314,7 +319,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
                 )}
 
                 <p className="text-[10px] text-mid-gray italic pt-2">
-                  * Оценка рисков является справочным сигналом ИИ-алгоритма TenderAI.
+                  {t.tenderDetail.riskNote}
                 </p>
               </div>
 
@@ -327,7 +332,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
               
               <div className="px-4 py-2 bg-paper border-b border-hairline text-[11px] text-mid-gray flex items-center space-x-2">
                 <ShieldCheck className="w-4 h-4 text-ink shrink-0" />
-                <span>Ответы формируются исключительно по фактам из технической спецификации.</span>
+                <span>{t.tenderDetail.ragNotice}</span>
               </div>
 
               <div className="flex-1 p-4 overflow-y-auto space-y-3">
@@ -360,7 +365,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
                   type="text"
                   value={inputQuestion}
                   onChange={(e) => setInputQuestion(e.target.value)}
-                  placeholder="Задайте вопрос по ТЗ, обеспечению или дедлайну..."
+                  placeholder={t.tenderDetail.ragPlaceholder}
                   className="flex-1 bg-surface-alt border border-hairline rounded-xl px-4 py-2 text-xs text-ink placeholder-mid-gray focus:outline-none focus:border-ink"
                 />
                 <button
@@ -378,11 +383,11 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
           {activeTab === 'audit' && (
             <div className="p-5 rounded-2xl bg-surface-alt border border-hairline space-y-4">
               <h3 className="text-xs font-bold text-ink uppercase tracking-wider mb-2">
-                История изменений параметров лота (Audit Trail)
+                {t.tenderDetail.auditTitle}
               </h3>
 
               {tender.history.length === 0 ? (
-                <p className="text-xs text-mid-gray">Изменений условий или сроков по данному лоту не зафиксировано.</p>
+                <p className="text-xs text-mid-gray">{t.tenderDetail.noAudit}</p>
               ) : (
                 <div className="space-y-3">
                   {tender.history.map((item) => (
@@ -412,7 +417,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
             rel="noreferrer"
             className="text-xs font-semibold text-ink hover:text-ember flex items-center space-x-1.5 transition-colors"
           >
-            <span>Перейти к первоисточнику ({tender.source})</span>
+            <span>{t.tenderDetail.goToSource.replace('{source}', tender.source)}</span>
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
 
@@ -421,7 +426,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 rounded-xl text-xs font-semibold bg-paper border border-hairline text-ink hover:bg-surface-alt transition-colors shadow-subtle"
             >
-              Закрыть
+              {t.tenderDetail.close}
             </button>
 
             <button
@@ -432,7 +437,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
               disabled={isInKanban}
               className="px-5 py-2 rounded-xl text-xs font-semibold bg-ink hover:bg-ink-soft text-paper transition-all disabled:opacity-50 shadow-subtle"
             >
-              {isInKanban ? 'Уже в вашей воронке' : 'Взять лот в работу'}
+              {isInKanban ? t.tenderDetail.alreadyInKanban : t.tenderDetail.takeToWork}
             </button>
           </div>
         </div>

@@ -11,6 +11,8 @@ import {
   Layers
 } from 'lucide-react';
 
+import { useTranslation } from '../lib/i18n/useTranslation';
+
 interface NavigationProps {
   activeTab: 'catalog' | 'kanban' | 'matching' | 'admin' | 'billing' | 'telegram';
   setActiveTab: (tab: 'catalog' | 'kanban' | 'matching' | 'admin' | 'billing' | 'telegram') => void;
@@ -26,6 +28,8 @@ export const Navigation: React.FC<NavigationProps> = ({
   setLanguage,
   kanbanCount
 }) => {
+  const t = useTranslation(language);
+
   return (
     <header className="sticky top-0 z-40 bg-paper/90 backdrop-blur-md border-b border-hairline shadow-subtle">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -47,7 +51,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-mid-gray leading-none">
-                {language === 'RU' ? 'Агрегатор и ИИ-Ассистент РК' : 'ҚР Тендерлерінің ИИ-агрегаторы'}
+                {t.nav.brandSub}
               </p>
             </div>
           </div>
@@ -63,7 +67,7 @@ export const Navigation: React.FC<NavigationProps> = ({
               }`}
             >
               <Search className="w-3.5 h-3.5" />
-              <span>{language === 'RU' ? 'Каталог' : 'Каталог'}</span>
+              <span>{t.nav.catalog}</span>
             </button>
 
             <button
@@ -75,7 +79,7 @@ export const Navigation: React.FC<NavigationProps> = ({
               }`}
             >
               <Sparkles className="w-3.5 h-3.5 text-ember" />
-              <span>{language === 'RU' ? 'ИИ-Матчинг' : 'ИИ-Матчинг'}</span>
+              <span>{t.nav.matching}</span>
             </button>
 
             <button
@@ -87,7 +91,7 @@ export const Navigation: React.FC<NavigationProps> = ({
               }`}
             >
               <Kanban className="w-3.5 h-3.5" />
-              <span>{language === 'RU' ? 'Воронка' : 'Воронка'}</span>
+              <span>{t.nav.kanban}</span>
               {kanbanCount > 0 && (
                 <span className="ml-1 px-1.5 py-0.2 text-[10px] font-semibold bg-ink text-paper rounded-full">
                   {kanbanCount}
@@ -104,7 +108,7 @@ export const Navigation: React.FC<NavigationProps> = ({
               }`}
             >
               <Activity className="w-3.5 h-3.5" />
-              <span>{language === 'RU' ? 'Админка' : 'Админка'}</span>
+              <span>{t.nav.admin}</span>
             </button>
           </nav>
 

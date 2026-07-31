@@ -5,17 +5,22 @@ import { CompanyProfileData } from '../lib/types/tender';
 import { KZ_REGIONS } from '../lib/mockData';
 import { Sparkles, Tag, Check, Save } from 'lucide-react';
 
+import { useTranslation } from '../lib/i18n/useTranslation';
+
 interface CompanyProfileModalProps {
   profile: CompanyProfileData;
   onSaveProfile: (profile: CompanyProfileData) => void;
   onRunMatching: () => void;
+  language?: 'RU' | 'KK';
 }
 
 export const CompanyProfileModal: React.FC<CompanyProfileModalProps> = ({
   profile,
   onSaveProfile,
-  onRunMatching
+  onRunMatching,
+  language = 'RU'
 }) => {
+  const t = useTranslation(language);
   const [formData, setFormData] = useState<CompanyProfileData>(profile);
   const [keywordInput, setKeywordInput] = useState('');
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -55,17 +60,17 @@ export const CompanyProfileModal: React.FC<CompanyProfileModalProps> = ({
         <div>
           <h2 className="text-lg font-bold text-ink flex items-center space-x-2 tracking-tight">
             <Sparkles className="w-5 h-5 text-ember" />
-            <span>Профиль компании и Настройка Семантического ИИ-Матчинга</span>
+            <span>{t.companyProfile.title}</span>
           </h2>
           <p className="text-xs text-mid-gray mt-1">
-            Опишите направление вашей деятельности. ИИ-бот ежедневно анализирует новые лоты Республики Казахстан по смыслу ТЗ.
+            {t.companyProfile.subtitle}
           </p>
         </div>
 
         {savedSuccess && (
           <span className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center space-x-1 shadow-subtle">
             <Check className="w-4 h-4" />
-            <span>Профиль сохранен!</span>
+            <span>{t.companyProfile.savedSuccess}</span>
           </span>
         )}
       </div>
@@ -76,7 +81,7 @@ export const CompanyProfileModal: React.FC<CompanyProfileModalProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-xs font-semibold text-ink-soft block mb-1.5">
-              Наименование организации:
+              {t.companyProfile.orgName}
             </label>
             <input
               type="text"
@@ -89,7 +94,7 @@ export const CompanyProfileModal: React.FC<CompanyProfileModalProps> = ({
 
           <div>
             <label className="text-xs font-semibold text-ink-soft block mb-1.5">
-              БИН организации (РК):
+              {t.companyProfile.orgBin}
             </label>
             <input
               type="text"
@@ -104,13 +109,13 @@ export const CompanyProfileModal: React.FC<CompanyProfileModalProps> = ({
         {/* Business Activities Description */}
         <div>
           <label className="text-xs font-semibold text-ink-soft block mb-1.5">
-            Описание видов деятельности (для естественного семантического анализа ИИ):
+            {t.companyProfile.activitiesLabel}
           </label>
           <textarea
             rows={3}
             value={formData.activities}
             onChange={(e) => setFormData({ ...formData, activities: e.target.value })}
-            placeholder="Например: Поставка серверного и сетевого оборудования, монтаж СКС, комплексная IT-инфраструктура, разработка ПО и сопровождение..."
+            placeholder={t.companyProfile.activitiesPlaceholder}
             className="w-full bg-surface-alt border border-hairline rounded-xl p-4 text-xs sm:text-sm text-ink focus:outline-none focus:border-ink leading-relaxed shadow-subtle"
           />
         </div>
@@ -118,14 +123,14 @@ export const CompanyProfileModal: React.FC<CompanyProfileModalProps> = ({
         {/* Keywords */}
         <div>
           <label className="text-xs font-semibold text-ink-soft block mb-1.5">
-            Ключевые слова & КТРУ:
+            {t.companyProfile.keywordsLabel}
           </label>
           <div className="flex items-center space-x-2 mb-2">
             <input
               type="text"
               value={keywordInput}
               onChange={(e) => setKeywordInput(e.target.value)}
-              placeholder="Добавить тег (например: Серверы, СМР, СИЗ, ПО)..."
+              placeholder={t.companyProfile.keywordPlaceholder}
               className="flex-1 bg-surface-alt border border-hairline rounded-xl px-4 py-2 text-xs text-ink focus:outline-none focus:border-ink shadow-subtle"
             />
             <button
@@ -133,7 +138,7 @@ export const CompanyProfileModal: React.FC<CompanyProfileModalProps> = ({
               onClick={handleAddKeyword}
               className="px-4 py-2 rounded-xl bg-surface-alt hover:bg-paper border border-hairline text-xs font-semibold text-ink shadow-subtle transition-all"
             >
-              Добавить
+              {t.companyProfile.addButton}
             </button>
           </div>
           
@@ -151,7 +156,7 @@ export const CompanyProfileModal: React.FC<CompanyProfileModalProps> = ({
         {/* Regions */}
         <div>
           <label className="text-xs font-semibold text-ink-soft block mb-2">
-            Предпочтительные регионы работы (РК):
+            {t.companyProfile.preferredRegions}
           </label>
           <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-3 rounded-2xl bg-surface-alt border border-hairline">
             {KZ_REGIONS.map((reg) => {
@@ -178,7 +183,7 @@ export const CompanyProfileModal: React.FC<CompanyProfileModalProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-xs font-semibold text-ink-soft block mb-1.5">
-              Минимальная сумма договора (KZT):
+              {t.companyProfile.minAmount}
             </label>
             <input
               type="number"
@@ -190,13 +195,13 @@ export const CompanyProfileModal: React.FC<CompanyProfileModalProps> = ({
 
           <div>
             <label className="text-xs font-semibold text-ink-soft block mb-1.5">
-              Максимальная сумма договора (KZT):
+              {t.companyProfile.maxAmount}
             </label>
             <input
               type="number"
               value={formData.maxAmount || ''}
               onChange={(e) => setFormData({ ...formData, maxAmount: parseFloat(e.target.value) || 0 })}
-              placeholder="Без ограничений"
+              placeholder={t.companyProfile.noLimits}
               className="w-full bg-surface-alt border border-hairline rounded-xl px-4 py-2.5 text-xs sm:text-sm text-ink font-mono focus:outline-none focus:border-ink shadow-subtle"
             />
           </div>
@@ -209,7 +214,7 @@ export const CompanyProfileModal: React.FC<CompanyProfileModalProps> = ({
             className="px-6 py-3 rounded-xl bg-ink hover:bg-ink-soft text-paper font-semibold text-xs sm:text-sm shadow-subtle transition-all flex items-center space-x-2"
           >
             <Save className="w-4 h-4" />
-            <span>Сохранить профиль и Запустить ИИ-Матчинг</span>
+            <span>{t.companyProfile.saveAndMatch}</span>
           </button>
         </div>
 
