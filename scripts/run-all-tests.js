@@ -19,7 +19,8 @@ const tests = [
   'scripts/tests/ingestion-bugs-v5.test.js',
   'scripts/tests/product-features.test.js',
   'scripts/tests/client-secrets-guard.test.js',
-  'scripts/tests/i18n.test.js'
+  'scripts/tests/i18n.test.js',
+  'scripts/tests/kanban-card-details.test.js'
 ];
 
 console.log('🚀 Running TenderAI Automated Test Suite (npm test)...\n');

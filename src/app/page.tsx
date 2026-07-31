@@ -230,34 +230,48 @@ export default function HomePage() {
       });
   };
 
-  const handleUpdateKanbanStage = (itemId: string, newStage: any) => {
+  const handleUpdateKanbanCard = (itemId: string, changes: Partial<KanbanItem>) => {
     const previousItems = kanbanItems;
     const targetItem = kanbanItems.find(k => k.id === itemId);
     if (!targetItem) return;
 
-    setKanbanItems(prev => prev.map(item => item.id === itemId ? { ...item, stage: newStage, stageEnteredAt: new Date().toISOString() } : item));
+    const isStageOnly = Object.keys(changes).length === 1 && changes.stage !== undefined;
+
+    setKanbanItems(prev => prev.map(item => {
+      if (item.id !== itemId) return item;
+      const stageChanged = changes.stage && changes.stage !== item.stage;
+      return {
+        ...item,
+        ...changes,
+        ...(stageChanged ? { stageEnteredAt: new Date().toISOString() } : {})
+      };
+    }));
 
     if (isDemoMode) {
-      showToast(t.toast.stageUpdatedDemo, 'success');
+      showToast(isStageOnly ? t.toast.stageUpdatedDemo : t.toast.cardUpdatedDemo, 'success');
       return;
     }
 
     fetch('/api/kanban', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: itemId, tenderId: targetItem.tenderId, stage: newStage })
+      body: JSON.stringify({ id: itemId, tenderId: targetItem.tenderId, ...changes })
     })
       .then(async res => {
         const data = await res.json();
         if (!res.ok || !data.success) {
           throw new Error(data.message || 'Ошибка сервера при обновлении');
         }
-        showToast(t.toast.stageUpdatedSuccess, 'success');
+        showToast(isStageOnly ? t.toast.stageUpdatedSuccess : t.toast.cardUpdatedSuccess, 'success');
       })
       .catch((err) => {
         setKanbanItems(previousItems);
-        showToast(t.toast.stageUpdatedError.replace('{err}', err.message || 'Изменения отменены'), 'error');
+        showToast((isStageOnly ? t.toast.stageUpdatedError : t.toast.cardUpdatedError).replace('{err}', err.message || 'Изменения отменены'), 'error');
       });
+  };
+
+  const handleUpdateKanbanStage = (itemId: string, newStage: any) => {
+    handleUpdateKanbanCard(itemId, { stage: newStage });
   };
 
   const handleRemoveKanbanItem = (itemId: string) => {
@@ -566,6 +580,7 @@ export default function HomePage() {
           <KanbanBoard
             items={kanbanItems}
             onUpdateStage={handleUpdateKanbanStage}
+            onUpdateCard={handleUpdateKanbanCard}
             onRemoveItem={handleRemoveKanbanItem}
             onOpenTenderDetails={(t) => setSelectedTender(t)}
             dataSources={dataSources}
