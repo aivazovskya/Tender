@@ -21,7 +21,8 @@ const tests = [
   'scripts/tests/client-secrets-guard.test.js',
   'scripts/tests/i18n.test.js',
   'scripts/tests/kanban-card-details.test.js',
-  'scripts/tests/adapter-registry.test.js'
+  'scripts/tests/adapter-registry.test.js',
+  'scripts/tests/check-matches.test.js'
 ];
 
 console.log('🚀 Running TenderAI Automated Test Suite (npm test)...\n');
