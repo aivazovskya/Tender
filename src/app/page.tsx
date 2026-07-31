@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Tender, KanbanItem, CompanyProfileData, DataSourceStatus } from '../lib/types/tender';
 import { INITIAL_DATA_SOURCES, KZ_REGIONS, CATEGORIES } from '../lib/mockData';
 import { AIClientService } from '../lib/services/ai.client';
-import { TelegramBotService } from '../lib/services/telegram.service';
 import { Navigation } from '../components/Navigation';
 import { TenderCard } from '../components/TenderCard';
 import { TenderDetailModal } from '../components/TenderDetailModal';
@@ -262,9 +261,25 @@ export default function HomePage() {
       });
   };
 
-  const handleSendToTelegram = (tender: Tender) => {
-    TelegramBotService.sendNotification(tender, companyProfile.telegramChatId);
-    showToast(`Уведомление по лоту №${tender.externalId} отправлено в Telegram!`);
+  const handleSendToTelegram = async (tender: Tender) => {
+    try {
+      const res = await fetch('/api/telegram/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenderId: tender.id })
+      });
+      const result = await res.json();
+
+      if (result.success) {
+        showToast(`Уведомление по лоту №${tender.externalId} отправлено в Telegram!`);
+      } else if (result.skipped) {
+        showToast('Telegram-бот не настроен или чат не привязан к профилю.', 'error');
+      } else {
+        showToast(`Не удалось отправить уведомление: ${result.message || 'ошибка сервера'}`, 'error');
+      }
+    } catch {
+      showToast('Не удалось отправить уведомление в Telegram.', 'error');
+    }
   };
 
   const matchedTenders = useMemo(() => {
