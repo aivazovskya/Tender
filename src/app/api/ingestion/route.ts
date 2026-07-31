@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { GoszakupApiAdapter } from '@/lib/ingestion/goszakup.adapter';
-import { SamrukApiAdapter } from '@/lib/ingestion/samruk.adapter';
+import { getApiAdapter } from '@/lib/ingestion/adapter-registry';
 import { ConfigurableScraperAdapter } from '@/lib/ingestion/scraper.adapter';
 import { ScraperSourceConfigData } from '@/lib/types/scraper';
 import { validateApiAuth } from '@/lib/security/auth';
@@ -28,12 +27,9 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    if (source === 'GOSZAKUP') {
-      const adapter = new GoszakupApiAdapter();
-      result = await adapter.run();
-    } else if (source === 'SAMRUK_KAZYNA') {
-      const adapter = new SamrukApiAdapter();
-      result = await adapter.run();
+    const apiAdapter = getApiAdapter(source);
+    if (apiAdapter) {
+      result = await apiAdapter.run();
     } else if (dbSource && dbSource.adapterType === 'SCRAPER' && dbSource.scraperConfig) {
       const configData: ScraperSourceConfigData = {
         dataSourceId: dbSource.name || dbSource.id,

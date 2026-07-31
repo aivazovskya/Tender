@@ -3,13 +3,15 @@
 import React, { useState, useEffect } from 'react';
 import { DataSourceStatus } from '../lib/types/tender';
 import { ScraperConfigModal } from './ScraperConfigModal';
+import { ApiSourceModal } from './ApiSourceModal';
 import { 
   Activity, 
   RefreshCw, 
   Clock,
   Plus,
   Sliders,
-  AlertTriangle
+  AlertTriangle,
+  Cpu
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -28,7 +30,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isFallback, setIsFallback] = useState<boolean>(false);
   const [liveSources, setLiveSources] = useState<any[]>(sources || []);
   const [isScraperModalOpen, setIsScraperModalOpen] = useState<boolean>(false);
+  const [isApiModalOpen, setIsApiModalOpen] = useState<boolean>(false);
   const [selectedScraperConfig, setSelectedScraperConfig] = useState<any>(null);
+  const [registeredApiSources, setRegisteredApiSources] = useState<string[]>(['GOSZAKUP', 'SAMRUK_KAZYNA']);
 
   const [metrics, setMetrics] = useState<{ totalTendersCount: number; aiTokens24h: number; maxAiTokensQuota: number }>({
     totalTendersCount: 24900,
@@ -40,20 +44,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     fetch('/api/admin/sources')
       .then(res => res.json())
       .then(data => {
-        if (data.success && Array.isArray(data.sources) && data.sources.length > 0) {
-          setLiveSources(data.sources.map((s: any) => ({
-            id: s.id,
-            name: s.name,
-            displayName: s.displayName,
-            adapterType: s.adapterType,
-            isActive: s.isActive,
-            checkIntervalMins: s.checkIntervalMins,
-            lastSyncAt: s.lastSyncAt ? new Date(s.lastSyncAt).toISOString() : undefined,
-            healthStatus: s.healthStatus,
-            successRate24h: s.successRate24h ?? 100.0,
-            totalIngested: s.totalIngested ?? 0,
-            scraperConfig: s.scraperConfig
-          })));
+        if (data.success) {
+          if (Array.isArray(data.registeredApiSources) && data.registeredApiSources.length > 0) {
+            setRegisteredApiSources(data.registeredApiSources);
+          }
+          if (Array.isArray(data.sources) && data.sources.length > 0) {
+            setLiveSources(data.sources.map((s: any) => ({
+              id: s.id,
+              name: s.name,
+              displayName: s.displayName,
+              adapterType: s.adapterType,
+              isActive: s.isActive,
+              checkIntervalMins: s.checkIntervalMins,
+              lastSyncAt: s.lastSyncAt ? new Date(s.lastSyncAt).toISOString() : undefined,
+              healthStatus: s.healthStatus,
+              successRate24h: s.successRate24h ?? 100.0,
+              totalIngested: s.totalIngested ?? 0,
+              scraperConfig: s.scraperConfig
+            })));
+          }
         }
       })
       .catch(() => {});
@@ -163,10 +172,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-3 flex-wrap gap-y-2">
+          <button
+            onClick={() => setIsApiModalOpen(true)}
+            className="px-3.5 py-2 rounded-xl bg-surface-alt hover:bg-paper border border-hairline text-ink font-semibold text-xs flex items-center space-x-1.5 shadow-subtle transition-all"
+          >
+            <Cpu className="w-4 h-4 text-ink" />
+            <span>+ API-источник</span>
+          </button>
+
           <button
             onClick={handleOpenAddScraperModal}
-            className="px-4 py-2 rounded-xl bg-ink hover:bg-ink-soft text-paper font-semibold text-xs flex items-center space-x-2 shadow-subtle transition-all"
+            className="px-3.5 py-2 rounded-xl bg-ink hover:bg-ink-soft text-paper font-semibold text-xs flex items-center space-x-1.5 shadow-subtle transition-all"
           >
             <Plus className="w-4 h-4" />
             <span>+ Scraper-источник</span>
@@ -280,6 +297,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         onClose={() => setIsScraperModalOpen(false)}
         onSaved={loadSources}
         initialConfig={selectedScraperConfig}
+      />
+
+      {/* API Source Modal */}
+      <ApiSourceModal
+        isOpen={isApiModalOpen}
+        onClose={() => setIsApiModalOpen(false)}
+        onSaved={loadSources}
+        registeredApiSources={registeredApiSources}
       />
 
     </div>

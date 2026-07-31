@@ -154,3 +154,50 @@ npm run check:client-secrets
 ```
 Проверка автоматически выполняется при вызове `npm test` и в CI-пайплайне (`.github/workflows/ci.yml`).
 
+---
+
+## 🔌 Как добавить новый API-источник
+
+Для источников типа `API` (официальные веб-сервисы госзакупок РК, корпоративные порталы) добавление нового коннектора выполняется по следующему алгоритму:
+
+1. **Создание адаптера**:
+   Создайте файл `src/lib/ingestion/<name>.adapter.ts`, унаследуйте класс от `BaseTenderAdapter` и реализуйте методы `fetchRawData()` и `normalize()`:
+   ```typescript
+   import { BaseTenderAdapter } from './base.adapter';
+   import { Tender } from '../types/tender';
+
+   export class CustomPortalApiAdapter extends BaseTenderAdapter {
+     protected sourceType = 'CUSTOM_PORTAL';
+     protected adapterType = 'API' as const;
+
+     async fetchRawData(): Promise<any[]> {
+       // Получение данных по HTTP REST/GraphQL или использование fallback при отсутствии ключа
+       return [];
+     }
+
+     normalize(rawData: any[]): Tender[] {
+       // Приведение к единой структуре Tender
+       return [];
+     }
+   }
+   ```
+
+2. **Регистрация в реестре адаптеров**:
+   Зарегистрируйте новый класс в `src/lib/ingestion/adapter-registry.ts`:
+   ```typescript
+   import { CustomPortalApiAdapter } from './custom-portal.adapter';
+
+   const API_ADAPTER_REGISTRY: Record<string, AdapterConstructor> = {
+     GOSZAKUP: GoszakupApiAdapter,
+     SAMRUK_KAZYNA: SamrukApiAdapter,
+     CUSTOM_PORTAL: CustomPortalApiAdapter, // Регистрация одной строкой
+   };
+   ```
+
+3. **Переменные окружения (.env)**:
+   Добавьте ключ API в `.env.example` (например `CUSTOM_PORTAL_API_TOKEN`) и предусмотрите в адаптере graceful fallback на демо-данные при отсутствии токена.
+
+4. **Регистрация записи в БД**:
+   Заведите запись `DataSource` в базе данных (через `npm run seed` или панель администрирования по кнопке `+ API-источник`), указав поле `name`, совпадающее с ключом реестра (`CUSTOM_PORTAL`).
+
+
