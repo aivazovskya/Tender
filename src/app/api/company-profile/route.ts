@@ -2,16 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
 
-const defaultProfile = {
-  companyName: 'ТОО "КазИТ Сервис"',
-  bin: '180940004512',
-  activities: 'Поставка компьютерной техники, серверного оборудования, сетевых устройств, разработка ПО и системная интеграция.',
-  keywords: ['Серверы', 'Сетевое оборудование', 'ИТ-услуги', 'ПО'],
-  regions: ['г. Астана', 'г. Алматы', 'Карагандинская область'],
-  minAmount: 5000000,
-  maxAmount: 200000000,
-  contactEmail: 'tender@kazit-service.kz',
-  telegramChatId: '@kazit_tender_team'
+const emptyProfileTemplate = {
+  companyName: '',
+  bin: '',
+  activities: '',
+  keywords: [],
+  regions: ['Все регионы'],
+  minAmount: 0,
+  maxAmount: 0,
+  contactEmail: '',
+  telegramChatId: ''
 };
 
 export async function GET(request: NextRequest) {
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     success: true,
     isFallback: true,
-    profile: defaultProfile
+    profile: emptyProfileTemplate
   });
 }
 
@@ -58,7 +58,15 @@ export async function POST(request: NextRequest) {
       telegramChatId
     } = body;
 
-    const targetBin = bin || '180940004512';
+    // Bug #24 Fix: Mandatory BIN Validation (no default fake BIN fallback)
+    if (!bin || typeof bin !== 'string' || bin.trim().length === 0) {
+      return NextResponse.json(
+        { success: false, message: 'Поле БИН обязательно для заполнения' },
+        { status: 400 }
+      );
+    }
+
+    const targetBin = bin.trim();
 
     // Anti-Takeover Security Check (Bug #14): Prevent overwriting CompanyProfile owned by another userId
     const existingByBin = await prisma.companyProfile.findUnique({
@@ -76,26 +84,26 @@ export async function POST(request: NextRequest) {
     const profile = await prisma.companyProfile.upsert({
       where: { bin: targetBin },
       update: {
-        companyName,
-        activities,
-        keywords,
-        regions,
-        minAmount,
-        maxAmount,
-        contactEmail,
-        telegramChatId,
+        companyName: companyName || '',
+        activities: activities || '',
+        keywords: Array.isArray(keywords) ? keywords : [],
+        regions: Array.isArray(regions) ? regions : ['Все регионы'],
+        minAmount: typeof minAmount === 'number' ? minAmount : 0,
+        maxAmount: typeof maxAmount === 'number' ? maxAmount : 0,
+        contactEmail: contactEmail || '',
+        telegramChatId: telegramChatId || '',
         userId: auth.userId
       },
       create: {
-        companyName,
+        companyName: companyName || '',
         bin: targetBin,
-        activities,
-        keywords,
-        regions,
-        minAmount,
-        maxAmount,
-        contactEmail,
-        telegramChatId,
+        activities: activities || '',
+        keywords: Array.isArray(keywords) ? keywords : [],
+        regions: Array.isArray(regions) ? regions : ['Все регионы'],
+        minAmount: typeof minAmount === 'number' ? minAmount : 0,
+        maxAmount: typeof maxAmount === 'number' ? maxAmount : 0,
+        contactEmail: contactEmail || '',
+        telegramChatId: telegramChatId || '',
         userId: auth.userId
       }
     });

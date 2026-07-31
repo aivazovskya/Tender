@@ -60,23 +60,29 @@ export default function HomePage() {
     setTimeout(() => setToast(null), 3500);
   };
 
+  const [isProfileFallback, setIsProfileFallback] = useState<boolean>(false);
+
   // Company Profile for Matching
   const [companyProfile, setCompanyProfileState] = useState<CompanyProfileData>({
-    companyName: 'ТОО "КазИТ Сервис"',
-    bin: '180940004512',
-    activities: 'Поставка компьютерной техники, серверного оборудования, сетевых устройств, разработка ПО и системная интеграция.',
-    keywords: ['Серверы', 'Сетевое оборудование', 'ИТ-услуги', 'ПО'],
-    regions: ['г. Астана', 'г. Алматы', 'Карагандинская область'],
-    minAmount: 5000000,
-    maxAmount: 200000000,
-    contactEmail: 'tender@kazit-service.kz',
-    telegramChatId: '@kazit_tender_team'
+    companyName: '',
+    bin: '',
+    activities: '',
+    keywords: [],
+    regions: ['Все регионы'],
+    minAmount: 0,
+    maxAmount: 0,
+    contactEmail: '',
+    telegramChatId: ''
   });
 
   const setCompanyProfile = (newProfile: CompanyProfileData) => {
     setCompanyProfileState(newProfile);
     if (isDemoMode) {
       showToast('[Демо-режим] Изменения профиля применены без сохранения в БД', 'success');
+      return;
+    }
+    if (isProfileFallback) {
+      showToast('Сбой загрузки данных профиля с сервера. Обновите страницу перед сохранением.', 'error');
       return;
     }
     fetch('/api/company-profile', {
@@ -89,6 +95,19 @@ export default function HomePage() {
   // Fetch initial profile & kanban items from REST API
   useEffect(() => {
     if (isDemoMode) {
+      // In Demo Mode, supply realistic Demo Profile for demonstration
+      setCompanyProfileState({
+        companyName: 'ТОО "КазИТ Сервис"',
+        bin: '180940004512',
+        activities: 'Поставка компьютерной техники, серверного оборудования, сетевых устройств, разработка ПО и системная интеграция.',
+        keywords: ['Серверы', 'Сетевое оборудование', 'ИТ-услуги', 'ПО'],
+        regions: ['г. Астана', 'г. Алматы', 'Карагандинская область'],
+        minAmount: 5000000,
+        maxAmount: 200000000,
+        contactEmail: 'tender@kazit-service.kz',
+        telegramChatId: '@kazit_tender_team'
+      });
+
       fetch('/api/demo/kanban')
         .then(res => res.json())
         .then(data => {
@@ -103,11 +122,18 @@ export default function HomePage() {
     fetch('/api/company-profile')
       .then(res => res.json())
       .then(data => {
-        if (data.success && data.profile) {
-          setCompanyProfileState(data.profile);
+        if (data.success) {
+          if (data.isFallback) {
+            setIsProfileFallback(true);
+          } else if (data.profile) {
+            setCompanyProfileState(data.profile);
+            setIsProfileFallback(false);
+          }
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        setIsProfileFallback(true);
+      });
 
     fetch('/api/kanban')
       .then(res => res.json())

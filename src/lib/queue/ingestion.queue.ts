@@ -27,7 +27,20 @@ export const createIngestionWorker = () => {
       console.log(`[BullMQ Worker] Обработка фоновой задачи инжеста для источника: ${source}`);
 
       let result: any;
-      if (source === 'GOSZAKUP') {
+      if (source === 'CHECK_SLA') {
+        console.log('[BullMQ Worker] Автоматический запуск проверки SLA и дедлайнов...');
+        try {
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+          const cronSecret = process.env.CRON_SECRET || process.env.ADMIN_API_KEY || 'internal';
+          const res = await fetch(`${appUrl}/api/notifications/check-sla`, {
+            headers: { 'X-Cron-Secret': cronSecret }
+          });
+          result = await res.json();
+        } catch (err: any) {
+          console.warn('[BullMQ Worker] Сбой автономного вызова check-sla:', err?.message);
+          result = { success: false, error: err?.message };
+        }
+      } else if (source === 'GOSZAKUP') {
         const adapter = new GoszakupApiAdapter();
         result = await adapter.run();
       } else if (source === 'SAMRUK_KAZYNA') {
@@ -73,7 +86,7 @@ export const createIngestionWorker = () => {
 };
 
 /**
- * Schedule recurring background ingestion jobs for all active sources according to checkIntervalMins
+ * Schedule recurring background ingestion jobs and SLA check job according to checkIntervalMins
  */
 export async function scheduleAllActiveSources(): Promise<number> {
   try {
@@ -95,7 +108,18 @@ export async function scheduleAllActiveSources(): Promise<number> {
       scheduledCount++;
     }
 
-    console.log(`[BullMQ Scheduler] Успешно запланировано ${scheduledCount} источников данных по расписанию`);
+    // Schedule hourly SLA & Urgent Deadline checker job
+    await ingestionQueue.add(
+      'ingest-CHECK_SLA',
+      { source: 'CHECK_SLA' },
+      {
+        repeat: { every: 60 * 60 * 1000 },
+        jobId: 'repeat-CHECK_SLA'
+      }
+    );
+    scheduledCount++;
+
+    console.log(`[BullMQ Scheduler] Успешно запланировано ${scheduledCount} источников данных и SLA джоба по расписанию`);
     return scheduledCount;
   } catch (err: any) {
     console.warn('[BullMQ Scheduler] Ошибка планирования очередей:', err?.message);
