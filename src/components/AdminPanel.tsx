@@ -40,11 +40,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     maxAiTokensQuota: 500000
   });
 
+  const [healthMetrics, setHealthMetrics] = useState<any[]>([]);
+
   const loadSources = () => {
     fetch('/api/admin/sources')
       .then(res => res.json())
       .then(data => {
         if (data.success) {
+          if (Array.isArray(data.healthMetrics)) {
+            setHealthMetrics(data.healthMetrics);
+          }
           if (Array.isArray(data.registeredApiSources) && data.registeredApiSources.length > 0) {
             setRegisteredApiSources(data.registeredApiSources);
           }
@@ -204,6 +209,60 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Health & Heartbeat Status Banner */}
+      {healthMetrics.length > 0 && (
+        <div className="bg-paper border border-hairline rounded-2xl p-5 space-y-3 shadow-subtle">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-ink flex items-center space-x-2 tracking-tight">
+              <Activity className="w-4 h-4 text-emerald-600" />
+              <span>Здоровье коннекторов и Heartbeat скраперов</span>
+            </h3>
+            <span className="text-[11px] text-mid-gray">Мониторинг тишины (&gt;6ч) и ошибок воркера</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {healthMetrics.map((hm: any) => {
+              const statusColor = hm.status === 'HEALTHY' 
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                : hm.status === 'WARNING' 
+                  ? 'bg-amber-50 border-amber-200 text-amber-900' 
+                  : 'bg-rose-50 border-rose-200 text-rose-900';
+              const dotColor = hm.status === 'HEALTHY' ? 'bg-emerald-500' : hm.status === 'WARNING' ? 'bg-amber-500' : 'bg-rose-500';
+
+              return (
+                <div key={hm.sourceName || hm.id} className={`p-3.5 rounded-xl border ${statusColor} space-y-1.5`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs flex items-center space-x-1.5">
+                      <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+                      <span>{hm.sourceName}</span>
+                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-paper/60 border border-hairline uppercase">
+                      {hm.status}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-ink-soft space-y-0.5">
+                    <div className="flex justify-between">
+                      <span className="text-mid-gray">Успешно:</span>
+                      <span className="font-mono">{new Date(hm.lastSuccessAt).toLocaleTimeString('ru-RU')}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-mid-gray">Внесено (24ч):</span>
+                      <span className="font-mono">{hm.tendersIngested24h ?? 0}</span>
+                    </div>
+                    {hm.errorCount24h > 0 && (
+                      <div className="flex justify-between text-rose-700 font-semibold">
+                        <span>Ошибок (24ч):</span>
+                        <span className="font-mono">{hm.errorCount24h}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Sources Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

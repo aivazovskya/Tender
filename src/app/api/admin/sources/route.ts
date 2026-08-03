@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
 import { listRegisteredApiSources } from '@/lib/ingestion/adapter-registry';
+import { IngestionHealthService } from '@/lib/services/ingestion-health.service';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,7 @@ export async function GET(request: NextRequest) {
   if (!auth.authorized && auth.response) return auth.response;
 
   const registeredApiSources = listRegisteredApiSources();
+  const healthMetrics = await IngestionHealthService.getHealthSummary();
 
   try {
     const sources = await prisma.dataSource.findMany({
@@ -24,7 +26,8 @@ export async function GET(request: NextRequest) {
         success: true,
         isFallback: false,
         sources,
-        registeredApiSources
+        registeredApiSources,
+        healthMetrics
       });
     }
   } catch (error: any) {
@@ -59,7 +62,8 @@ export async function GET(request: NextRequest) {
         totalIngested: 10610
       }
     ],
-    registeredApiSources
+    registeredApiSources,
+    healthMetrics
   });
 }
 

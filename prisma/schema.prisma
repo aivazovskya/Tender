@@ -428,5 +428,25 @@ model TenderCostItem {
   @@index([calculationId])
 }
 
+enum DataSourceStatus {
+  HEALTHY
+  WARNING
+  FAILED
+}
+
+model DataSourceHealth {
+  id                  String           @id @default(cuid())
+  sourceName          String           @unique
+  status              DataSourceStatus @default(HEALTHY)
+  lastSuccessAt       DateTime         @default(now())
+  lastErrorAt         DateTime?
+  errorCount24h       Int              @default(0)
+  tendersIngested24h  Int              @default(0)
+  consecutiveFailures  Int              @default(0)
+  lastErrorMessage    String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+}
+
 
 
