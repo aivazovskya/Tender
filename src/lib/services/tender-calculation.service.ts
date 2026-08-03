@@ -62,7 +62,7 @@ export class TenderCalculationService {
     let riskAdjustedMarginPct: number | null = null;
     const tender = calculation.tender;
 
-    if (tender && typeof tender.riskScore === 'number' && tender.riskScore >= 0) {
+    if (tender && (tender.riskScoringStatus === 'AI_SCORED' || (tender as any).riskScoringStatus === 'AI_SCORED')) {
       const riskScore = tender.riskScore;
       const penaltyProbability = Math.min(1.0, Math.max(0.0, riskScore / 100));
       const penaltyRatePerDay = 0.001; // 0.1% per day

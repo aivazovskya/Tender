@@ -21,6 +21,12 @@ enum TenderStatus {
   SUSPENDED
 }
 
+enum RiskScoringStatus {
+  NOT_SCORED
+  DEFAULT_ADAPTER
+  AI_SCORED
+}
+
 enum DataSourceType {
   API
   SCRAPER
@@ -81,6 +87,7 @@ model Tender {
   aiSummary                  String?
   aiKeyRequirements          String[]
   riskScore                  Int                 @default(0)
+  riskScoringStatus          RiskScoringStatus   @default(NOT_SCORED)
   createdAt                  DateTime            @default(now())
   updatedAt                  DateTime            @updatedAt
 

@@ -51,6 +51,7 @@ export class IngestionProcessorService {
         let aiSummary = t.aiSummary;
         let aiKeyRequirements = t.aiKeyRequirements || [];
         let riskScore = t.riskScore || 0;
+        let riskScoringStatus = t.riskScoringStatus || 'DEFAULT_ADAPTER';
         let riskFlags = [...(t.riskFlags || [])];
 
         try {
@@ -59,6 +60,7 @@ export class IngestionProcessorService {
             aiSummary = aiAnalysis.summary;
             aiKeyRequirements = aiAnalysis.requirements;
             riskScore = aiAnalysis.riskScore;
+            riskScoringStatus = 'AI_SCORED';
           }
         } catch (aiErr) {
           console.warn(`[IngestionProcessorService] Ошибка AI-суммаризации для лота #${t.externalId}:`, aiErr);
@@ -131,7 +133,8 @@ export class IngestionProcessorService {
                 sourceUrl: t.sourceUrl,
                 aiSummary,
                 aiKeyRequirements,
-                riskScore
+                riskScore,
+                riskScoringStatus
               },
               create: {
                 source: t.source,
@@ -152,7 +155,8 @@ export class IngestionProcessorService {
                 sourceUrl: t.sourceUrl,
                 aiSummary,
                 aiKeyRequirements,
-                riskScore
+                riskScore,
+                riskScoringStatus
               }
             });
 

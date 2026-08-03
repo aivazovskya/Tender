@@ -8,6 +8,11 @@ async function getCompanyProfile(userId: string) {
   return await prisma.companyProfile.findFirst({ where: { userId } });
 }
 
+async function getUserEmail(userId: string): Promise<string> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  return user?.email || userId;
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -50,6 +55,7 @@ export async function POST(
       );
     }
 
+    const userEmail = await getUserEmail(auth.userId);
     const numAmount = parseFloat(amount);
     const numBase = baseAmount != null ? parseFloat(baseAmount) : null;
     let initialComputed = numAmount;
@@ -58,16 +64,28 @@ export async function POST(
       initialComputed = calcBase * (numAmount / 100);
     }
 
-    await prisma.tenderCostItem.create({
-      data: {
-        calculationId: calculation.id,
-        category,
-        label,
-        valueType,
-        amount: new Prisma.Decimal(numAmount),
-        baseAmount: numBase != null ? new Prisma.Decimal(numBase) : null,
-        computedAmount: new Prisma.Decimal(initialComputed)
-      }
+    await prisma.$transaction(async (tx) => {
+      await tx.tenderCostItem.create({
+        data: {
+          calculationId: calculation.id,
+          category,
+          label,
+          valueType,
+          amount: new Prisma.Decimal(numAmount),
+          baseAmount: numBase != null ? new Prisma.Decimal(numBase) : null,
+          computedAmount: new Prisma.Decimal(initialComputed)
+        }
+      });
+
+      await tx.tenderAuditTrail.create({
+        data: {
+          tenderId: calculation.tenderId,
+          field: `costItem:${category}:${label}`,
+          oldValue: null,
+          newValue: JSON.stringify({ category, label, valueType, amount: numAmount, baseAmount: numBase }),
+          changedBy: userEmail
+        }
+      });
     });
 
     const updatedCalculation = await TenderCalculationService.recalculate(calculation.id);

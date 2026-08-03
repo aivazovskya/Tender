@@ -113,6 +113,7 @@ export class SamrukApiAdapter extends BaseTenderAdapter {
         aiSummary: 'Аренда спецтехники и транспортное обслуживание в Павлодаре. Необходим парк авто не старше 2020 года.',
         aiKeyRequirements: ['Наличие собственного автопарка спецтехники', 'Страхование ГПО'],
         riskScore: 30,
+        riskScoringStatus: 'DEFAULT_ADAPTER',
         riskFlags: [
           {
             id: `rf-sk-${raw.advertId}`,

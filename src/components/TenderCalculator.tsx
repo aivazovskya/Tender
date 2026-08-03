@@ -44,6 +44,7 @@ export const TenderCalculator: React.FC<TenderCalculatorProps> = ({ tender, lang
   const [calculation, setCalculation] = useState<TenderCalculation | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [limitExceededData, setLimitExceededData] = useState<{ limit: number; used: number; currentPlan: string; message: string } | null>(null);
 
   // Form states for margin percentage editing
   const [targetMargin, setTargetMargin] = useState<number>(15);
@@ -66,19 +67,27 @@ export const TenderCalculator: React.FC<TenderCalculatorProps> = ({ tender, lang
   }, [tender.id]);
 
   const fetchCalculation = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/tenders/${tender.id}/calculation`);
-      const data = await res.json();
-      if (data.success && data.data) {
-        setCalculation(data.data);
-        setTargetMargin(data.data.targetMarginPct);
-        setMinMargin(data.data.minMarginPct);
-      } else {
-        setError(data.error || 'Не удалось загрузить расчёт тендера');
-      }
-    } catch (err: any) {
+      setLoading(true);
+      setError(null);
+      setLimitExceededData(null);
+      try {
+        const res = await fetch(`/api/tenders/${tender.id}/calculation`);
+        const data = await res.json();
+        if (data.success && data.data) {
+          setCalculation(data.data);
+          setTargetMargin(data.data.targetMarginPct);
+          setMinMargin(data.data.minMarginPct);
+        } else if (data.error === 'LIMIT_EXCEEDED') {
+          setLimitExceededData({
+            limit: data.limit,
+            used: data.used,
+            currentPlan: data.currentPlan,
+            message: data.message
+          });
+        } else {
+          setError(data.error || 'Не удалось загрузить расчёт тендера');
+        }
+      } catch (err: any) {
       setError('Ошибка сети при загрузке расчёта тендера');
     } finally {
       setLoading(false);
@@ -191,6 +200,46 @@ export const TenderCalculator: React.FC<TenderCalculatorProps> = ({ tender, lang
       <div className="p-12 text-center space-y-3">
         <Loader2 className="w-8 h-8 text-ember animate-spin mx-auto" />
         <p className="text-xs text-mid-gray">{isKk ? 'Тендер есебі жүктелуде...' : 'Загрузка расчёта себестоимости и маржи...'}</p>
+      </div>
+    );
+  }
+
+  if (limitExceededData) {
+    return (
+      <div className="p-6 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 space-y-4 shadow-subtle">
+        <div className="flex items-start space-x-3">
+          <ShieldAlert className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <h4 className="text-sm font-bold text-amber-950 uppercase tracking-wider">
+              {isKk ? 'ТАРИФ ЛИМИТІ АСЫП КЕТТІ' : 'ПРЕВЫШЕН ЛИМИТ ТАРИФНОГО ПЛАНА'}
+            </h4>
+            <p className="text-xs text-amber-900 leading-relaxed">
+              {limitExceededData.message || (isKk
+                ? `Сіз ${limitExceededData.currentPlan} тарифіндегі есептер лимитін сарқыдыңыз (${limitExceededData.used}/${limitExceededData.limit}).`
+                : `Вы израсходовали лимит расчётов тендеров (${limitExceededData.used}/${limitExceededData.limit}) на тарифе ${limitExceededData.currentPlan}.`)}
+            </p>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-paper border border-amber-200 space-y-2 text-xs">
+          <p className="font-semibold text-ink">
+            {isKk ? 'Pro / Enterprise тарифіне өту арқылы мүмкіндіктерді ашыңыз:' : 'Перейдите на тариф Pro или Enterprise:'}
+          </p>
+          <ul className="space-y-1 text-ink-soft list-disc list-inside text-[11px]">
+            <li>{isKk ? 'Шексіз тендерлік есептер жасау' : 'Неограниченное количество расчётов тендеров'}</li>
+            <li>{isKk ? 'ИИ-тәуекелдерді терең талдау' : 'Расширенный ИИ-анализ рисков'}</li>
+            <li>{isKk ? 'РНУ ГЗ бойынша контрагенттерді тексеру' : 'Проверка контрагентов по РНУ ГЗ'}</li>
+          </ul>
+        </div>
+
+        <div className="pt-2 flex items-center space-x-3">
+          <a
+            href="/#pricing"
+            className="px-4 py-2 rounded-xl bg-ember hover:bg-ember/90 text-white font-semibold text-xs transition-all shadow-subtle flex items-center space-x-1.5"
+          >
+            <span>{isKk ? 'Тарифті жаңарту (Pro 29 900 ₸)' : 'Обновить тариф (Pro 29 900 ₸)'}</span>
+          </a>
+        </div>
       </div>
     );
   }

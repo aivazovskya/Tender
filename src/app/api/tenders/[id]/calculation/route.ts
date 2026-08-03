@@ -42,6 +42,27 @@ async function getOrCreateCompanyProfile(userId: string) {
   return profile;
 }
 
+async function checkCalculationLimit(companyProfile: any): Promise<{ allowed: boolean; limit: number; used: number; currentPlan: string }> {
+  const currentPlan = (companyProfile.subscriptionPlan || 'FREE').toUpperCase();
+  const PLAN_LIMITS: Record<string, number> = {
+    FREE: 3,
+    PRO: 50,
+    TEAM: Infinity,
+    ENTERPRISE: Infinity
+  };
+
+  const limit = PLAN_LIMITS[currentPlan] ?? 3;
+  if (limit === Infinity) {
+    return { allowed: true, limit, used: 0, currentPlan };
+  }
+
+  const used = await prisma.tenderCalculation.count({
+    where: { companyId: companyProfile.id }
+  });
+
+  return { allowed: used < limit, limit, used, currentPlan };
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -78,6 +99,22 @@ export async function GET(
     });
 
     if (!calculation) {
+      // Check subscription plan calculation limit before creation
+      const limitCheck = await checkCalculationLimit(companyProfile);
+      if (!limitCheck.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'LIMIT_EXCEEDED',
+            limit: limitCheck.limit,
+            used: limitCheck.used,
+            currentPlan: limitCheck.currentPlan,
+            message: `Превышен лимит расчётов себестоимости (${limitCheck.used}/${limitCheck.limit}) на тарифе ${limitCheck.currentPlan}. Перейдите на тариф Pro или Enterprise для увеличения лимита.`
+          },
+          { status: 403 }
+        );
+      }
+
       const initialPurchaseAmount = tender.amount * 0.7;
       calculation = await prisma.tenderCalculation.create({
         data: {

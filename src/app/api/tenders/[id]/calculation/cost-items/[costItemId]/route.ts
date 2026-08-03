@@ -8,6 +8,11 @@ async function getCompanyProfile(userId: string) {
   return await prisma.companyProfile.findFirst({ where: { userId } });
 }
 
+async function getUserEmail(userId: string): Promise<string> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  return user?.email || userId;
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string; costItemId: string } }
@@ -37,6 +42,8 @@ export async function PATCH(
     }
 
     const body = await request.json();
+    const userEmail = await getUserEmail(auth.userId);
+
     const updateData: any = {};
     if (body.category !== undefined) updateData.category = body.category;
     if (body.label !== undefined) updateData.label = body.label;
@@ -46,9 +53,37 @@ export async function PATCH(
       updateData.baseAmount = body.baseAmount != null ? new Prisma.Decimal(body.baseAmount) : null;
     }
 
-    await prisma.tenderCostItem.update({
-      where: { id: costItemId },
-      data: updateData
+    const oldState = {
+      category: costItem.category,
+      label: costItem.label,
+      valueType: costItem.valueType,
+      amount: parseFloat(costItem.amount.toString()),
+      baseAmount: costItem.baseAmount != null ? parseFloat(costItem.baseAmount.toString()) : null
+    };
+
+    await prisma.$transaction(async (tx) => {
+      const updated = await tx.tenderCostItem.update({
+        where: { id: costItemId },
+        data: updateData
+      });
+
+      const newState = {
+        category: updated.category,
+        label: updated.label,
+        valueType: updated.valueType,
+        amount: parseFloat(updated.amount.toString()),
+        baseAmount: updated.baseAmount != null ? parseFloat(updated.baseAmount.toString()) : null
+      };
+
+      await tx.tenderAuditTrail.create({
+        data: {
+          tenderId: costItem.calculation.tenderId,
+          field: `costItem:${updated.category}:${updated.label}`,
+          oldValue: JSON.stringify(oldState),
+          newValue: JSON.stringify(newState),
+          changedBy: userEmail
+        }
+      });
     });
 
     const updatedCalculation = await TenderCalculationService.recalculate(costItem.calculationId);
@@ -94,9 +129,31 @@ export async function DELETE(
       );
     }
 
+    const userEmail = await getUserEmail(auth.userId);
     const calculationId = costItem.calculationId;
-    await prisma.tenderCostItem.delete({
-      where: { id: costItemId }
+
+    const oldState = {
+      category: costItem.category,
+      label: costItem.label,
+      valueType: costItem.valueType,
+      amount: parseFloat(costItem.amount.toString()),
+      baseAmount: costItem.baseAmount != null ? parseFloat(costItem.baseAmount.toString()) : null
+    };
+
+    await prisma.$transaction(async (tx) => {
+      await tx.tenderCostItem.delete({
+        where: { id: costItemId }
+      });
+
+      await tx.tenderAuditTrail.create({
+        data: {
+          tenderId: costItem.calculation.tenderId,
+          field: `costItem:${costItem.category}:${costItem.label}`,
+          oldValue: JSON.stringify(oldState),
+          newValue: null,
+          changedBy: userEmail
+        }
+      });
     });
 
     const updatedCalculation = await TenderCalculationService.recalculate(calculationId);

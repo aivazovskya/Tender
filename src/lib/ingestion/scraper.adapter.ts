@@ -215,6 +215,7 @@ export class ConfigurableScraperAdapter extends BaseTenderAdapter {
         status: item.status || 'ACTIVE',
         sourceUrl,
         riskScore: item.riskScore || 10,
+        riskScoringStatus: 'DEFAULT_ADAPTER',
         riskFlags: [],
         documents: [],
         history: []

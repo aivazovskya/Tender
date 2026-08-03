@@ -32,6 +32,8 @@ export interface TenderAuditTrail {
   timestamp: string;
 }
 
+export type RiskScoringStatus = 'NOT_SCORED' | 'DEFAULT_ADAPTER' | 'AI_SCORED';
+
 export interface Tender {
   id: string;
   source: SourceType;
@@ -57,6 +59,7 @@ export interface Tender {
   aiSummary?: string;
   aiKeyRequirements?: string[];
   riskScore: number; // 0 - 100
+  riskScoringStatus?: RiskScoringStatus;
   riskFlags: RiskFlag[];
   documents: TenderDocument[];
   history: TenderAuditTrail[];

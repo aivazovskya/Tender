@@ -137,6 +137,7 @@ export class GoszakupApiAdapter extends BaseTenderAdapter {
         aiSummary: 'Лот на закупку лицензий ПО для учебных заведений Астаны. Включает техническую поддержку 12 месяцев.',
         aiKeyRequirements: ['Наличие статуса официального партнера разработчика ПО', 'Сертификат соответствия'],
         riskScore: 10,
+        riskScoringStatus: 'DEFAULT_ADAPTER',
         riskFlags: [],
         documents: docs,
         history: []
