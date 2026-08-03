@@ -57,7 +57,8 @@ async function runTests() {
     tender: {
       id: 'tender-1',
       amount: 1000000,
-      riskScore: 20
+      riskScore: 20,
+      riskScoringStatus: 'AI_SCORED'
     }
   };
 
