@@ -178,20 +178,63 @@ model ConnectorLog {
   timestamp    DateTime   @default(now())
 }
 
+model Organization {
+  id                    String   @id @default(cuid())
+  name                  String
+  bin                   String?  @unique
+  subscriptionPlan      String   @default("FREE")
+  subscriptionExpiresAt DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  members               OrganizationMember[]
+  companyProfiles       CompanyProfile[]
+  kanbanCards           KanbanCard[]
+  payments              Payment[]
+  calculations          TenderCalculation[]
+  aiTokenUsages         AiTokenUsage[]
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("MEMBER") // OWNER, ADMIN, MEMBER
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
 model AiTokenUsage {
-  id         String   @id @default(cuid())
-  provider   String   @default("OpenAI")
-  model      String   @default("gpt-4o-mini")
-  tokensUsed Int
-  costUsd    Float    @default(0.0)
-  operation  String
-  timestamp  DateTime @default(now())
+  id             String        @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  tenderId       String?
+  provider       String        @default("Google Gemini")
+  model          String        @default("gemini-1.5-flash")
+  tokensUsed     Int
+  tokensIn       Int           @default(0)
+  tokensOut      Int           @default(0)
+  costUsd        Float         @default(0.0)
+  contentHash    String?
+  operation      String
+  timestamp      DateTime      @default(now())
+
+  @@index([organizationId])
+  @@index([timestamp])
 }
 
 model CompanyProfile {
   id            String   @id @default(cuid())
   userId        String?  @unique
   user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   companyName   String
   bin           String   @unique
   activities    String
@@ -217,6 +260,7 @@ model User {
   updatedAt           DateTime             @updatedAt
   payments            Payment[]
   companyProfile      CompanyProfile?
+  orgMemberships      OrganizationMember[]
   kanbanCards         KanbanCard[]
   notificationSetting NotificationSetting?
   apiKeys             ApiKey[]
@@ -243,25 +287,29 @@ model Payment {
   tariffPlanId       String
   userId             String?
   user               User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organizationId     String?
+  organization       Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   rawWebhookPayload  String?
   createdAt          DateTime      @default(now())
   confirmedAt        DateTime?
 }
 
 model KanbanCard {
-  id        String      @id @default(cuid())
-  userId    String?
-  user      User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenderId  String
-  tender    Tender      @relation(fields: [tenderId], references: [id], onDelete: Cascade)
-  stage          KanbanStage @default(UNDER_REVIEW)
-  priority       Priority    @default(MEDIUM)
+  id             String        @id @default(cuid())
+  userId         String?
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  tenderId       String
+  tender         Tender        @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  stage          KanbanStage   @default(UNDER_REVIEW)
+  priority       Priority      @default(MEDIUM)
   assignee       String?
   notes          String?
-  stageEnteredAt DateTime    @default(now())
+  stageEnteredAt DateTime      @default(now())
   stageSlaHours  Int?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 }
 
 model NotificationSetting {
@@ -318,6 +366,8 @@ model TenderCalculation {
   tender                Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
   companyId             String
   company               CompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  organizationId        String?
+  organization          Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
   startPrice            Decimal  @db.Decimal(18, 2)
   totalCost             Decimal  @db.Decimal(18, 2)

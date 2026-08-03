@@ -1,7 +1,47 @@
 import { Tender, CompanyProfileData } from '../types/tender';
 import { detectLanguage } from '../utils/lang';
+import crypto from 'crypto';
 
 export class AIService {
+  static readonly DAILY_COST_LIMIT_USD = 5.0;
+
+  /**
+   * Computes SHA-256 content hash for a tender and document text
+   */
+  static computeContentHash(tender: Tender, documentText?: string): string {
+    return crypto
+      .createHash('sha256')
+      .update(`${tender.title}:${tender.amount}:${(documentText || '').substring(0, 10000)}`)
+      .digest('hex');
+  }
+
+  /**
+   * Circuit breaker: Checks whether today's total Gemini API spending has exceeded daily limit ($5.0)
+   */
+  static async isWithinDailyCostLimit(organizationId?: string, maxDailyUsd: number = AIService.DAILY_COST_LIMIT_USD): Promise<boolean> {
+    try {
+      const { prisma } = await import('../prisma');
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const whereClause: any = {
+        timestamp: { gte: startOfDay }
+      };
+      if (organizationId) {
+        whereClause.organizationId = organizationId;
+      }
+
+      const agg = await prisma.aiTokenUsage.aggregate({
+        where: whereClause,
+        _sum: { costUsd: true }
+      });
+
+      const todayCost = agg._sum.costUsd || 0.0;
+      return todayCost < maxDailyUsd;
+    } catch {
+      return true; // Fallback to allowing if DB check fails transiently
+    }
+  }
   /**
    * Vector Embedding & Cosine Similarity TF-IDF Natural Language Search
    */
@@ -251,11 +291,25 @@ export class AIService {
    */
   static async generateLLMSummary(
     tender: Tender,
-    documentText?: string
+    documentText?: string,
+    organizationId?: string
   ): Promise<{ summary: string; requirements: string[]; riskScore: number }> {
     const docContext = documentText && documentText.trim().length > 0
       ? `\n\nТекст приложенной технической спецификации / ТЗ (выдержка):\n"${documentText.trim().substring(0, 10000)}"`
       : '';
+
+    const contentHash = AIService.computeContentHash(tender, documentText);
+
+    // 1. Check Circuit Breaker ($5.0/day limit)
+    const isCostAllowed = await AIService.isWithinDailyCostLimit(organizationId);
+    if (!isCostAllowed) {
+      console.warn(`[AIService Circuit Breaker] Превышен дневной лимит расходов на Gemini API ($5.0/день). Пропуск LLM-вызова для лота #${tender.externalId}.`);
+      return {
+        summary: tender.aiSummary || `Лот №${tender.externalId} на сумму ${tender.amount.toLocaleString('ru-RU')} ₸ (ИИ-суммаризация временно ограничена дневным лимитом).`,
+        requirements: tender.aiKeyRequirements || ['Соответствие ТЗ'],
+        riskScore: tender.riskScore || 0
+      };
+    }
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.LLM_API_KEY;
     if (apiKey && apiKey.trim().length > 0 && !apiKey.includes('your_')) {
@@ -274,17 +328,27 @@ export class AIService {
           const json = await res.json();
           const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-          // Record token usage in Prisma DB if available
+          // Record token usage in Prisma DB
           try {
             const { prisma } = await import('../prisma');
-            const tokensUsed = json?.usageMetadata?.totalTokenCount || 250;
-            const costUsd = (tokensUsed / 1_000_000) * 0.075;
+            const tokensIn = json?.usageMetadata?.promptTokenCount || 150;
+            const tokensOut = json?.usageMetadata?.candidatesTokenCount || 100;
+            const tokensUsed = json?.usageMetadata?.totalTokenCount || (tokensIn + tokensOut);
+            
+            // Pricing for gemini-1.5-flash: $0.075 / 1M prompt tokens, $0.30 / 1M output tokens
+            const costUsd = (tokensIn / 1_000_000 * 0.075) + (tokensOut / 1_000_000 * 0.30);
+
             await prisma.aiTokenUsage.create({
               data: {
+                organizationId: organizationId || null,
+                tenderId: tender.id || null,
                 provider: 'Google Gemini',
                 model: 'gemini-1.5-flash',
+                tokensIn,
+                tokensOut,
                 tokensUsed,
                 costUsd,
+                contentHash,
                 operation: `Tender Ingestion Summary (${tender.externalId})`
               }
             });
