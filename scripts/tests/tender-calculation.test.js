@@ -122,7 +122,8 @@ async function runTests() {
   assert.strictEqual(parseFloat(updatedCalcResult.biddingRoomAmount.toString()) < 0, true);
 
   // 4. Test Null Risk State Handling
-  console.log('  4. Testing Null Risk State Handling when riskScore is missing...');
+  console.log('  4. Testing Null Risk State Handling when riskScoringStatus is NOT_SCORED...');
+  mockCalcState.tender.riskScoringStatus = 'NOT_SCORED';
   delete mockCalcState.tender.riskScore;
   await TenderCalculationService.recalculate(mockCalculationId, mockTx);
   assert.strictEqual(updatedCalcResult.riskAdjustedMarginPct, null);
