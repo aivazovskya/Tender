@@ -140,4 +140,52 @@ export interface CompetitionEstimate {
   hideDetailedCounts?: boolean;
 }
 
+export type TenderCostCategory =
+  | 'PURCHASE'
+  | 'LOGISTICS'
+  | 'INSTALLATION'
+  | 'WARRANTY_SERVICE'
+  | 'LABOR'
+  | 'BID_SECURITY'
+  | 'PERFORMANCE_BOND'
+  | 'PLATFORM_FEES'
+  | 'OVERHEAD'
+  | 'TAXES'
+  | 'FX_RISK'
+  | 'OTHER';
+
+export type TenderCostValueType = 'FIXED' | 'PERCENTAGE';
+
+export interface TenderCostItem {
+  id: string;
+  calculationId: string;
+  category: TenderCostCategory;
+  label: string;
+  valueType: TenderCostValueType;
+  amount: number;
+  baseAmount?: number | null;
+  computedAmount: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TenderCalculation {
+  id: string;
+  tenderId: string;
+  companyId: string;
+  startPrice: number;
+  totalCost: number;
+  targetMarginPct: number;
+  minMarginPct: number;
+  riskAdjustedMarginPct: number | null;
+  recommendedPrice: number;
+  minAcceptablePrice: number;
+  biddingRoomPct: number | null;
+  biddingRoomAmount: number | null;
+  costItems: TenderCostItem[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+
 

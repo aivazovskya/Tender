@@ -26,7 +26,8 @@ const tests = [
   'scripts/tests/export-reports.test.js',
   'scripts/tests/public-api-keys.test.js',
   'scripts/tests/reputation-check.test.js',
-  'scripts/tests/competition-estimate.test.js'
+  'scripts/tests/competition-estimate.test.js',
+  'scripts/tests/tender-calculation.test.js'
 ];
 
 console.log('🚀 Running TenderAI Automated Test Suite (npm test)...\n');

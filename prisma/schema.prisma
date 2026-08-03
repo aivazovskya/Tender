@@ -88,6 +88,7 @@ model Tender {
   documents                  TenderDocument[]
   history                    TenderAuditTrail[]
   kanbanCards                KanbanCard[]
+  calculations               TenderCalculation[]
 
   @@unique([source, externalId])
 }
@@ -197,6 +198,7 @@ model CompanyProfile {
   subscriptionExpiresAt DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  calculations  TenderCalculation[]
 }
 
 model User {
@@ -302,5 +304,72 @@ model TenderParticipationStat {
 
   @@unique([category, region, procurementMethod])
 }
+
+model TenderCalculation {
+  id                    String   @id @default(cuid())
+  tenderId              String
+  tender                Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  companyId             String
+  company               CompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  startPrice            Decimal  @db.Decimal(18, 2)
+  totalCost             Decimal  @db.Decimal(18, 2)
+  targetMarginPct       Decimal  @db.Decimal(5, 2)
+  minMarginPct          Decimal  @db.Decimal(5, 2)
+
+  riskAdjustedMarginPct Decimal? @db.Decimal(5, 2)
+  recommendedPrice      Decimal  @db.Decimal(18, 2)
+  minAcceptablePrice    Decimal  @db.Decimal(18, 2)
+  biddingRoomPct        Decimal? @db.Decimal(5, 2)
+  biddingRoomAmount     Decimal? @db.Decimal(18, 2)
+
+  costItems             TenderCostItem[]
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([tenderId, companyId])
+  @@index([tenderId])
+  @@index([companyId])
+}
+
+enum TenderCostCategory {
+  PURCHASE
+  LOGISTICS
+  INSTALLATION
+  WARRANTY_SERVICE
+  LABOR
+  BID_SECURITY
+  PERFORMANCE_BOND
+  PLATFORM_FEES
+  OVERHEAD
+  TAXES
+  FX_RISK
+  OTHER
+}
+
+enum TenderCostValueType {
+  FIXED
+  PERCENTAGE
+}
+
+model TenderCostItem {
+  id            String              @id @default(cuid())
+  calculationId String
+  calculation   TenderCalculation   @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+
+  category      TenderCostCategory
+  label         String
+  valueType     TenderCostValueType
+  amount        Decimal             @db.Decimal(18, 2)
+  baseAmount    Decimal?            @db.Decimal(18, 2)
+  computedAmount Decimal            @db.Decimal(18, 2)
+
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([calculationId])
+}
+
 
 

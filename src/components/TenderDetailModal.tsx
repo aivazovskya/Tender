@@ -15,10 +15,12 @@ import {
   Download,
   ShieldCheck,
   Sparkles,
-  Users
+  Users,
+  Calculator
 } from 'lucide-react';
 
 import { useTranslation } from '../lib/i18n/useTranslation';
+import { TenderCalculator } from './TenderCalculator';
 
 interface TenderDetailModalProps {
   tender: Tender | null;
@@ -42,7 +44,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
   language = 'RU'
 }) => {
   const t = useTranslation(language);
-  const [activeTab, setActiveTab] = useState<'overview' | 'ai' | 'rag' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'calc' | 'ai' | 'rag' | 'audit'>('overview');
   
   const [ragMessages, setRagMessages] = useState<Array<{ sender: 'user' | 'ai'; text: string }>>([
     {
@@ -144,6 +146,18 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
           >
             <FileText className="w-4 h-4" />
             <span>{t.tenderDetail.tabOverview}</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('calc')}
+            className={`px-4 py-3 text-xs font-medium border-b-2 transition-all flex items-center space-x-2 ${
+              activeTab === 'calc'
+                ? 'border-ink text-ink font-semibold'
+                : 'border-transparent text-mid-gray hover:text-ink'
+            }`}
+          >
+            <Calculator className="w-4 h-4 text-emerald-600" />
+            <span>{t.tenderDetail.tabCalc}</span>
           </button>
 
           <button
@@ -286,6 +300,11 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
               </div>
 
             </div>
+          )}
+
+          {/* TAB CALC: SEBESTOIMOST & MARGIN */}
+          {activeTab === 'calc' && (
+            <TenderCalculator tender={tender} language={language} />
           )}
 
           {/* TAB 2: AI & RISKS */}
