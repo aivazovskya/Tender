@@ -30,7 +30,8 @@ const tests = [
   'scripts/tests/tender-calculation.test.js',
   'scripts/tests/tender-calculation-v1-1.test.js',
   'scripts/tests/roadmap-phase-1.test.js',
-  'scripts/tests/roadmap-phase-2.test.js'
+  'scripts/tests/roadmap-phase-2.test.js',
+  'scripts/tests/roadmap-phase-3.test.js'
 ];
 
 console.log('🚀 Running TenderAI Automated Test Suite (npm test)...\n');

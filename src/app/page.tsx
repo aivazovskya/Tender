@@ -26,8 +26,12 @@ import {
 import { ApiKeyModal } from '../components/ApiKeyModal';
 import { useTranslation } from '../lib/i18n/useTranslation';
 
+import { ExecutiveReportDashboard } from '../components/ExecutiveReportDashboard';
+import { SecurityRegistryModal } from '../components/SecurityRegistryModal';
+
 export default function HomePage() {
-  const [activeTab, setActiveTab] = useState<'catalog' | 'kanban' | 'matching' | 'admin' | 'billing' | 'telegram'>('catalog');
+  const [activeTab, setActiveTab] = useState<'catalog' | 'kanban' | 'matching' | 'reports' | 'security' | 'admin' | 'billing' | 'telegram'>('catalog');
+  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [language, setLanguageState] = useState<'RU' | 'KK'>('RU');
 
   // Load persisted language choice on mount
@@ -775,6 +779,17 @@ export default function HomePage() {
             userPlan={userTariff}
             dataSources={dataSources}
             language={language}
+          />
+        )}
+
+        {activeTab === 'reports' && (
+          <ExecutiveReportDashboard />
+        )}
+
+        {activeTab === 'security' && (
+          <SecurityRegistryModal
+            isOpen={true}
+            onClose={() => setActiveTab('catalog')}
           />
         )}
 

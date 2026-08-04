@@ -15,7 +15,10 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
-  Download
+  Download,
+  CheckSquare,
+  AlertTriangle,
+  DollarSign
 } from 'lucide-react';
 
 import { useTranslation } from '../lib/i18n/useTranslation';
@@ -90,10 +93,24 @@ const KanbanCardItem: React.FC<KanbanCardItemProps> = ({
   const t = useTranslation(language);
   const [isNotesExpanded, setIsNotesExpanded] = useState(Boolean(item.notes && item.notes.trim().length > 0));
   const [localNotes, setLocalNotes] = useState(item.notes || '');
+  const [reqStats, setReqStats] = useState<{ completed: number; total: number } | null>(null);
 
   useEffect(() => {
     setLocalNotes(item.notes || '');
   }, [item.notes]);
+
+  useEffect(() => {
+    if (item.tender?.id) {
+      fetch(`/api/tenders/${item.tender.id}/requirements`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.stats) {
+            setReqStats({ completed: data.stats.completedCount, total: data.stats.totalCount });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [item.tender?.id]);
 
   const slaLimitHours = item.stageSlaHours ?? DEFAULT_STAGE_SLA_HOURS[item.stage] ?? 0;
   const enteredAtMs = item.stageEnteredAt ? new Date(item.stageEnteredAt).getTime() : new Date(item.updatedAt).getTime();
@@ -159,8 +176,19 @@ const KanbanCardItem: React.FC<KanbanCardItemProps> = ({
         {item.tender.title}
       </h4>
 
-      <div className="text-xs font-bold text-ink font-mono">
-        {item.tender.amount.toLocaleString('ru-RU')} ₸
+      <div className="flex items-center justify-between text-xs font-bold font-mono">
+        <span className="text-ink">{item.tender.amount.toLocaleString('ru-RU')} ₸</span>
+
+        {reqStats && reqStats.total > 0 && (
+          <span className={`px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold flex items-center space-x-1 ${
+            reqStats.completed === reqStats.total 
+              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+              : 'bg-surface-alt text-mid-gray border border-hairline'
+          }`}>
+            <CheckSquare className="w-2.5 h-2.5 mr-0.5" />
+            <span>Чек-лист {reqStats.completed}/{reqStats.total}</span>
+          </span>
+        )}
       </div>
 
       {/* Interactive Controls Area */}

@@ -96,6 +96,10 @@ model Tender {
   history                    TenderAuditTrail[]
   kanbanCards                KanbanCard[]
   calculations               TenderCalculation[]
+  generatedDocs              GeneratedDocument[]
+  requirements               TenderRequirementItem[]
+  securityInstruments        SecurityInstrument[]
+  contractExecution          ContractExecution?
 
   @@unique([source, externalId])
 }
@@ -193,6 +197,7 @@ model Organization {
   payments              Payment[]
   calculations          TenderCalculation[]
   aiTokenUsages         AiTokenUsage[]
+  documentTemplates     DocumentTemplate[]
 }
 
 model OrganizationMember {
@@ -251,6 +256,8 @@ model CompanyProfile {
   updatedAt     DateTime @updatedAt
   calculations  TenderCalculation[]
   billingAuditLogs BillingAuditLog[]
+  generatedDocs GeneratedDocument[]
+  securityInstruments SecurityInstrument[]
 }
 
 model User {
@@ -310,6 +317,7 @@ model KanbanCard {
   notes          String?
   stageEnteredAt DateTime      @default(now())
   stageSlaHours  Int?
+  finalWinAmount Decimal?      @db.Decimal(18, 2)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 }
@@ -463,6 +471,138 @@ model BillingAuditLog {
 
   @@index([companyProfileId])
 }
+
+// ==========================================
+// Phase 3: Operational Modules Schema
+// ==========================================
+
+enum DocTemplateFormat {
+  DOCX
+  PDF
+}
+
+model DocumentTemplate {
+  id             String            @id @default(cuid())
+  organizationId String?
+  organization   Organization?     @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  name           String
+  category       String            // "ALL" or lot category
+  bodyTemplate   String            @db.Text
+  outputFormat   DocTemplateFormat @default(DOCX)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  generatedDocs  GeneratedDocument[]
+}
+
+model GeneratedDocument {
+  id               String           @id @default(cuid())
+  tenderId         String
+  tender           Tender           @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  templateId       String
+  template         DocumentTemplate @relation(fields: [templateId], references: [id])
+  companyProfileId String
+  companyProfile   CompanyProfile   @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+  fileUrl          String
+  generatedAt      DateTime         @default(now())
+}
+
+enum RequirementSource {
+  AI_EXTRACTED
+  MANUAL
+}
+
+model TenderRequirementItem {
+  id          String            @id @default(cuid())
+  tenderId    String
+  tender      Tender            @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  label       String
+  isCompleted Boolean           @default(false)
+  completedBy String?
+  completedAt DateTime?
+  notes       String?
+  sourceType  RequirementSource @default(AI_EXTRACTED)
+  createdAt   DateTime          @default(now())
+}
+
+enum SecurityInstrumentType {
+  BID_SECURITY_DEPOSIT
+  BID_SECURITY_BANK_GUARANTEE
+  PERFORMANCE_BOND_DEPOSIT
+  PERFORMANCE_BOND_BANK_GUARANTEE
+}
+
+enum SecurityInstrumentStatus {
+  ACTIVE
+  RELEASED
+  FORFEITED
+  EXPIRED
+}
+
+model SecurityInstrument {
+  id                 String                   @id @default(cuid())
+  tenderId           String
+  tender             Tender                   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  companyProfileId   String
+  companyProfile     CompanyProfile           @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+
+  type               SecurityInstrumentType
+  amount             Decimal                  @db.Decimal(18, 2)
+  issuedByBank       String?
+  issueDate          DateTime
+  expiryDate         DateTime
+  status             SecurityInstrumentStatus @default(ACTIVE)
+  releasedAt         DateTime?
+  documentUrl        String?
+  lastReminderSentAt DateTime?
+
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  @@index([companyProfileId])
+  @@index([expiryDate])
+}
+
+enum ContractExecutionStatus {
+  IN_PROGRESS
+  DELIVERED_ON_TIME
+  DELIVERED_LATE
+  PENALIZED
+  TERMINATED
+}
+
+enum MilestoneStatus {
+  PENDING
+  DONE
+  OVERDUE
+}
+
+model ContractExecution {
+  id                 String                  @id @default(cuid())
+  tenderId           String                  @unique
+  tender             Tender                  @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  contractSignedAt   DateTime?
+  deliveryDeadline   DateTime
+  actualDeliveryDate DateTime?
+  status             ContractExecutionStatus @default(IN_PROGRESS)
+
+  milestones         ContractMilestone[]
+
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+}
+
+model ContractMilestone {
+  id          String            @id @default(cuid())
+  contractId  String
+  contract    ContractExecution @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  label       String
+  dueDate     DateTime
+  completedAt DateTime?
+  status      MilestoneStatus   @default(PENDING)
+}
+
 
 
 

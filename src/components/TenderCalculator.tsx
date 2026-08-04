@@ -19,6 +19,8 @@ import {
   PieChart
 } from 'lucide-react';
 
+import { PriceBenchmarkWidget } from './PriceBenchmarkWidget';
+
 interface TenderCalculatorProps {
   tender: Tender;
   language?: 'RU' | 'KK';
@@ -416,6 +418,9 @@ export const TenderCalculator: React.FC<TenderCalculatorProps> = ({ tender, lang
           </div>
         </div>
       </div>
+
+      {/* PRICE BENCHMARK BY CATEGORY */}
+      <PriceBenchmarkWidget tenderId={tender.id} startPrice={calculation.startPrice} />
 
       {/* 4. MARGIN CONFIGURATION & RISK-ADJUSTED MARGIN CARD */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -190,5 +190,36 @@ export interface TenderCalculation {
   updatedAt?: string;
 }
 
+export interface PriceBenchmarkResult {
+  category: string;
+  region?: string | null;
+  sampleSize: number;
+  avgAmount: number;
+  medianAmount: number;
+  minAmount: number;
+  maxAmount: number;
+  periodMonths: number;
+  isReliable: boolean;
+}
+
+export interface CategoryBreakdown {
+  category: string;
+  submitted: number;
+  won: number;
+  winRatePct: number;
+  totalWonValue: number;
+}
+
+export interface ManagementReport {
+  periodStart: Date | string;
+  periodEnd: Date | string;
+  totalSubmitted: number;
+  totalWon: number;
+  winRatePct: number;
+  avgDiscountFromStartPricePct: number;
+  totalContractValueWon: number;
+  byCategory: CategoryBreakdown[];
+}
+
 
 

@@ -21,6 +21,10 @@ import {
 
 import { useTranslation } from '../lib/i18n/useTranslation';
 import { TenderCalculator } from './TenderCalculator';
+import { RequirementsChecklistWidget } from './RequirementsChecklistWidget';
+import { DocumentGeneratorModal } from './DocumentGeneratorModal';
+import { PostContractWidget } from './PostContractWidget';
+import { CheckSquare, FileCode, Truck } from 'lucide-react';
 
 interface TenderDetailModalProps {
   tender: Tender | null;
@@ -44,7 +48,8 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
   language = 'RU'
 }) => {
   const t = useTranslation(language);
-  const [activeTab, setActiveTab] = useState<'overview' | 'calc' | 'ai' | 'rag' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'calc' | 'requirements' | 'documents' | 'execution' | 'ai' | 'rag' | 'audit'>('overview');
+  const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   
   const [ragMessages, setRagMessages] = useState<Array<{ sender: 'user' | 'ai'; text: string }>>([
     {
@@ -158,6 +163,42 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
           >
             <Calculator className="w-4 h-4 text-emerald-600" />
             <span>{t.tenderDetail.tabCalc}</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('requirements')}
+            className={`px-4 py-3 text-xs font-medium border-b-2 transition-all flex items-center space-x-2 ${
+              activeTab === 'requirements'
+                ? 'border-ink text-ink font-semibold'
+                : 'border-transparent text-mid-gray hover:text-ink'
+            }`}
+          >
+            <CheckSquare className="w-4 h-4 text-emerald-600" />
+            <span>Чек-лист ТЗ</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('documents')}
+            className={`px-4 py-3 text-xs font-medium border-b-2 transition-all flex items-center space-x-2 ${
+              activeTab === 'documents'
+                ? 'border-ink text-ink font-semibold'
+                : 'border-transparent text-mid-gray hover:text-ink'
+            }`}
+          >
+            <FileCode className="w-4 h-4 text-sky-600" />
+            <span>Документы</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('execution')}
+            className={`px-4 py-3 text-xs font-medium border-b-2 transition-all flex items-center space-x-2 ${
+              activeTab === 'execution'
+                ? 'border-ink text-ink font-semibold'
+                : 'border-transparent text-mid-gray hover:text-ink'
+            }`}
+          >
+            <Truck className="w-4 h-4 text-amber-600" />
+            <span>Исполнение</span>
           </button>
 
           <button
@@ -305,6 +346,50 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
           {/* TAB CALC: SEBESTOIMOST & MARGIN */}
           {activeTab === 'calc' && (
             <TenderCalculator tender={tender} language={language} />
+          )}
+
+          {/* TAB REQUIREMENTS CHECKLIST */}
+          {activeTab === 'requirements' && (
+            <div className="space-y-4">
+              <RequirementsChecklistWidget tenderId={tender.id} />
+            </div>
+          )}
+
+          {/* TAB PACKAGE DOCUMENTS */}
+          {activeTab === 'documents' && (
+            <div className="space-y-4">
+              <div className="p-4 bg-surface-alt/40 border border-hairline rounded-xl flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-ink">Автоматическая сборка пакета документов</h4>
+                  <p className="text-[11px] text-mid-gray">Подстановка реквизитов компании (ТОО/БИН/Название) и данных лота в шаблоны</p>
+                </div>
+                <button
+                  onClick={() => setIsDocModalOpen(true)}
+                  className="flex items-center space-x-1.5 px-4 py-2 bg-ink text-paper rounded-xl text-xs font-semibold hover:bg-ink-soft transition-colors shadow-subtle"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span>Сформировать DOCX</span>
+                </button>
+              </div>
+
+              <DocumentGeneratorModal
+                isOpen={isDocModalOpen || activeTab === 'documents'}
+                onClose={() => {
+                  setIsDocModalOpen(false);
+                  if (activeTab === 'documents') setActiveTab('overview');
+                }}
+                tenderId={tender.id}
+                tenderTitle={tender.title}
+                tenderCategory={tender.category}
+              />
+            </div>
+          )}
+
+          {/* TAB POST-CONTRACT EXECUTION */}
+          {activeTab === 'execution' && (
+            <div className="space-y-4">
+              <PostContractWidget tenderId={tender.id} tenderAmount={tender.amount} />
+            </div>
           )}
 
           {/* TAB 2: AI & RISKS */}

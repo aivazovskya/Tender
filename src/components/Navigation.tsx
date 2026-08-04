@@ -9,18 +9,21 @@ import {
   Send, 
   Activity,
   Layers,
-  Key
+  Key,
+  BarChart3,
+  ShieldAlert
 } from 'lucide-react';
 
 import { useTranslation } from '../lib/i18n/useTranslation';
 
 interface NavigationProps {
-  activeTab: 'catalog' | 'kanban' | 'matching' | 'admin' | 'billing' | 'telegram';
-  setActiveTab: (tab: 'catalog' | 'kanban' | 'matching' | 'admin' | 'billing' | 'telegram') => void;
+  activeTab: 'catalog' | 'kanban' | 'matching' | 'reports' | 'security' | 'admin' | 'billing' | 'telegram';
+  setActiveTab: (tab: 'catalog' | 'kanban' | 'matching' | 'reports' | 'security' | 'admin' | 'billing' | 'telegram') => void;
   language: 'RU' | 'KK';
   setLanguage: (lang: 'RU' | 'KK') => void;
   kanbanCount: number;
   onOpenApiKeyModal?: () => void;
+  onOpenSecurityModal?: () => void;
   userTariff?: string;
 }
 
@@ -102,6 +105,30 @@ export const Navigation: React.FC<NavigationProps> = ({
                   {kanbanCount}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('reports')}
+              className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                activeTab === 'reports'
+                  ? 'bg-paper text-ink shadow-subtle border border-hairline'
+                  : 'text-mid-gray hover:text-ink hover:bg-paper/50'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-blue-600" />
+              <span>Отчёты KPI</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('security')}
+              className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                activeTab === 'security'
+                  ? 'bg-paper text-ink shadow-subtle border border-hairline'
+                  : 'text-mid-gray hover:text-ink hover:bg-paper/50'
+              }`}
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+              <span>Обеспечения</span>
             </button>
 
             <button

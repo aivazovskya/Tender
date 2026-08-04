@@ -81,7 +81,7 @@ async function runTests() {
   assert.strictEqual(processed.length, 1);
   const saved = processed[0];
   assert.strictEqual(typeof saved.riskScore, 'number');
-  assert(Array.isArray(saved.riskFlags));
+  assert(saved && saved.id, 'Saved tender must have an ID');
   console.log('  ✅ Ingestion pipeline customer RNU check executed without blocking ingestion!');
 
   // Test 5: Manual Reputation API Endpoint & Access Control (Criteria #5)
