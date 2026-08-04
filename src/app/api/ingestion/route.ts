@@ -5,14 +5,18 @@ import { ConfigurableScraperAdapter } from '@/lib/ingestion/scraper.adapter';
 import { ScraperSourceConfigData } from '@/lib/types/scraper';
 import { validateApiAuth } from '@/lib/security/auth';
 import { IngestionProcessorService } from '@/lib/services/ingestion-processor.service';
+import { IngestionHealthService } from '@/lib/services/ingestion-health.service';
 
 export async function POST(request: NextRequest) {
   const auth = validateApiAuth(request, 'ADMIN');
   if (!auth.authorized && auth.response) return auth.response;
 
+  let sourceName = 'Unknown';
+
   try {
     const body = await request.json();
     const { source } = body;
+    sourceName = source || 'Unknown';
 
     let result: any;
     let dbSource = await prisma.dataSource.findFirst({
@@ -27,9 +31,21 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    if (dbSource?.name) {
+      sourceName = dbSource.name;
+    }
+
     const apiAdapter = getApiAdapter(source);
     if (apiAdapter) {
-      result = await apiAdapter.run();
+      try {
+        result = await apiAdapter.run();
+      } catch (adapterErr: any) {
+        await IngestionHealthService.recordError(
+          sourceName,
+          adapterErr?.message || 'Сбой адаптера инжеста'
+        );
+        throw adapterErr;
+      }
     } else if (dbSource && dbSource.adapterType === 'SCRAPER' && dbSource.scraperConfig) {
       const configData: ScraperSourceConfigData = {
         dataSourceId: dbSource.name || dbSource.id,
@@ -43,9 +59,30 @@ export async function POST(request: NextRequest) {
         active: dbSource.scraperConfig.active
       };
       const adapter = new ConfigurableScraperAdapter(configData);
-      result = await adapter.run();
+      try {
+        result = await adapter.run();
+      } catch (scraperErr: any) {
+        await IngestionHealthService.recordError(
+          sourceName,
+          scraperErr?.message || 'Сбой скрапера инжеста'
+        );
+        throw scraperErr;
+      }
     } else {
       return NextResponse.json({ success: false, message: `Источник '${source}' не найден или конфигурация не задана` }, { status: 400 });
+    }
+
+    // Record health metrics in IngestionHealthService
+    if (result && result.status !== 'ERROR') {
+      await IngestionHealthService.recordSuccess(
+        sourceName,
+        result.itemsFetched || 0
+      );
+    } else {
+      await IngestionHealthService.recordError(
+        sourceName,
+        result?.message || 'Неизвестная ошибка инжеста'
+      );
     }
 
     // Persist normalized tenders into PostgreSQL database via unified IngestionProcessorService
@@ -53,7 +90,7 @@ export async function POST(request: NextRequest) {
       await IngestionProcessorService.processIngestedTenders(result.tenders);
     }
 
-    // Log connector execution metrics in database
+    // Log connector execution metrics in database (legacy tracking)
     try {
       if (dbSource) {
         const healthStatus = result.status === 'ERROR'

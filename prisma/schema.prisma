@@ -227,6 +227,7 @@ model AiTokenUsage {
 
   @@index([organizationId])
   @@index([timestamp])
+  @@index([contentHash])
 }
 
 model CompanyProfile {

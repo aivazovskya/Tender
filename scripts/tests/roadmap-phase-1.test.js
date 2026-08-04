@@ -44,6 +44,24 @@ async function runTests() {
   assert.strictEqual(validRoles.includes('GUEST'), false);
   console.log('     ✅ OrganizationMember roles (OWNER, ADMIN, MEMBER) verified');
 
+  // 4. AIService Deduplication Logic Test
+  console.log('  4. Testing AIService.generateLLMSummary content hash deduplication...');
+  const existingAnalyzedTender = {
+    id: 'test-tender-1',
+    externalId: '1001',
+    title: 'Поставка серверов в Астану',
+    amount: 5000000,
+    aiSummary: 'Существующая суммаризация из базы',
+    aiKeyRequirements: ['Сервера 2U', 'Гарантия 3 года'],
+    riskScore: 15,
+    riskScoringStatus: 'AI_SCORED'
+  };
+
+  const dedupResult = await AIService.generateLLMSummary(existingAnalyzedTender, 'ТЗ на сервера');
+  assert.strictEqual(dedupResult.summary, 'Существующая суммаризация из базы');
+  assert.strictEqual(dedupResult.riskScore, 15);
+  console.log('     ✅ Content hash deduplication correctly returns cached summary when content was previously analyzed');
+
   console.log('\n🎉 All Roadmap Phase 1 Tests passed successfully!');
 }
 

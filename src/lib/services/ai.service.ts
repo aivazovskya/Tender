@@ -300,6 +300,26 @@ export class AIService {
 
     const contentHash = AIService.computeContentHash(tender, documentText);
 
+    // 0. Deduplication check: verify if identical content was previously analyzed
+    try {
+      const { prisma } = await import('../prisma');
+      const existingUsage = await prisma.aiTokenUsage.findFirst({
+        where: { contentHash },
+        orderBy: { timestamp: 'desc' }
+      });
+
+      if (existingUsage && tender.aiSummary && tender.riskScoringStatus === 'AI_SCORED') {
+        console.log(`[AIService] Дедупликация: контент с хэшем ${contentHash.substring(0, 12)}... уже анализировался, пропуск вызова`);
+        return {
+          summary: tender.aiSummary,
+          requirements: tender.aiKeyRequirements || ['Соответствие ТЗ'],
+          riskScore: tender.riskScore || 0
+        };
+      }
+    } catch (dedupErr) {
+      // Ignore DB lookup failure in standalone/test mode
+    }
+
     // 1. Check Circuit Breaker ($5.0/day limit)
     const isCostAllowed = await AIService.isWithinDailyCostLimit(organizationId);
     if (!isCostAllowed) {

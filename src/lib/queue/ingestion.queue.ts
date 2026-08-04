@@ -53,6 +53,19 @@ export const createIngestionWorker = () => {
           console.warn('[BullMQ Worker] Сбой автономного вызова check-matches:', err?.message);
           result = { success: false, error: err?.message };
         }
+      } else if (source === 'CHECK_HEALTH') {
+        console.log('[BullMQ Worker] Автоматический запуск проверки активности источников (Ingestion Health)...');
+        try {
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+          const cronSecret = process.env.CRON_SECRET || process.env.ADMIN_API_KEY || 'internal';
+          const res = await fetch(`${appUrl}/api/cron/health-check`, {
+            headers: { 'X-Cron-Secret': cronSecret }
+          });
+          result = await res.json();
+        } catch (err: any) {
+          console.warn('[BullMQ Worker] Сбой автономного вызова health-check:', err?.message);
+          result = { success: false, error: err?.message };
+        }
       } else if (source === 'GOSZAKUP') {
         const adapter = new GoszakupApiAdapter();
         result = await adapter.run();
@@ -139,6 +152,17 @@ export async function scheduleAllActiveSources(): Promise<number> {
       {
         repeat: { every: 60 * 60 * 1000 },
         jobId: 'repeat-CHECK_MATCHES'
+      }
+    );
+    scheduledCount++;
+
+    // Schedule hourly Ingestion Health checker job
+    await ingestionQueue.add(
+      'ingest-CHECK_HEALTH',
+      { source: 'CHECK_HEALTH' },
+      {
+        repeat: { every: 60 * 60 * 1000 },
+        jobId: 'repeat-CHECK_HEALTH'
       }
     );
     scheduledCount++;

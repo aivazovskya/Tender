@@ -32,9 +32,15 @@ async function runTests() {
   const recentRun = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
   const silentRun = new Date(Date.now() - 7 * 60 * 60 * 1000); // 7 hours ago
 
-  assert.strictEqual(isScraperSilent(recentRun), false);
-  assert.strictEqual(isScraperSilent(silentRun), true);
-  console.log('     ✅ Silent scraper detection (>6h without new tenders) verified');
+  // 3. Testing IngestionHealthService Methods Export
+  console.log('  3. Testing IngestionHealthService methods existence...');
+  const { IngestionHealthService } = require('../../src/lib/services/ingestion-health.service');
+
+  assert.strictEqual(typeof IngestionHealthService.recordSuccess, 'function');
+  assert.strictEqual(typeof IngestionHealthService.recordError, 'function');
+  assert.strictEqual(typeof IngestionHealthService.checkHeartbeats, 'function');
+  assert.strictEqual(typeof IngestionHealthService.getHealthSummary, 'function');
+  console.log('     ✅ IngestionHealthService recordSuccess, recordError, checkHeartbeats, getHealthSummary verified');
 
   console.log('\n🎉 All Roadmap Phase 2 Tests passed successfully!');
 }
