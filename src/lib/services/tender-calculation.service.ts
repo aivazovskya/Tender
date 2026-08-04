@@ -1,5 +1,6 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
+import { DEFAULT_PENALTY_RATE_PER_DAY } from '../constants/tender-risk';
 
 export function roundMoney(value: number | Prisma.Decimal | string): number {
   const num = typeof value === 'number' ? value : parseFloat(value.toString());
@@ -65,7 +66,7 @@ export class TenderCalculationService {
     if (tender && (tender.riskScoringStatus === 'AI_SCORED' || (tender as any).riskScoringStatus === 'AI_SCORED')) {
       const riskScore = tender.riskScore;
       const penaltyProbability = Math.min(1.0, Math.max(0.0, riskScore / 100));
-      const penaltyRatePerDay = 0.001; // 0.1% per day
+      const penaltyRatePerDay = DEFAULT_PENALTY_RATE_PER_DAY;
       const expectedDelayDays = Math.max(5, Math.round(riskScore / 5)); // 5 to 20 days
       const nonDeliveryProbability = Math.min(1.0, Math.max(0.0, (riskScore / 100) * 0.25));
 
