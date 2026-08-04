@@ -18,13 +18,9 @@ export async function GET(request: NextRequest) {
   const auth = validateApiAuth(request);
 
   try {
-    let profile = await prisma.companyProfile.findFirst({
+    const profile = await prisma.companyProfile.findFirst({
       where: { userId: auth.userId }
     });
-
-    if (!profile) {
-      profile = await prisma.companyProfile.findFirst();
-    }
 
     if (profile) {
       return NextResponse.json({

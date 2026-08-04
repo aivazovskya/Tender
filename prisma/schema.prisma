@@ -250,6 +250,7 @@ model CompanyProfile {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   calculations  TenderCalculation[]
+  billingAuditLogs BillingAuditLog[]
 }
 
 model User {
@@ -448,6 +449,21 @@ model DataSourceHealth {
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
 }
+
+model BillingAuditLog {
+  id               String         @id @default(cuid())
+  companyProfileId String
+  companyProfile   CompanyProfile @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+  action           String
+  oldPlan          String?
+  newPlan          String
+  reason           String
+  performedBy      String
+  createdAt        DateTime       @default(now())
+
+  @@index([companyProfileId])
+}
+
 
 
 

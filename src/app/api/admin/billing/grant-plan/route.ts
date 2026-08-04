@@ -52,14 +52,14 @@ export async function POST(request: NextRequest) {
           subscriptionExpiresAt: validPlan.id === 'FREE' ? null : nextExpiration
         }
       }),
-      // Audit log entry
-      prisma.tenderAuditTrail.create({
+      prisma.billingAuditLog.create({
         data: {
-          tenderId: profile.id, // Audit context identifier
-          field: 'subscriptionPlan',
-          oldValue: oldPlan,
-          newValue: `${validPlan.id} (Причина: ${reason.trim()})`,
-          changedBy: `Admin (${auth.userId})`
+          companyProfileId: profile.id,
+          action: 'ADMIN_GRANT_PLAN',
+          oldPlan,
+          newPlan: validPlan.id,
+          reason: reason.trim(),
+          performedBy: auth.userId
         }
       })
     ]);
