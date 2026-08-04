@@ -18,9 +18,13 @@ export async function GET(request: NextRequest) {
   const auth = validateApiAuth(request);
 
   try {
-    const profile = await prisma.companyProfile.findFirst({
+    let profile = await prisma.companyProfile.findFirst({
       where: { userId: auth.userId }
     });
+
+    if (!profile) {
+      profile = await prisma.companyProfile.findFirst();
+    }
 
     if (profile) {
       return NextResponse.json({
@@ -68,6 +72,15 @@ export async function POST(request: NextRequest) {
 
     const targetBin = bin.trim();
 
+    // Ensure User record exists to prevent FK violation on CompanyProfile.userId
+    if (auth.userId) {
+      await prisma.user.upsert({
+        where: { id: auth.userId },
+        update: {},
+        create: { id: auth.userId, email: `${auth.userId}@tender.ai` }
+      }).catch(() => {});
+    }
+
     // Anti-Takeover Security Check (Bug #14): Prevent overwriting CompanyProfile owned by another userId
     const existingByBin = await prisma.companyProfile.findUnique({
       where: { bin: targetBin }
@@ -92,7 +105,6 @@ export async function POST(request: NextRequest) {
         maxAmount: typeof maxAmount === 'number' ? maxAmount : 0,
         contactEmail: contactEmail || '',
         telegramChatId: telegramChatId || '',
-        subscriptionPlan: body.subscriptionPlan || undefined,
         userId: auth.userId
       },
       create: {
@@ -105,7 +117,6 @@ export async function POST(request: NextRequest) {
         maxAmount: typeof maxAmount === 'number' ? maxAmount : 0,
         contactEmail: contactEmail || '',
         telegramChatId: telegramChatId || '',
-        subscriptionPlan: body.subscriptionPlan || 'FREE',
         userId: auth.userId
       }
     });

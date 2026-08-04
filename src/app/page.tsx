@@ -86,36 +86,31 @@ export default function HomePage() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const [userTariff, setUserTariff] = useState<string>('PRO');
+  const [userTariff, setUserTariff] = useState<string>('FREE');
   const [isProfileFallback, setIsProfileFallback] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedTariff = localStorage.getItem('tender_user_tariff');
-      if (savedTariff) {
-        setUserTariff(savedTariff);
-      }
-    }
-  }, []);
-
-  const handleSelectPlan = (planId: string) => {
+  const handleSelectPlan = async (planId: string) => {
     const targetPlan = TARIFF_PLANS.find(p => p.id.toUpperCase() === planId.toUpperCase());
     const planName = targetPlan ? targetPlan.name : planId;
 
-    setUserTariff(planId);
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('tender_user_tariff', planId);
-      } catch {}
+    try {
+      const res = await fetch('/api/billing/change-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId })
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        showToast(data.message || 'Ошибка смены тарифного плана', 'error');
+        return;
+      }
+
+      setUserTariff(data.tariffPlan || planId);
+      showToast(`Тарифный план изменён на "${planName}"!`, 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Ошибка сети при смене тарифного плана', 'error');
     }
-
-    showToast(`Тарифный план изменен на "${planName}"!`, 'success');
-
-    fetch('/api/billing/change-plan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ planId })
-    }).catch(() => {});
   };
 
   // Company Profile for Matching
@@ -186,6 +181,9 @@ export default function HomePage() {
             setIsProfileFallback(true);
           } else if (data.profile) {
             setCompanyProfileState(data.profile);
+            if (data.profile.subscriptionPlan) {
+              setUserTariff(data.profile.subscriptionPlan);
+            }
             setIsProfileFallback(false);
           }
         }

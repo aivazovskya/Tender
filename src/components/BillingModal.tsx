@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { TARIFF_PLANS, KaspiPayService, KaspiQrPaymentResponse } from '../lib/services/kaspi.service';
-import { Check, CreditCard, QrCode, ShieldCheck, X, AlertTriangle, RefreshCw, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Check, CreditCard, QrCode, ShieldCheck, X, AlertTriangle, RefreshCw, Sparkles, CheckCircle2, Lock } from 'lucide-react';
 
 interface BillingModalProps {
   onClose: () => void;
@@ -17,7 +17,13 @@ export const BillingModal: React.FC<BillingModalProps> = ({ onClose, currentPlan
 
   const selectedPlan = TARIFF_PLANS.find(p => p.id.toUpperCase() === selectedPlanId.toUpperCase()) || TARIFF_PLANS[1];
 
-  const handleActivatePlan = (planId: string) => {
+  const currentPlanRank = TARIFF_PLANS.findIndex(p => p.id.toUpperCase() === currentPlan.toUpperCase());
+  const targetPlanRank = TARIFF_PLANS.findIndex(p => p.id.toUpperCase() === selectedPlan.id.toUpperCase());
+
+  const isCurrentPlan = selectedPlan.id.toUpperCase() === currentPlan.toUpperCase();
+  const isDowngradeOrFree = selectedPlan.id === 'FREE' || (targetPlanRank >= 0 && currentPlanRank >= 0 && targetPlanRank <= currentPlanRank);
+
+  const handleDowngradePlan = (planId: string) => {
     if (onSelectPlan) {
       onSelectPlan(planId);
     }
@@ -36,7 +42,9 @@ export const BillingModal: React.FC<BillingModalProps> = ({ onClose, currentPlan
       const serverStatus = await KaspiPayService.checkPaymentStatus(paymentQr.paymentId);
       if (serverStatus === 'PAID') {
         setPaymentStatus('PAID');
-        handleActivatePlan(selectedPlan.id);
+        if (onSelectPlan) {
+          onSelectPlan(selectedPlan.id);
+        }
         clearInterval(interval);
       } else if (serverStatus === 'FAILED' || serverStatus === 'EXPIRED') {
         setPaymentStatus(serverStatus);
@@ -45,7 +53,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ onClose, currentPlan
     }, 2500);
 
     return () => clearInterval(interval);
-  }, [paymentQr, paymentStatus, selectedPlan.id]);
+  }, [paymentQr, paymentStatus, selectedPlan.id, onSelectPlan]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-sm animate-fadeIn">
@@ -59,7 +67,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ onClose, currentPlan
               <h2 className="text-lg font-bold text-ink tracking-tight">Тарифные планы TenderAI & Оплата Kaspi Pay</h2>
             </div>
             <p className="text-xs text-mid-gray mt-1">
-              Выберите нужный тарифный план. Оплата выполняется через QR Kaspi Pay (KZT).
+              Официальный эквайринг Kaspi Pay (KZT). Повышение тарифа выполняется исключительно после подтвержденной оплаты.
             </p>
           </div>
 
@@ -125,13 +133,12 @@ export const BillingModal: React.FC<BillingModalProps> = ({ onClose, currentPlan
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedPlanId(plan.id);
-                      handleActivatePlan(plan.id);
                     }}
                     className={`w-full mt-4 py-2 rounded-xl text-xs font-semibold transition-all shadow-subtle flex items-center justify-center space-x-1 ${
                       isCurrent
-                        ? 'bg-emerald-600 text-paper hover:bg-emerald-700'
+                        ? 'bg-emerald-600 text-paper'
                         : isSelected
-                        ? 'bg-ink text-paper hover:bg-ink-soft'
+                        ? 'bg-ink text-paper'
                         : 'bg-paper border border-hairline text-ink hover:bg-surface-alt'
                     }`}
                   >
@@ -141,7 +148,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ onClose, currentPlan
                         <span>Активен</span>
                       </>
                     ) : (
-                      <span>{isSelected ? 'Активировать' : 'Выбрать'}</span>
+                      <span>{isSelected ? 'Выбран' : 'Выбрать'}</span>
                     )}
                   </button>
                 </div>
@@ -149,7 +156,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ onClose, currentPlan
             })}
           </div>
 
-          {/* Plan Activation Bar */}
+          {/* Status & Action Banner */}
           <div className="p-5 rounded-2xl bg-surface-alt border border-hairline flex flex-col md:flex-row items-center justify-between gap-4 shadow-subtle">
             <div>
               <h4 className="text-sm font-bold text-ink flex items-center space-x-2">
@@ -157,25 +164,34 @@ export const BillingModal: React.FC<BillingModalProps> = ({ onClose, currentPlan
                 <span>Выбранный тариф: {selectedPlan.name}</span>
               </h4>
               <p className="text-xs text-mid-gray mt-0.5">
-                {selectedPlan.id.toUpperCase() === currentPlan.toUpperCase()
-                  ? 'Этот тарифный план сейчас активен на вашем аккаунте.'
-                  : `Вы можете применить этот тариф сразу или оплатить счет через Kaspi QR.`}
+                {isCurrentPlan
+                  ? 'Этот тарифный план в данный момент активен.'
+                  : isDowngradeOrFree
+                  ? 'Вы можете переключиться на этот тариф без оплаты.'
+                  : 'Повышение тарифа требует оплаты счета через Kaspi QR.'}
               </p>
             </div>
 
-            {selectedPlan.id.toUpperCase() !== currentPlan.toUpperCase() && (
+            {!isCurrentPlan && isDowngradeOrFree && (
               <button
-                onClick={() => handleActivatePlan(selectedPlan.id)}
-                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-paper font-bold text-xs shadow-subtle transition-all flex items-center space-x-2 shrink-0"
+                onClick={() => handleDowngradePlan(selectedPlan.id)}
+                className="px-5 py-2.5 rounded-xl bg-ink hover:bg-ink-soft text-paper font-bold text-xs shadow-subtle transition-all flex items-center space-x-2 shrink-0"
               >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Активировать тариф ({selectedPlan.name})</span>
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span>Перейти на {selectedPlan.name}</span>
               </button>
+            )}
+
+            {!isCurrentPlan && !isDowngradeOrFree && (
+              <div className="px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 text-xs font-semibold flex items-center space-x-2 shrink-0">
+                <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Требуется оплата через Kaspi QR</span>
+              </div>
             )}
           </div>
 
-          {/* Payment Details & Server-Driven Status UI */}
-          {selectedPlan.priceKztMonth > 0 && (
+          {/* Payment Details & Kaspi QR UI for Upgrades or Paid Plans */}
+          {!isCurrentPlan && !isDowngradeOrFree && selectedPlan.priceKztMonth > 0 && (
             <div className="p-6 rounded-2xl bg-surface-alt border border-hairline flex flex-col md:flex-row items-center justify-between gap-6 shadow-subtle">
               <div className="space-y-2">
                 <div className="flex items-center space-x-2 text-ink font-bold">
@@ -183,7 +199,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ onClose, currentPlan
                   <span>Оплата через Kaspi.kz (Kaspi Pay QR)</span>
                 </div>
                 <p className="text-xs text-mid-gray max-w-md leading-relaxed">
-                  Отсканируйте QR-код в приложении Kaspi.kz для оплаты счета на {selectedPlan.name}.
+                  Отсканируйте QR-код в приложении Kaspi.kz. Тариф {selectedPlan.name} активируется автоматически после подтверждения оплаты сервером.
                 </p>
                 <div className="text-xs font-mono text-ink font-semibold">
                   Сумма счета: <span className="text-base font-bold">{selectedPlan.priceKztMonth.toLocaleString('ru-RU')} KZT</span>

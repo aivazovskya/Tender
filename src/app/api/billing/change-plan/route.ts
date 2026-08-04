@@ -5,6 +5,9 @@ import { TARIFF_PLANS } from '@/lib/services/kaspi.service';
 
 export async function POST(request: NextRequest) {
   const auth = validateApiAuth(request);
+  if (!auth.authorized) {
+    return auth.response!;
+  }
 
   try {
     const body = await request.json();
@@ -18,26 +21,49 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const nextExpiration = new Date();
-    nextExpiration.setDate(nextExpiration.getDate() + 30);
-
-    const profile = await prisma.companyProfile.findFirst({
+    let profile = await prisma.companyProfile.findFirst({
       where: { userId: auth.userId }
     });
 
-    if (profile) {
-      await prisma.companyProfile.update({
-        where: { id: profile.id },
-        data: {
-          subscriptionPlan: validPlan.id,
-          subscriptionExpiresAt: nextExpiration
-        }
-      });
+    if (!profile) {
+      profile = await prisma.companyProfile.findFirst();
     }
+
+    if (!profile) {
+      return NextResponse.json(
+        { success: false, message: 'Профиль компании не найден' },
+        { status: 404 }
+      );
+    }
+
+    const currentPlanRank = TARIFF_PLANS.findIndex(p => p.id === profile.subscriptionPlan);
+    const targetPlanRank = TARIFF_PLANS.findIndex(p => p.id === validPlan.id);
+
+    // Downgrade or transition to FREE is allowed without payment.
+    const isDowngradeOrFree = validPlan.id === 'FREE' || targetPlanRank <= currentPlanRank;
+
+    if (!isDowngradeOrFree) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Повышение тарифа доступно только после оплаты через Kaspi Pay',
+          requiresPayment: true
+        },
+        { status: 402 } // Payment Required
+      );
+    }
+
+    await prisma.companyProfile.update({
+      where: { id: profile.id },
+      data: {
+        subscriptionPlan: validPlan.id,
+        subscriptionExpiresAt: validPlan.id === 'FREE' ? null : profile.subscriptionExpiresAt
+      }
+    });
 
     return NextResponse.json({
       success: true,
-      message: `Тарифный план успешно изменен на ${validPlan.name}`,
+      message: `Тарифный план изменён на ${validPlan.name}`,
       tariffPlan: validPlan.id
     });
   } catch (error: any) {
