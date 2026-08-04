@@ -85,7 +85,7 @@ export const PriceBenchmarkWidget: React.FC<PriceBenchmarkWidgetProps> = ({
         </div>
       )}
 
-      {benchmark.medianAmount > 0 && startPrice > 0 && (
+      {benchmark.isReliable && benchmark.medianAmount > 0 && startPrice > 0 && (
         <div className="text-[11px] text-slate-600 flex items-center justify-between border-t border-hairline pt-2">
           <span>Ориентир закрытия лотов в категории:</span>
           <span className="font-semibold text-ink">

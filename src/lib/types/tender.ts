@@ -105,6 +105,7 @@ export interface KanbanItem {
   tender: Tender;
   stageEnteredAt?: string;
   stageSlaHours?: number;
+  requirementsStats?: { completed: number; total: number };
   updatedAt: string;
 }
 

@@ -93,14 +93,16 @@ const KanbanCardItem: React.FC<KanbanCardItemProps> = ({
   const t = useTranslation(language);
   const [isNotesExpanded, setIsNotesExpanded] = useState(Boolean(item.notes && item.notes.trim().length > 0));
   const [localNotes, setLocalNotes] = useState(item.notes || '');
-  const [reqStats, setReqStats] = useState<{ completed: number; total: number } | null>(null);
+  const [reqStats, setReqStats] = useState<{ completed: number; total: number } | null>(item.requirementsStats || null);
 
   useEffect(() => {
     setLocalNotes(item.notes || '');
   }, [item.notes]);
 
   useEffect(() => {
-    if (item.tender?.id) {
+    if (item.requirementsStats) {
+      setReqStats(item.requirementsStats);
+    } else if (item.tender?.id) {
       fetch(`/api/tenders/${item.tender.id}/requirements`)
         .then(res => res.json())
         .then(data => {
@@ -110,7 +112,21 @@ const KanbanCardItem: React.FC<KanbanCardItemProps> = ({
         })
         .catch(() => {});
     }
-  }, [item.tender?.id]);
+  }, [item.requirementsStats, item.tender?.id]);
+
+  const handleStageSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newStage = e.target.value as KanbanStage;
+
+    if (newStage === 'SUBMITTED' && reqStats && reqStats.total > 0 && reqStats.completed < reqStats.total) {
+      const proceed = window.confirm(
+        `Чек-лист требований лота заполнен не полностью (${reqStats.completed}/${reqStats.total}). ` +
+        `Перевести в статус "Подана заявка" всё равно?`
+      );
+      if (!proceed) return;
+    }
+
+    onUpdateCard(item.id, { stage: newStage });
+  };
 
   const slaLimitHours = item.stageSlaHours ?? DEFAULT_STAGE_SLA_HOURS[item.stage] ?? 0;
   const enteredAtMs = item.stageEnteredAt ? new Date(item.stageEnteredAt).getTime() : new Date(item.updatedAt).getTime();
@@ -234,7 +250,7 @@ const KanbanCardItem: React.FC<KanbanCardItemProps> = ({
           <span className="text-mid-gray">{t.kanban.stageLabel}</span>
           <select
             value={item.stage}
-            onChange={(e) => onUpdateCard(item.id, { stage: e.target.value as KanbanStage })}
+            onChange={handleStageSelectChange}
             className="bg-surface-alt text-ink border border-hairline rounded px-1.5 py-0.5 text-[10px] focus:outline-none"
           >
             {STAGES.map(s => (

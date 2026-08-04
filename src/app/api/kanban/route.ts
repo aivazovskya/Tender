@@ -8,25 +8,43 @@ export async function GET(request: NextRequest) {
   try {
     const cards = await prisma.kanbanCard.findMany({
       where: { userId: auth.userId },
-      include: { tender: true },
+      include: {
+        tender: {
+          include: {
+            requirements: { select: { isCompleted: true } }
+          }
+        }
+      },
       orderBy: { updatedAt: 'desc' }
     });
 
     return NextResponse.json({
       success: true,
       isFallback: false,
-      cards: cards.map(c => ({
-        id: c.id,
-        tenderId: c.tenderId,
-        stage: c.stage,
-        priority: c.priority,
-        assignee: c.assignee,
-        notes: c.notes,
-        stageEnteredAt: c.stageEnteredAt ? c.stageEnteredAt.toISOString() : undefined,
-        stageSlaHours: c.stageSlaHours ?? undefined,
-        tender: c.tender,
-        updatedAt: c.updatedAt.toISOString()
-      }))
+      cards: cards.map(c => {
+        const reqList = c.tender?.requirements || [];
+        let reqTotal = reqList.length;
+        let reqCompleted = reqList.filter(r => r.isCompleted).length;
+        if (reqTotal === 0 && c.tender?.aiKeyRequirements && (c.tender.aiKeyRequirements as string[]).length > 0) {
+          reqTotal = (c.tender.aiKeyRequirements as string[]).filter((r: string) => r && r.trim().length > 0).length;
+        }
+
+        const { requirements, ...tenderWithoutReqs } = (c.tender || {}) as any;
+
+        return {
+          id: c.id,
+          tenderId: c.tenderId,
+          stage: c.stage,
+          priority: c.priority,
+          assignee: c.assignee,
+          notes: c.notes,
+          stageEnteredAt: c.stageEnteredAt ? c.stageEnteredAt.toISOString() : undefined,
+          stageSlaHours: c.stageSlaHours ?? undefined,
+          tender: tenderWithoutReqs,
+          requirementsStats: { completed: reqCompleted, total: reqTotal },
+          updatedAt: c.updatedAt.toISOString()
+        };
+      })
     });
   } catch (error: any) {
     console.error('[API /api/kanban GET Error]:', error?.message);

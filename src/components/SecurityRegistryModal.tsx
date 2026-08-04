@@ -44,6 +44,7 @@ export const SecurityRegistryModal: React.FC<SecurityRegistryModalProps> = ({
   const [instruments, setInstruments] = useState<SecurityInstrument[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'RELEASED' | 'FORFEITED'>('ALL');
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -58,15 +59,22 @@ export const SecurityRegistryModal: React.FC<SecurityRegistryModalProps> = ({
   const fetchInstruments = async () => {
     try {
       setLoading(true);
+      setError(null);
       const url = statusFilter !== 'ALL' ? `/api/security-instruments?status=${statusFilter}` : '/api/security-instruments';
       const res = await fetch(url);
       const data = await res.json();
       if (data.success) {
         setInstruments(data.instruments || []);
         setSummary(data.summary || null);
+        setError(null);
+      } else {
+        setInstruments([]);
+        setSummary(null);
+        setError(data.message || 'Не удалось загрузить реестр обеспечений');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load security instruments', err);
+      setError(err?.message || 'Ошибка подключения к серверу');
     } finally {
       setLoading(false);
     }
@@ -150,6 +158,13 @@ export const SecurityRegistryModal: React.FC<SecurityRegistryModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {error && (
+          <div className="mx-6 mt-4 p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-center space-x-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
 
         {/* Dashboard Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-6 bg-surface-alt/20 border-b border-hairline">

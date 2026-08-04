@@ -32,7 +32,8 @@ const tests = [
   'scripts/tests/roadmap-phase-1.test.js',
   'scripts/tests/roadmap-phase-2.test.js',
   'scripts/tests/roadmap-phase-3.test.js',
-  'scripts/tests/roadmap-phase-3-audit-fixes.test.js'
+  'scripts/tests/roadmap-phase-3-audit-fixes.test.js',
+  'scripts/tests/roadmap-phase-3-frontend-fixes.test.js'
 ];
 
 console.log('🚀 Running TenderAI Automated Test Suite (npm test)...\n');
