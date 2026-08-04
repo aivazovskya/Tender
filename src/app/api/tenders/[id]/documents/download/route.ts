@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateApiAuth } from '@/lib/security/auth';
 import { DocGeneratorService } from '@/lib/services/doc-generator.service';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = validateApiAuth(request);
+  if (!auth.authorized && auth.response) return auth.response;
+
   const { searchParams } = new URL(request.url);
   const docId = searchParams.get('docId');
   const tenderId = params.id;
@@ -26,6 +30,17 @@ export async function GET(
 
     if (!genDoc || genDoc.tenderId !== tenderId) {
       return NextResponse.json({ success: false, message: 'Документ не найден' }, { status: 404 });
+    }
+
+    // Verify document belongs to the authenticated user's company profile (or system ADMIN)
+    const isOwner = genDoc.companyProfile && genDoc.companyProfile.userId === auth.userId;
+    const isAdmin = auth.role === 'ADMIN' || auth.userId.startsWith('admin-');
+
+    if (!isOwner && !isAdmin) {
+      return NextResponse.json(
+        { success: false, message: 'Forbidden: У вас нет прав на скачивание этого документа' },
+        { status: 403 }
+      );
     }
 
     const resolvedText = DocGeneratorService.resolvePlaceholders(

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
+import { resolveOwnCompanyProfile } from '@/lib/security/resolve-company-profile';
 
 export async function GET(request: NextRequest) {
   const auth = validateApiAuth(request);
@@ -11,20 +12,19 @@ export async function GET(request: NextRequest) {
   const tenderId = searchParams.get('tenderId');
 
   try {
-    // Resolve user's CompanyProfile
-    let companyProfile = await prisma.companyProfile.findFirst({
-      where: { userId: auth.userId }
-    });
+    // Resolve user's own CompanyProfile (strictly isolated per user)
+    const companyProfile = await resolveOwnCompanyProfile(auth.userId);
 
     if (!companyProfile) {
-      companyProfile = await prisma.companyProfile.findFirst();
+      return NextResponse.json(
+        { success: false, message: 'Профиль компании не найден. Сначала заполните профиль компании.' },
+        { status: 404 }
+      );
     }
 
-    const whereClause: any = {};
-
-    if (companyProfile) {
-      whereClause.companyProfileId = companyProfile.id;
-    }
+    const whereClause: any = {
+      companyProfileId: companyProfile.id
+    };
 
     if (tenderId) {
       whereClause.tenderId = tenderId;
@@ -128,12 +128,23 @@ export async function POST(request: NextRequest) {
     // Resolve company profile if not explicitly passed
     let targetProfileId = companyProfileId;
     if (!targetProfileId) {
-      const profile = await prisma.companyProfile.findFirst({ where: { userId: auth.userId } }) ||
-                        await prisma.companyProfile.findFirst();
+      const profile = await resolveOwnCompanyProfile(auth.userId);
       if (!profile) {
-        return NextResponse.json({ success: false, message: 'Профиль компании не найден' }, { status: 404 });
+        return NextResponse.json(
+          { success: false, message: 'Профиль компании не найден. Сначала заполните профиль компании.' },
+          { status: 404 }
+        );
       }
       targetProfileId = profile.id;
+    } else {
+      // Verify explicitly passed companyProfileId belongs to the authenticated user
+      const userProfile = await resolveOwnCompanyProfile(auth.userId);
+      if (!userProfile || userProfile.id !== targetProfileId) {
+        return NextResponse.json(
+          { success: false, message: 'Forbidden: Нельзя создавать записи для чужого профиля компании.' },
+          { status: 403 }
+        );
+      }
     }
 
     const instrument = await prisma.securityInstrument.create({

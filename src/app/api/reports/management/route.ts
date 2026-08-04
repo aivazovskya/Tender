@@ -16,9 +16,14 @@ export async function GET(request: NextRequest) {
         role: { in: ['OWNER', 'ADMIN'] }
       }
     });
-    if (member || auth.userId.startsWith('admin-') || auth.userId === 'demo-user-id') {
+    if (member || auth.userId.startsWith('admin-')) {
       isAuthorizedManager = true;
     }
+  }
+
+  // Explicit env opt-in for demo mode presentation if requested
+  if (!isAuthorizedManager && process.env.ALLOW_DEMO_MANAGEMENT_REPORT === 'true' && auth.userId === 'demo-user-id') {
+    isAuthorizedManager = true;
   }
 
   if (!isAuthorizedManager) {

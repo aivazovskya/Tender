@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
+import { DEFAULT_PENALTY_RATE_PER_DAY } from '@/lib/constants/tender-risk';
 
 export async function GET(
   request: NextRequest,
@@ -54,8 +55,7 @@ export async function GET(
 
     if (deliveryDate > deadline) {
       delayDays = Math.ceil((deliveryDate.getTime() - deadline.getTime()) / (1000 * 3600 * 24));
-      const penaltyRatePerDay = 0.001; // 0.1% per day
-      actualPenaltyAmount = Math.round(delayDays * penaltyRatePerDay * Number(execution!.tender.amount));
+      actualPenaltyAmount = Math.round(delayDays * DEFAULT_PENALTY_RATE_PER_DAY * Number(execution!.tender.amount));
     }
 
     return NextResponse.json({

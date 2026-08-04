@@ -1,8 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { telegramService } from '@/lib/services/telegram.service';
+import { validateApiAuth } from '@/lib/security/auth';
 
 export async function GET(request: NextRequest) {
+  const cronSecretHeader = request.headers.get('x-cron-secret') || request.headers.get('X-Cron-Secret');
+  const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
+  let bearerToken = '';
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    bearerToken = authHeader.substring(7).trim();
+  }
+
+  const token = cronSecretHeader || bearerToken;
+  const expectedSecret = process.env.CRON_SECRET || process.env.ADMIN_API_KEY;
+  const isProd = process.env.NODE_ENV === 'production';
+
+  if ((expectedSecret || isProd) && token !== expectedSecret) {
+    const auth = validateApiAuth(request, 'ADMIN');
+    if (!auth.authorized && auth.response) {
+      return auth.response;
+    }
+  }
+
   try {
     const now = new Date();
     const targetDate = new Date();

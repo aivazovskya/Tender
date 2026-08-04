@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
+import { resolveOwnCompanyProfile } from '@/lib/security/resolve-company-profile';
 import { DocGeneratorService } from '@/lib/services/doc-generator.service';
 
 export async function POST(
@@ -30,16 +31,13 @@ export async function POST(
       return NextResponse.json({ success: false, message: 'Шаблон документа не найден' }, { status: 404 });
     }
 
-    let companyProfile = await prisma.companyProfile.findFirst({
-      where: { userId: auth.userId }
-    });
+    const companyProfile = await resolveOwnCompanyProfile(auth.userId);
 
     if (!companyProfile) {
-      companyProfile = await prisma.companyProfile.findFirst();
-    }
-
-    if (!companyProfile) {
-      return NextResponse.json({ success: false, message: 'Профиль компании не найден' }, { status: 404 });
+      return NextResponse.json(
+        { success: false, message: 'Профиль компании не найден. Сначала заполните профиль компании.' },
+        { status: 404 }
+      );
     }
 
     // Resolve Placeholders
