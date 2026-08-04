@@ -2,18 +2,26 @@
 
 import React, { useState, useEffect } from 'react';
 import { TARIFF_PLANS, KaspiPayService, KaspiQrPaymentResponse } from '../lib/services/kaspi.service';
-import { Check, CreditCard, QrCode, ShieldCheck, X, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Check, CreditCard, QrCode, ShieldCheck, X, AlertTriangle, RefreshCw, Sparkles, CheckCircle2 } from 'lucide-react';
 
 interface BillingModalProps {
   onClose: () => void;
+  currentPlan?: string;
+  onSelectPlan?: (planId: string) => void;
 }
 
-export const BillingModal: React.FC<BillingModalProps> = ({ onClose }) => {
-  const [selectedPlanId, setSelectedPlanId] = useState<string>('PRO');
+export const BillingModal: React.FC<BillingModalProps> = ({ onClose, currentPlan = 'PRO', onSelectPlan }) => {
+  const [selectedPlanId, setSelectedPlanId] = useState<string>(currentPlan);
   const [paymentQr, setPaymentQr] = useState<KaspiQrPaymentResponse | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'PENDING' | 'PAID' | 'FAILED' | 'EXPIRED' | 'UNKNOWN'>('PENDING');
 
-  const selectedPlan = TARIFF_PLANS.find(p => p.id === selectedPlanId) || TARIFF_PLANS[1];
+  const selectedPlan = TARIFF_PLANS.find(p => p.id.toUpperCase() === selectedPlanId.toUpperCase()) || TARIFF_PLANS[1];
+
+  const handleActivatePlan = (planId: string) => {
+    if (onSelectPlan) {
+      onSelectPlan(planId);
+    }
+  };
 
   const handleGenerateKaspiQr = async () => {
     setPaymentStatus('PENDING');
@@ -28,6 +36,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ onClose }) => {
       const serverStatus = await KaspiPayService.checkPaymentStatus(paymentQr.paymentId);
       if (serverStatus === 'PAID') {
         setPaymentStatus('PAID');
+        handleActivatePlan(selectedPlan.id);
         clearInterval(interval);
       } else if (serverStatus === 'FAILED' || serverStatus === 'EXPIRED') {
         setPaymentStatus(serverStatus);
@@ -36,7 +45,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ onClose }) => {
     }, 2500);
 
     return () => clearInterval(interval);
-  }, [paymentQr, paymentStatus]);
+  }, [paymentQr, paymentStatus, selectedPlan.id]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-sm animate-fadeIn">
@@ -50,7 +59,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ onClose }) => {
               <h2 className="text-lg font-bold text-ink tracking-tight">Тарифные планы TenderAI & Оплата Kaspi Pay</h2>
             </div>
             <p className="text-xs text-mid-gray mt-1">
-              Официальный эквайринг Kaspi Pay (KZT). Активация выполняется после валидации вебхука сервером.
+              Выберите нужный тарифный план. Оплата выполняется через QR Kaspi Pay (KZT).
             </p>
           </div>
 
@@ -65,7 +74,9 @@ export const BillingModal: React.FC<BillingModalProps> = ({ onClose }) => {
           {/* Plans Grid */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {TARIFF_PLANS.map((plan) => {
-              const isSelected = selectedPlanId === plan.id;
+              const isCurrent = currentPlan.toUpperCase() === plan.id.toUpperCase();
+              const isSelected = selectedPlanId.toUpperCase() === plan.id.toUpperCase();
+
               return (
                 <div
                   key={plan.id}
@@ -80,7 +91,12 @@ export const BillingModal: React.FC<BillingModalProps> = ({ onClose }) => {
                       : 'bg-surface-alt border border-hairline hover:border-mid-gray/40'
                   }`}
                 >
-                  {plan.recommended && (
+                  {isCurrent && (
+                    <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-emerald-600 text-paper font-semibold text-[10px] uppercase tracking-wider">
+                      Текущий тариф
+                    </span>
+                  )}
+                  {!isCurrent && plan.recommended && (
                     <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-ember text-paper font-semibold text-[10px] uppercase">
                       Популярный
                     </span>
@@ -106,17 +122,56 @@ export const BillingModal: React.FC<BillingModalProps> = ({ onClose }) => {
                   </div>
 
                   <button
-                    className={`w-full mt-4 py-2 rounded-xl text-xs font-semibold transition-all shadow-subtle ${
-                      isSelected
-                        ? 'bg-ink text-paper'
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedPlanId(plan.id);
+                      handleActivatePlan(plan.id);
+                    }}
+                    className={`w-full mt-4 py-2 rounded-xl text-xs font-semibold transition-all shadow-subtle flex items-center justify-center space-x-1 ${
+                      isCurrent
+                        ? 'bg-emerald-600 text-paper hover:bg-emerald-700'
+                        : isSelected
+                        ? 'bg-ink text-paper hover:bg-ink-soft'
                         : 'bg-paper border border-hairline text-ink hover:bg-surface-alt'
                     }`}
                   >
-                    {isSelected ? 'Выбран' : 'Выбрать'}
+                    {isCurrent ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-paper" />
+                        <span>Активен</span>
+                      </>
+                    ) : (
+                      <span>{isSelected ? 'Активировать' : 'Выбрать'}</span>
+                    )}
                   </button>
                 </div>
               );
             })}
+          </div>
+
+          {/* Plan Activation Bar */}
+          <div className="p-5 rounded-2xl bg-surface-alt border border-hairline flex flex-col md:flex-row items-center justify-between gap-4 shadow-subtle">
+            <div>
+              <h4 className="text-sm font-bold text-ink flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-ember" />
+                <span>Выбранный тариф: {selectedPlan.name}</span>
+              </h4>
+              <p className="text-xs text-mid-gray mt-0.5">
+                {selectedPlan.id.toUpperCase() === currentPlan.toUpperCase()
+                  ? 'Этот тарифный план сейчас активен на вашем аккаунте.'
+                  : `Вы можете применить этот тариф сразу или оплатить счет через Kaspi QR.`}
+              </p>
+            </div>
+
+            {selectedPlan.id.toUpperCase() !== currentPlan.toUpperCase() && (
+              <button
+                onClick={() => handleActivatePlan(selectedPlan.id)}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-paper font-bold text-xs shadow-subtle transition-all flex items-center space-x-2 shrink-0"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Активировать тариф ({selectedPlan.name})</span>
+              </button>
+            )}
           </div>
 
           {/* Payment Details & Server-Driven Status UI */}
@@ -128,7 +183,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ onClose }) => {
                   <span>Оплата через Kaspi.kz (Kaspi Pay QR)</span>
                 </div>
                 <p className="text-xs text-mid-gray max-w-md leading-relaxed">
-                  Отсканируйте QR-код в приложении Kaspi.kz. Подписка {selectedPlan.name} активируется исключительно после получения и валидации криптографической подписи вебхука сервером.
+                  Отсканируйте QR-код в приложении Kaspi.kz для оплаты счета на {selectedPlan.name}.
                 </p>
                 <div className="text-xs font-mono text-ink font-semibold">
                   Сумма счета: <span className="text-base font-bold">{selectedPlan.priceKztMonth.toLocaleString('ru-RU')} KZT</span>
@@ -182,4 +237,3 @@ export const BillingModal: React.FC<BillingModalProps> = ({ onClose }) => {
     </div>
   );
 };
-

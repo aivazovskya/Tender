@@ -21,6 +21,7 @@ interface NavigationProps {
   setLanguage: (lang: 'RU' | 'KK') => void;
   kanbanCount: number;
   onOpenApiKeyModal?: () => void;
+  userTariff?: string;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
@@ -29,7 +30,8 @@ export const Navigation: React.FC<NavigationProps> = ({
   language,
   setLanguage,
   kanbanCount,
-  onOpenApiKeyModal
+  onOpenApiKeyModal,
+  userTariff = 'PRO'
 }) => {
   const t = useTranslation(language);
 
@@ -145,8 +147,8 @@ export const Navigation: React.FC<NavigationProps> = ({
               className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-ink text-paper hover:bg-ink-soft text-xs font-medium transition-all shadow-subtle"
             >
               <CreditCard className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">Pro (29 900 ₸)</span>
-              <span className="sm:hidden">Pro</span>
+              <span className="hidden sm:inline">Тариф: {userTariff}</span>
+              <span className="sm:hidden">{userTariff}</span>
             </button>
 
             {/* Language Switcher */}

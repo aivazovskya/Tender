@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Tender, KanbanItem, CompanyProfileData, DataSourceStatus } from '../lib/types/tender';
 import { INITIAL_DATA_SOURCES, KZ_REGIONS, CATEGORIES } from '../lib/mockData';
+import { TARIFF_PLANS } from '../lib/services/kaspi.service';
 import { AIClientService } from '../lib/services/ai.client';
 import { Navigation } from '../components/Navigation';
 import { TenderCard } from '../components/TenderCard';
@@ -85,8 +86,37 @@ export default function HomePage() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const [userTariff, setUserTariff] = useState<string>('TEAM');
+  const [userTariff, setUserTariff] = useState<string>('PRO');
   const [isProfileFallback, setIsProfileFallback] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedTariff = localStorage.getItem('tender_user_tariff');
+      if (savedTariff) {
+        setUserTariff(savedTariff);
+      }
+    }
+  }, []);
+
+  const handleSelectPlan = (planId: string) => {
+    const targetPlan = TARIFF_PLANS.find(p => p.id.toUpperCase() === planId.toUpperCase());
+    const planName = targetPlan ? targetPlan.name : planId;
+
+    setUserTariff(planId);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('tender_user_tariff', planId);
+      } catch {}
+    }
+
+    showToast(`Тарифный план изменен на "${planName}"!`, 'success');
+
+    fetch('/api/billing/change-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ planId })
+    }).catch(() => {});
+  };
 
   // Company Profile for Matching
   const [companyProfile, setCompanyProfileState] = useState<CompanyProfileData>({
@@ -508,6 +538,7 @@ export default function HomePage() {
         setLanguage={setLanguage}
         kanbanCount={kanbanItems.length}
         onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+        userTariff={userTariff}
       />
 
       {toast && (
@@ -775,7 +806,11 @@ export default function HomePage() {
       )}
 
       {activeTab === 'billing' && (
-        <BillingModal onClose={() => setActiveTab('catalog')} />
+        <BillingModal
+          onClose={() => setActiveTab('catalog')}
+          currentPlan={userTariff}
+          onSelectPlan={handleSelectPlan}
+        />
       )}
 
       {activeTab === 'telegram' && (

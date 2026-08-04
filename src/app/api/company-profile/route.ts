@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
         maxAmount: typeof maxAmount === 'number' ? maxAmount : 0,
         contactEmail: contactEmail || '',
         telegramChatId: telegramChatId || '',
+        subscriptionPlan: body.subscriptionPlan || undefined,
         userId: auth.userId
       },
       create: {
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest) {
         maxAmount: typeof maxAmount === 'number' ? maxAmount : 0,
         contactEmail: contactEmail || '',
         telegramChatId: telegramChatId || '',
+        subscriptionPlan: body.subscriptionPlan || 'FREE',
         userId: auth.userId
       }
     });
