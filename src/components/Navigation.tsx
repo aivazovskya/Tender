@@ -11,7 +11,8 @@ import {
   Layers,
   Key,
   BarChart3,
-  ShieldAlert
+  User as UserIcon,
+  LogOut
 } from 'lucide-react';
 
 import { useTranslation } from '../lib/i18n/useTranslation';
@@ -25,6 +26,9 @@ interface NavigationProps {
   onOpenApiKeyModal?: () => void;
   onOpenSecurityModal?: () => void;
   userTariff?: string;
+  currentUser?: { id: string; email: string; name?: string | null; role: string } | null;
+  onOpenAuthModal?: () => void;
+  onLogout?: () => void;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
@@ -34,7 +38,10 @@ export const Navigation: React.FC<NavigationProps> = ({
   setLanguage,
   kanbanCount,
   onOpenApiKeyModal,
-  userTariff = 'PRO'
+  userTariff = 'PRO',
+  currentUser,
+  onOpenAuthModal,
+  onLogout
 }) => {
   const t = useTranslation(language);
 
@@ -197,6 +204,37 @@ export const Navigation: React.FC<NavigationProps> = ({
                 ҚАЗ
               </button>
             </div>
+
+            {/* Auth / Profile Button */}
+            {currentUser && currentUser.id !== 'demo-user-id' ? (
+              <div className="flex items-center space-x-1.5 pl-1">
+                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-surface-alt border border-hairline text-xs">
+                  <UserIcon className="w-3.5 h-3.5 text-ember" />
+                  <span className="font-semibold text-ink max-w-[100px] truncate" title={currentUser.email}>
+                    {currentUser.name || currentUser.email.split('@')[0]}
+                  </span>
+                </div>
+                {onLogout && (
+                  <button
+                    onClick={onLogout}
+                    className="p-1.5 rounded-lg bg-surface-alt border border-hairline text-mid-gray hover:text-red-600 hover:bg-red-500/10 transition-colors"
+                    title="Выйти из аккаунта"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              onOpenAuthModal && (
+                <button
+                  onClick={onOpenAuthModal}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-ember text-paper hover:bg-ember-soft text-xs font-semibold transition-all shadow-subtle"
+                >
+                  <UserIcon className="w-3.5 h-3.5" />
+                  <span>Войти</span>
+                </button>
+              )
+            )}
 
           </div>
 

@@ -8,7 +8,11 @@ import { CompanyProfile } from '@prisma/client';
  */
 export async function resolveOwnCompanyProfile(userId: string): Promise<CompanyProfile | null> {
   if (!userId) return null;
-  return await prisma.companyProfile.findFirst({
-    where: { userId }
-  });
+  try {
+    return await prisma.companyProfile.findFirst({
+      where: { userId }
+    });
+  } catch (err) {
+    return null;
+  }
 }

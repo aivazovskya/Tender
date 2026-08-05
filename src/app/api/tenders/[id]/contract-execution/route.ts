@@ -7,7 +7,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const auth = validateApiAuth(request);
+  const auth = await validateApiAuth(request);
   const tenderId = params.id;
 
   try {
@@ -80,7 +80,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const auth = validateApiAuth(request);
+  const auth = await validateApiAuth(request);
   if (!auth.authorized && auth.response) return auth.response;
 
   const tenderId = params.id;

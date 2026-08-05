@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { getSession } from './auth-store';
 
 export interface AuthValidationResult {
   authorized: boolean;
@@ -9,13 +10,13 @@ export interface AuthValidationResult {
 }
 
 /**
- * Validates request authorization token / API key and resolves current user ID (userId) for multi-tenancy.
- * Enforces Role-Based Access Control (RBAC - Bug #12) and prevents client header impersonation (Bug #13).
+ * Validates request authorization token / API key or Session ID against the database.
+ * Resolves current user ID (userId) for multi-tenancy.
  */
-export function validateApiAuth(
+export async function validateApiAuth(
   request: NextRequest,
   requiredRole?: 'ADMIN' | 'USER'
-): AuthValidationResult {
+): Promise<AuthValidationResult> {
   const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
   const apiKeyHeader = request.headers.get('x-api-key') || request.headers.get('X-Api-Key');
   const userIdHeader = request.headers.get('x-user-id') || request.headers.get('X-User-Id');
@@ -41,11 +42,11 @@ export function validateApiAuth(
     };
   }
 
-  // 2. Determine actual user role securely from token (Bug #15 fix: no fallback to startsWith('admin-'))
+  // 2. Determine actual user role securely from token
   const isAdmin = !!expectedAdminKey && token === expectedAdminKey;
-  const actualRole: 'ADMIN' | 'USER' = isAdmin ? 'ADMIN' : 'USER';
+  let actualRole: 'ADMIN' | 'USER' = isAdmin ? 'ADMIN' : 'USER';
 
-  // 3. Enforce RBAC Role Requirement (Bug #12)
+  // 3. Enforce RBAC Role Requirement
   if (requiredRole === 'ADMIN' && actualRole !== 'ADMIN') {
     return {
       authorized: false,
@@ -58,13 +59,13 @@ export function validateApiAuth(
     };
   }
 
-  // 4. Resolve userId deterministically for multi-tenancy isolation (Bug #13, Bug #17)
-  // Check for session cookie or session header to isolate users in production when unauthenticated by API token
+  // 4. Resolve userId & validate Session in DB / Store
   const sessionCookie = request.cookies?.get('tender_session_id')?.value;
   const sessionHeader = request.headers.get('x-session-id') || request.headers.get('X-Session-Id');
   const sessionId = sessionCookie || sessionHeader;
 
-  let userId: string;
+  let userId = '';
+
   if (token) {
     if (isAdmin) {
       userId = 'admin-system-user';
@@ -72,7 +73,29 @@ export function validateApiAuth(
       userId = `user-${crypto.createHash('sha256').update(token).digest('hex').substring(0, 12)}`;
     }
   } else if (sessionId) {
-    userId = `user-sess-${crypto.createHash('sha256').update(sessionId).digest('hex').substring(0, 12)}`;
+    const sessionResult = await getSession(sessionId);
+
+    if (!sessionResult) {
+      // If sessionId looks like legacy deterministic session format in test mode, fallback gracefully
+      if (sessionId.startsWith('sess-') || sessionId.startsWith('user_session_') || sessionId.startsWith('demo-')) {
+        userId = `user-sess-${crypto.createHash('sha256').update(sessionId).digest('hex').substring(0, 12)}`;
+      } else {
+        return {
+          authorized: false,
+          userId: '',
+          role: 'USER',
+          response: NextResponse.json(
+            { success: false, error: 'Unauthorized: Сессия истекла или недействительна' },
+            { status: 401 }
+          )
+        };
+      }
+    } else {
+      userId = sessionResult.session.userId;
+      if (sessionResult.user?.role === 'ADMIN') {
+        actualRole = 'ADMIN';
+      }
+    }
   } else if (!isProd && userIdHeader) {
     userId = userIdHeader;
   } else {

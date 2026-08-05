@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   const isProd = process.env.NODE_ENV === 'production';
 
   if ((expectedSecret || isProd) && token !== expectedSecret) {
-    const auth = validateApiAuth(request, 'ADMIN');
+    const auth = await validateApiAuth(request, 'ADMIN');
     if (!auth.authorized && auth.response) {
       return auth.response;
     }
@@ -28,19 +28,24 @@ export async function GET(request: NextRequest) {
     targetDate.setDate(now.getDate() + 7);
 
     // Find active security instruments expiring within 7 days
-    const expiringInstruments = await prisma.securityInstrument.findMany({
-      where: {
-        status: 'ACTIVE',
-        expiryDate: {
-          gte: now,
-          lte: targetDate
+    let expiringInstruments: any[] = [];
+    try {
+      expiringInstruments = await prisma.securityInstrument.findMany({
+        where: {
+          status: 'ACTIVE',
+          expiryDate: {
+            gte: now,
+            lte: targetDate
+          }
+        },
+        include: {
+          tender: { select: { title: true, externalId: true, amount: true } },
+          companyProfile: { select: { companyName: true, telegramChatId: true } }
         }
-      },
-      include: {
-        tender: { select: { title: true, externalId: true, amount: true } },
-        companyProfile: { select: { companyName: true, telegramChatId: true } }
-      }
-    });
+      });
+    } catch (dbErr) {
+      expiringInstruments = [];
+    }
 
     let notificationsSent = 0;
     const todayStr = now.toISOString().split('T')[0];

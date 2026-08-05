@@ -232,7 +232,7 @@ export class IngestionProcessorService {
           savedTenders.push(savedTender);
         } catch (dbErr: any) {
           console.warn(`[IngestionProcessorService] БД недоступна для персистентности лота #${t.externalId}: ${dbErr?.message || dbErr}`);
-          savedTenders.push({ ...t, aiSummary, aiKeyRequirements, riskScore });
+          savedTenders.push({ ...t, id: t.id || `t-${t.externalId}`, aiSummary, aiKeyRequirements, riskScore });
         }
       } catch (err) {
         console.error(`[IngestionProcessorService] Ошибка обработки лота #${t.externalId}:`, err);

@@ -28,10 +28,29 @@ import { useTranslation } from '../lib/i18n/useTranslation';
 
 import { ExecutiveReportDashboard } from '../components/ExecutiveReportDashboard';
 import { SecurityRegistryModal } from '../components/SecurityRegistryModal';
+import { AuthModal } from '../components/AuthModal';
 
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'kanban' | 'matching' | 'reports' | 'security' | 'admin' | 'billing' | 'telegram'>('catalog');
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ id: string; email: string; name?: string | null; role: string } | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.user) {
+          setCurrentUser(data.user);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    setCurrentUser(null);
+  };
   const [language, setLanguageState] = useState<'RU' | 'KK'>('RU');
 
   // Load persisted language choice on mount
@@ -541,6 +560,9 @@ export default function HomePage() {
         kanbanCount={kanbanItems.length}
         onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
         userTariff={userTariff}
+        currentUser={currentUser}
+        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onLogout={handleLogout}
       />
 
       {toast && (
@@ -842,6 +864,15 @@ export default function HomePage() {
           language={language}
         />
       )}
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={(user) => {
+          setCurrentUser(user);
+          showToast(`Добро пожаловать, ${user.name || user.email}!`, 'success');
+        }}
+      />
 
       <footer className="mt-auto border-t border-hairline bg-paper py-6 text-center text-xs text-mid-gray">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">

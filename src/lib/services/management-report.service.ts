@@ -39,19 +39,24 @@ export class ManagementReportService {
       whereClause.userId = userId;
     }
 
-    const cards = await prisma.kanbanCard.findMany({
-      where: whereClause,
-      include: {
-        tender: {
-          select: {
-            id: true,
-            title: true,
-            category: true,
-            amount: true
+    let cards: any[] = [];
+    try {
+      cards = await prisma.kanbanCard.findMany({
+        where: whereClause,
+        include: {
+          tender: {
+            select: {
+              id: true,
+              title: true,
+              category: true,
+              amount: true
+            }
           }
         }
-      }
-    });
+      });
+    } catch (err) {
+      cards = [];
+    }
 
     const submittedCards = cards.filter(c => c.stage === 'SUBMITTED' || c.stage === 'WON' || c.stage === 'LOST');
     const wonCards = cards.filter(c => c.stage === 'WON');

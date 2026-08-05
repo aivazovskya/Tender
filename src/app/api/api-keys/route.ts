@@ -8,7 +8,7 @@ import {
 } from '@/lib/security/public-api-guard';
 
 export async function GET(request: NextRequest) {
-  const auth = validateApiAuth(request);
+  const auth = await validateApiAuth(request);
   if (!auth.authorized && auth.response) {
     return auth.response;
   }
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = validateApiAuth(request);
+  const auth = await validateApiAuth(request);
   if (!auth.authorized && auth.response) {
     return auth.response;
   }
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const auth = validateApiAuth(request);
+  const auth = await validateApiAuth(request);
   if (!auth.authorized && auth.response) {
     return auth.response;
   }

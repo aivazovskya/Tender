@@ -8,12 +8,21 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const auth = validateApiAuth(request);
+  const auth = await validateApiAuth(request);
   if (!auth.authorized && auth.response) return auth.response;
 
   const tenderId = params.id;
 
   try {
+    const companyProfile = await resolveOwnCompanyProfile(auth.userId);
+
+    if (!companyProfile) {
+      return NextResponse.json(
+        { success: false, message: 'Профиль компании не найден. Сначала заполните профиль компании.' },
+        { status: 404 }
+      );
+    }
+
     const body = await request.json();
     const { templateId } = body;
 
@@ -29,15 +38,6 @@ export async function POST(
     const template = await prisma.documentTemplate.findUnique({ where: { id: templateId } });
     if (!template) {
       return NextResponse.json({ success: false, message: 'Шаблон документа не найден' }, { status: 404 });
-    }
-
-    const companyProfile = await resolveOwnCompanyProfile(auth.userId);
-
-    if (!companyProfile) {
-      return NextResponse.json(
-        { success: false, message: 'Профиль компании не найден. Сначала заполните профиль компании.' },
-        { status: 404 }
-      );
     }
 
     // Resolve Placeholders

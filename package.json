@@ -15,8 +15,10 @@
   },
   "dependencies": {
     "@prisma/client": "^5.10.2",
+    "@types/bcryptjs": "^2.4.6",
     "@types/pdf-parse": "^1.1.5",
     "@types/pdfkit": "^0.17.6",
+    "bcryptjs": "^3.0.3",
     "bullmq": "^5.1.0",
     "cheerio": "^1.2.0",
     "clsx": "^2.1.0",

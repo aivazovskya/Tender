@@ -15,7 +15,7 @@ export interface SubscriptionAuthResult {
  */
 export async function validateExportAccess(request: NextRequest): Promise<SubscriptionAuthResult> {
   // 1. Validate basic user authentication or API token
-  const auth = validateApiAuth(request, 'USER');
+  const auth = await validateApiAuth(request, 'USER');
   
   // Header / query override for demo or admin mode
   const headerPlan = request.headers.get('x-user-plan') || request.headers.get('X-User-Plan');
@@ -84,7 +84,7 @@ export async function validateExportAccess(request: NextRequest): Promise<Subscr
  * Access is allowed for 'PRO', 'TEAM', and 'ENTERPRISE' subscription plans.
  */
 export async function validateReputationAccess(request: NextRequest): Promise<SubscriptionAuthResult> {
-  const auth = validateApiAuth(request, 'USER');
+  const auth = await validateApiAuth(request, 'USER');
   const headerPlan = request.headers.get('x-user-plan') || request.headers.get('X-User-Plan');
 
   let userPlan = 'FREE';

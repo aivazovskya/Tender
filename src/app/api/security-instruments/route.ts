@@ -4,7 +4,7 @@ import { validateApiAuth } from '@/lib/security/auth';
 import { resolveOwnCompanyProfile } from '@/lib/security/resolve-company-profile';
 
 export async function GET(request: NextRequest) {
-  const auth = validateApiAuth(request);
+  const auth = await validateApiAuth(request);
   const { searchParams } = new URL(request.url);
 
   const statusFilter = searchParams.get('status');
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = validateApiAuth(request);
+  const auth = await validateApiAuth(request);
   if (!auth.authorized && auth.response) return auth.response;
 
   try {

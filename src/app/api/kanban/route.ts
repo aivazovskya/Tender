@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
 
 export async function GET(request: NextRequest) {
-  const auth = validateApiAuth(request);
+  const auth = await validateApiAuth(request);
 
   try {
     const cards = await prisma.kanbanCard.findMany({
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = validateApiAuth(request);
+  const auth = await validateApiAuth(request);
   if (!auth.authorized && auth.response) return auth.response;
 
   try {
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const auth = validateApiAuth(request);
+  const auth = await validateApiAuth(request);
   if (!auth.authorized && auth.response) return auth.response;
 
   try {

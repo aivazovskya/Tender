@@ -13,7 +13,7 @@ async function runTests() {
     headers: { get: () => null },
     cookies: { get: (name) => name === 'tender_session_id' ? { value: 'user_session_abc123' } : undefined }
   };
-  const res1 = validateApiAuth(mockReqSessionCookie);
+  const res1 = await validateApiAuth(mockReqSessionCookie);
   assert.strictEqual(res1.authorized, true);
   assert.ok(res1.userId.startsWith('user-sess-'), 'Session cookie should resolve to user-sess- ID');
 
@@ -21,7 +21,7 @@ async function runTests() {
     headers: { get: (name) => name.toLowerCase() === 'x-session-id' ? 'user_session_xyz789' : null },
     cookies: { get: () => undefined }
   };
-  const res2 = validateApiAuth(mockReqSessionHeader);
+  const res2 = await validateApiAuth(mockReqSessionHeader);
   assert.strictEqual(res2.authorized, true);
   assert.ok(res2.userId.startsWith('user-sess-'), 'X-Session-Id header should resolve to user-sess- ID');
   assert.notStrictEqual(res1.userId, res2.userId, 'Different sessions must have distinct user IDs');

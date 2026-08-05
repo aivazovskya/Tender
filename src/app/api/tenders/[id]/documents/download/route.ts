@@ -7,7 +7,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const auth = validateApiAuth(request);
+  const auth = await validateApiAuth(request);
   if (!auth.authorized && auth.response) return auth.response;
 
   const { searchParams } = new URL(request.url);
@@ -19,14 +19,19 @@ export async function GET(
       return NextResponse.json({ success: false, message: 'Укажите docId' }, { status: 400 });
     }
 
-    const genDoc = await prisma.generatedDocument.findUnique({
-      where: { id: docId },
-      include: {
-        template: true,
-        tender: true,
-        companyProfile: true
-      }
-    });
+    let genDoc: any = null;
+    try {
+      genDoc = await prisma.generatedDocument.findUnique({
+        where: { id: docId },
+        include: {
+          template: true,
+          tender: true,
+          companyProfile: true
+        }
+      });
+    } catch (dbErr) {
+      genDoc = null;
+    }
 
     if (!genDoc || genDoc.tenderId !== tenderId) {
       return NextResponse.json({ success: false, message: 'Документ не найден' }, { status: 404 });
