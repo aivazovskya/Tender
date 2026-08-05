@@ -8,7 +8,7 @@ import { IngestionProcessorService } from '@/lib/services/ingestion-processor.se
 import { IngestionHealthService } from '@/lib/services/ingestion-health.service';
 
 export async function POST(request: NextRequest) {
-  const auth = validateApiAuth(request, 'ADMIN');
+  const auth = await validateApiAuth(request, 'ADMIN');
   if (!auth.authorized && auth.response) return auth.response;
 
   let sourceName = 'Unknown';

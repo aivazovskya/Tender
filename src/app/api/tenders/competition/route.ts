@@ -6,7 +6,7 @@ import { INITIAL_TENDERS } from '@/lib/mockData';
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = validateApiAuth(request, 'USER');
+    const auth = await validateApiAuth(request, 'USER');
     const { searchParams } = new URL(request.url);
     const tenderId = searchParams.get('tenderId');
 

@@ -7,7 +7,7 @@ import { IngestionHealthService } from '@/lib/services/ingestion-health.service'
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  const auth = validateApiAuth(request, 'ADMIN');
+  const auth = await validateApiAuth(request, 'ADMIN');
   if (!auth.authorized && auth.response) return auth.response;
 
   const registeredApiSources = listRegisteredApiSources();
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = validateApiAuth(request, 'ADMIN');
+  const auth = await validateApiAuth(request, 'ADMIN');
   if (!auth.authorized && auth.response) return auth.response;
 
   try {

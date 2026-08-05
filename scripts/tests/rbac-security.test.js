@@ -44,15 +44,24 @@ async function runTests() {
   assert.strictEqual(fakeAdminResult.authorized, false, 'Unauthenticated admin- token attempt MUST be rejected');
   console.log('  ✅ Fake admin- token prefix fallback bypass blocked when ADMIN_API_KEY is not set (Bug #15)');
 
-  // 4. Test Bug #16: Production non-admin request availability without token
+  // 4. Test Finding 3: Production unauthenticated user request requires ALLOW_DEMO_AUTH=true for demo access
   const originalEnv = process.env.NODE_ENV;
+  const originalAllowDemo = process.env.ALLOW_DEMO_AUTH;
   process.env.NODE_ENV = 'production';
+  delete process.env.ALLOW_DEMO_AUTH;
 
-  const prodUserReq = createMockRequest({}); // UI fetch without token
-  const prodUserResult = await validateApiAuth(prodUserReq);
-  assert.strictEqual(prodUserResult.authorized, true, 'User route without token MUST be authorized in production for UI compatibility');
-  assert.strictEqual(prodUserResult.role, 'USER', 'User route without token MUST resolve to USER role');
-  console.log('  ✅ Production non-admin user routes accessible without token (Bug #16)');
+  const prodUserReqNoFlag = createMockRequest({});
+  const prodUserResultNoFlag = await validateApiAuth(prodUserReqNoFlag);
+  assert.strictEqual(prodUserResultNoFlag.authorized, false, 'Without ALLOW_DEMO_AUTH, unauthenticated request MUST return 401');
+  assert.strictEqual(prodUserResultNoFlag.response.status, 401);
+  console.log('  ✅ Production user routes without token/session return 401 when ALLOW_DEMO_AUTH is disabled');
+
+  process.env.ALLOW_DEMO_AUTH = 'true';
+  const prodUserReqWithFlag = createMockRequest({});
+  const prodUserResultWithFlag = await validateApiAuth(prodUserReqWithFlag);
+  assert.strictEqual(prodUserResultWithFlag.authorized, true, 'With ALLOW_DEMO_AUTH=true, demo user access is granted');
+  assert.strictEqual(prodUserResultWithFlag.userId, 'demo-user-id');
+  console.log('  ✅ With ALLOW_DEMO_AUTH=true, demo-user-id fallback operates as expected');
 
   const prodAdminReq = createMockRequest({});
   const prodAdminResult = await validateApiAuth(prodAdminReq, 'ADMIN');
@@ -61,6 +70,11 @@ async function runTests() {
   console.log('  ✅ Production ADMIN routes strictly enforce HTTP 401 Unauthorized when token is missing (Bug #16)');
 
   process.env.NODE_ENV = originalEnv;
+  if (originalAllowDemo !== undefined) {
+    process.env.ALLOW_DEMO_AUTH = originalAllowDemo;
+  } else {
+    delete process.env.ALLOW_DEMO_AUTH;
+  }
 
   console.log('🎉 RBAC Security & Multi-Tenant Impersonation Test Suite completed successfully!');
 }

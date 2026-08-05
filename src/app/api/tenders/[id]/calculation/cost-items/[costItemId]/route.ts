@@ -18,7 +18,7 @@ export async function PATCH(
   { params }: { params: { id: string; costItemId: string } }
 ) {
   try {
-    const auth = validateApiAuth(request, 'USER');
+    const auth = await validateApiAuth(request, 'USER');
     if (!auth.authorized) {
       return auth.response || NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
@@ -106,7 +106,7 @@ export async function DELETE(
   { params }: { params: { id: string; costItemId: string } }
 ) {
   try {
-    const auth = validateApiAuth(request, 'USER');
+    const auth = await validateApiAuth(request, 'USER');
     if (!auth.authorized) {
       return auth.response || NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }

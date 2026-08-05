@@ -5,7 +5,7 @@ import { validateApiAuth } from '@/lib/security/auth';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  const auth = validateApiAuth(request, 'ADMIN');
+  const auth = await validateApiAuth(request, 'ADMIN');
   if (!auth.authorized && auth.response) return auth.response;
 
   try {

@@ -6,7 +6,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const auth = validateApiAuth(request);
+  const auth = await validateApiAuth(request);
   const tenderId = params.id;
 
   try {

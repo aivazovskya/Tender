@@ -4,7 +4,7 @@ import { validateApiAuth } from '@/lib/security/auth';
 import { validateUrlForSSRF } from '@/lib/security/ssrf';
 
 export async function GET(request: NextRequest) {
-  const auth = validateApiAuth(request, 'ADMIN');
+  const auth = await validateApiAuth(request, 'ADMIN');
   if (!auth.authorized && auth.response) return auth.response;
 
   try {
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = validateApiAuth(request, 'ADMIN');
+  const auth = await validateApiAuth(request, 'ADMIN');
   if (!auth.authorized && auth.response) return auth.response;
 
   try {
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const auth = validateApiAuth(request, 'ADMIN');
+  const auth = await validateApiAuth(request, 'ADMIN');
   if (!auth.authorized && auth.response) return auth.response;
 
   try {

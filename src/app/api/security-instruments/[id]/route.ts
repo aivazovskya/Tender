@@ -6,7 +6,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const auth = validateApiAuth(request);
+  const auth = await validateApiAuth(request);
   if (!auth.authorized && auth.response) return auth.response;
 
   const id = params.id;

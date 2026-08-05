@@ -76,30 +76,35 @@ export async function validateApiAuth(
     const sessionResult = await getSession(sessionId);
 
     if (!sessionResult) {
-      // If sessionId looks like legacy deterministic session format in test mode, fallback gracefully
-      if (sessionId.startsWith('sess-') || sessionId.startsWith('user_session_') || sessionId.startsWith('demo-')) {
-        userId = `user-sess-${crypto.createHash('sha256').update(sessionId).digest('hex').substring(0, 12)}`;
-      } else {
-        return {
-          authorized: false,
-          userId: '',
-          role: 'USER',
-          response: NextResponse.json(
-            { success: false, error: 'Unauthorized: Сессия истекла или недействительна' },
-            { status: 401 }
-          )
-        };
-      }
-    } else {
-      userId = sessionResult.session.userId;
-      if (sessionResult.user?.role === 'ADMIN') {
-        actualRole = 'ADMIN';
-      }
+      return {
+        authorized: false,
+        userId: '',
+        role: 'USER',
+        response: NextResponse.json(
+          { success: false, error: 'Unauthorized: Сессия истекла или недействительна' },
+          { status: 401 }
+        )
+      };
+    }
+
+    userId = sessionResult.session.userId;
+    if (sessionResult.user?.role === 'ADMIN') {
+      actualRole = 'ADMIN';
     }
   } else if (!isProd && userIdHeader) {
     userId = userIdHeader;
-  } else {
+  } else if (process.env.ALLOW_DEMO_AUTH === 'true') {
     userId = 'demo-user-id';
+  } else {
+    return {
+      authorized: false,
+      userId: '',
+      role: 'USER',
+      response: NextResponse.json(
+        { success: false, error: 'Unauthorized: Требуется вход в систему' },
+        { status: 401 }
+      )
+    };
   }
 
   return {

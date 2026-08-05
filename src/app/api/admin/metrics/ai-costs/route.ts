@@ -4,7 +4,7 @@ import { validateApiAuth } from '@/lib/security/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = validateApiAuth(request, 'ADMIN');
+    const auth = await validateApiAuth(request, 'ADMIN');
     if (!auth.authorized) {
       return auth.response || NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }

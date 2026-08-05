@@ -4,7 +4,7 @@ import { validateApiAuth } from '@/lib/security/auth';
 import { TelegramBotService } from '@/lib/services/telegram.service';
 
 export async function POST(request: NextRequest) {
-  const auth = validateApiAuth(request);
+  const auth = await validateApiAuth(request);
   if (!auth.authorized && auth.response) return auth.response;
 
   try {

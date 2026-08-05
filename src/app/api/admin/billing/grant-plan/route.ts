@@ -4,7 +4,7 @@ import { validateApiAuth } from '@/lib/security/auth';
 import { TARIFF_PLANS } from '@/lib/services/kaspi.service';
 
 export async function POST(request: NextRequest) {
-  const auth = validateApiAuth(request, 'ADMIN');
+  const auth = await validateApiAuth(request, 'ADMIN');
   if (!auth.authorized) {
     return auth.response!;
   }

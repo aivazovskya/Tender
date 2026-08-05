@@ -5,7 +5,7 @@ import { validateApiAuth } from '@/lib/security/auth';
 import { validateUrlForSSRF } from '@/lib/security/ssrf';
 
 export async function POST(request: NextRequest) {
-  const auth = validateApiAuth(request, 'ADMIN');
+  const auth = await validateApiAuth(request, 'ADMIN');
   if (!auth.authorized && auth.response) return auth.response;
 
   const startTime = Date.now();

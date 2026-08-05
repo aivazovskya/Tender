@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     if (existingUser) {
       return NextResponse.json(
-        { success: false, message: 'Пользователь с таким email уже зарегистрирован' },
+        { success: false, message: 'Не удалось зарегистрироваться. Проверьте данные или попробуйте войти.' },
         { status: 400 }
       );
     }

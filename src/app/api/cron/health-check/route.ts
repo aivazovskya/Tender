@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const isProd = process.env.NODE_ENV === 'production';
 
   if ((expectedSecret || isProd) && token !== expectedSecret) {
-    const auth = validateApiAuth(request, 'ADMIN');
+    const auth = await validateApiAuth(request, 'ADMIN');
     if (!auth.authorized && auth.response) {
       return auth.response;
     }

@@ -1,6 +1,7 @@
 require('tsx/cjs');
 const assert = require('assert');
 const { validateApiAuth } = require('../../src/lib/security/auth');
+const { createSession, createUser } = require('../../src/lib/security/auth-store');
 const { AIService } = require('../../src/lib/services/ai.service');
 const { IngestionProcessorService } = require('../../src/lib/services/ingestion-processor.service');
 
@@ -9,23 +10,41 @@ async function runTests() {
 
   // --- 1. Test Bug #17: Session Cookie & Header Isolation ---
   console.log('▶ Testing Bug #17: Session Cookie & Header User Isolation...');
+
+  // Create real test users and sessions
+  const user1 = await createUser({ email: `v5_test1_${Date.now()}@test.kz`, passwordHash: 'hash1' });
+  const sess1 = await createSession(user1.id);
+
+  const user2 = await createUser({ email: `v5_test2_${Date.now()}@test.kz`, passwordHash: 'hash2' });
+  const sess2 = await createSession(user2.id);
+
   const mockReqSessionCookie = {
     headers: { get: () => null },
-    cookies: { get: (name) => name === 'tender_session_id' ? { value: 'user_session_abc123' } : undefined }
+    cookies: { get: (name) => name === 'tender_session_id' ? { value: sess1.id } : undefined }
   };
   const res1 = await validateApiAuth(mockReqSessionCookie);
   assert.strictEqual(res1.authorized, true);
-  assert.ok(res1.userId.startsWith('user-sess-'), 'Session cookie should resolve to user-sess- ID');
+  assert.strictEqual(res1.userId, user1.id);
 
   const mockReqSessionHeader = {
-    headers: { get: (name) => name.toLowerCase() === 'x-session-id' ? 'user_session_xyz789' : null },
+    headers: { get: (name) => name.toLowerCase() === 'x-session-id' ? sess2.id : null },
     cookies: { get: () => undefined }
   };
   const res2 = await validateApiAuth(mockReqSessionHeader);
   assert.strictEqual(res2.authorized, true);
-  assert.ok(res2.userId.startsWith('user-sess-'), 'X-Session-Id header should resolve to user-sess- ID');
+  assert.strictEqual(res2.userId, user2.id);
   assert.notStrictEqual(res1.userId, res2.userId, 'Different sessions must have distinct user IDs');
-  console.log('  ✅ Bug #17: Session cookies and headers resolve to isolated user IDs');
+
+  // Verify fake session gets rejected with 401 (Finding 2)
+  const mockReqFakeSession = {
+    headers: { get: () => null },
+    cookies: { get: (name) => name === 'tender_session_id' ? { value: 'user_session_fake_unauthenticated' } : undefined }
+  };
+  const resFake = await validateApiAuth(mockReqFakeSession);
+  assert.strictEqual(resFake.authorized, false);
+  assert.strictEqual(resFake.response?.status, 401);
+
+  console.log('  ✅ Bug #17: Session cookies and headers resolve to isolated user IDs & fake sessions rejected with 401');
 
   // --- 2. Test Bug #18: IngestionProcessorService Transactional Execution ---
   console.log('\n▶ Testing Bug #18: IngestionProcessorService Atomic Persistence...');
@@ -84,7 +103,7 @@ async function runTests() {
   const { POST: askHandler } = require('../../src/app/api/tenders/ask/route');
   const mockAskReq = {
     headers: { get: () => null },
-    cookies: { get: () => undefined },
+    cookies: { get: (name) => name === 'tender_session_id' ? { value: sess1.id } : undefined },
     json: async () => ({
       externalId: '998877',
       title: 'Поставка оборудования',
@@ -96,7 +115,7 @@ async function runTests() {
     })
   };
   const askRes = await askHandler(mockAskReq);
-  assert.strictEqual(askRes.status, 200, 'RAG API route must return HTTP 200 OK');
+  assert.strictEqual(askRes.status, 200, 'RAG API route must return HTTP 200 OK for authenticated user');
   const askData = await askRes.json();
   assert.strictEqual(askData.success, true);
   assert.ok(typeof askData.answer === 'string' && askData.answer.length > 0);
