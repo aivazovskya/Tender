@@ -6,6 +6,8 @@ const { POST: logoutHandler } = require('../../src/app/api/auth/logout/route');
 const { GET: meHandler } = require('../../src/app/api/auth/me/route');
 const { getSession } = require('../../src/lib/security/auth-store');
 
+process.env.AUTH_STORE_MODE = 'memory';
+
 console.log('🧪 Starting Auth & Registration Security Module Tests...\n');
 
 function createMockReq(urlStr, options = {}) {

@@ -46,6 +46,12 @@ export async function GET(request: NextRequest) {
       }
     });
   } catch (error: any) {
+    if (error?.message === 'AUTH_STORE_UNAVAILABLE' || error?.name === 'AuthStoreUnavailableError') {
+      return NextResponse.json(
+        { success: false, message: 'Сервис авторизации временно недоступен. Попробуйте позже.' },
+        { status: 503 }
+      );
+    }
     console.error('[API /api/auth/me Error]:', error?.message);
     return NextResponse.json(
       { success: false, message: error?.message || 'Ошибка получения профиля' },

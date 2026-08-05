@@ -76,6 +76,12 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error: any) {
+    if (error?.message === 'AUTH_STORE_UNAVAILABLE' || error?.name === 'AuthStoreUnavailableError') {
+      return NextResponse.json(
+        { success: false, message: 'Сервис авторизации временно недоступен. Попробуйте позже.' },
+        { status: 503 }
+      );
+    }
     console.error('[API /api/auth/login Error]:', error?.message);
     return NextResponse.json(
       { success: false, message: error?.message || 'Ошибка при входе в систему' },

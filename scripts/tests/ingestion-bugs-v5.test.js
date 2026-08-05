@@ -5,6 +5,8 @@ const { createSession, createUser } = require('../../src/lib/security/auth-store
 const { AIService } = require('../../src/lib/services/ai.service');
 const { IngestionProcessorService } = require('../../src/lib/services/ingestion-processor.service');
 
+process.env.AUTH_STORE_MODE = 'memory';
+
 async function runTests() {
   console.log('🧪 [Test Suite] Testing Ingestion & Security Fixes (Bugs #17, #18, #19)...\n');
 

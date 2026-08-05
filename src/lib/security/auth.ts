@@ -73,23 +73,38 @@ export async function validateApiAuth(
       userId = `user-${crypto.createHash('sha256').update(token).digest('hex').substring(0, 12)}`;
     }
   } else if (sessionId) {
-    const sessionResult = await getSession(sessionId);
+    try {
+      const sessionResult = await getSession(sessionId);
 
-    if (!sessionResult) {
-      return {
-        authorized: false,
-        userId: '',
-        role: 'USER',
-        response: NextResponse.json(
-          { success: false, error: 'Unauthorized: Сессия истекла или недействительна' },
-          { status: 401 }
-        )
-      };
-    }
+      if (!sessionResult) {
+        return {
+          authorized: false,
+          userId: '',
+          role: 'USER',
+          response: NextResponse.json(
+            { success: false, error: 'Unauthorized: Сессия истекла или недействительна' },
+            { status: 401 }
+          )
+        };
+      }
 
-    userId = sessionResult.session.userId;
-    if (sessionResult.user?.role === 'ADMIN') {
-      actualRole = 'ADMIN';
+      userId = sessionResult.session.userId;
+      if (sessionResult.user?.role === 'ADMIN') {
+        actualRole = 'ADMIN';
+      }
+    } catch (err: any) {
+      if (err?.message === 'AUTH_STORE_UNAVAILABLE' || err?.name === 'AuthStoreUnavailableError') {
+        return {
+          authorized: false,
+          userId: '',
+          role: 'USER',
+          response: NextResponse.json(
+            { success: false, message: 'Сервис авторизации временно недоступен. Попробуйте позже.' },
+            { status: 503 }
+          )
+        };
+      }
+      throw err;
     }
   } else if (!isProd && userIdHeader) {
     userId = userIdHeader;

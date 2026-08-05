@@ -1,5 +1,12 @@
 import { prisma } from '../prisma';
 
+export class AuthStoreUnavailableError extends Error {
+  constructor(message = 'AUTH_STORE_UNAVAILABLE') {
+    super(message);
+    this.name = 'AuthStoreUnavailableError';
+  }
+}
+
 export interface UserRecord {
   id: string;
   email: string;
@@ -16,7 +23,7 @@ export interface SessionRecord {
   userAgent?: string | null;
 }
 
-// In-memory stores for test/offline environments
+// In-memory stores for test/offline environments (activated via AUTH_STORE_MODE === 'memory')
 const memoryUsers = new Map<string, UserRecord>();
 const memorySessions = new Map<string, SessionRecord>();
 const memoryFailedAttempts = new Map<string, { count: number; lastAttempt: number }>();
@@ -31,13 +38,11 @@ export async function findUserByEmail(email: string): Promise<UserRecord | null>
     return user || null;
   }
   try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (user) return user;
+    return await prisma.user.findUnique({ where: { email } });
   } catch (err: any) {
-    // DB query failed, fallback to memoryUsers
+    console.error('[auth-store] DB unavailable in findUserByEmail:', err?.message);
+    throw new AuthStoreUnavailableError('AUTH_STORE_UNAVAILABLE');
   }
-  const user = Array.from(memoryUsers.values()).find(u => u.email === email);
-  return user || null;
 }
 
 export async function findUserById(id: string): Promise<UserRecord | null> {
@@ -46,13 +51,11 @@ export async function findUserById(id: string): Promise<UserRecord | null> {
     return user || null;
   }
   try {
-    const user = await prisma.user.findUnique({ where: { id } });
-    if (user) return user;
+    return await prisma.user.findUnique({ where: { id } });
   } catch (err: any) {
-    // DB query failed, fallback to memoryUsers
+    console.error('[auth-store] DB unavailable in findUserById:', err?.message);
+    throw new AuthStoreUnavailableError('AUTH_STORE_UNAVAILABLE');
   }
-  const user = Array.from(memoryUsers.values()).find(u => u.id === id);
-  return user || null;
 }
 
 export async function createUser(data: { email: string; passwordHash: string; name?: string | null }): Promise<UserRecord> {
@@ -84,8 +87,8 @@ export async function createUser(data: { email: string; passwordHash: string; na
     memoryUsers.set(data.email, dbUser);
     return dbUser;
   } catch (err: any) {
-    memoryUsers.set(data.email, record);
-    return record;
+    console.error('[auth-store] DB unavailable in createUser:', err?.message);
+    throw new AuthStoreUnavailableError('AUTH_STORE_UNAVAILABLE');
   }
 }
 
@@ -111,8 +114,8 @@ export async function createSession(userId: string, userAgent?: string): Promise
     memorySessions.set(sessionId, dbSession);
     return dbSession;
   } catch (err: any) {
-    memorySessions.set(sessionId, record);
-    return record;
+    console.error('[auth-store] DB unavailable in createSession:', err?.message);
+    throw new AuthStoreUnavailableError('AUTH_STORE_UNAVAILABLE');
   }
 }
 
@@ -135,17 +138,11 @@ export async function getSession(sessionId: string): Promise<{ session: SessionR
     if (dbSession && dbSession.user) {
       return { session: dbSession, user: dbSession.user };
     }
+    return null;
   } catch (err: any) {
-    // DB query failed, fallback to memory check
+    console.error('[auth-store] DB unavailable in getSession:', err?.message);
+    throw new AuthStoreUnavailableError('AUTH_STORE_UNAVAILABLE');
   }
-
-  const memSession = memorySessions.get(sessionId);
-  if (memSession && memSession.expiresAt >= new Date()) {
-    const memUser = Array.from(memoryUsers.values()).find(u => u.id === memSession.userId);
-    if (memUser) return { session: memSession, user: memUser };
-  }
-
-  return null;
 }
 
 export async function deleteSession(sessionId: string): Promise<boolean> {
@@ -156,7 +153,8 @@ export async function deleteSession(sessionId: string): Promise<boolean> {
   try {
     await prisma.session.delete({ where: { id: sessionId } });
   } catch (err: any) {
-    // Gracefully handle deletion when DB is unreachable
+    console.error('[auth-store] DB unavailable in deleteSession:', err?.message);
+    throw new AuthStoreUnavailableError('AUTH_STORE_UNAVAILABLE');
   }
   return true;
 }
@@ -180,16 +178,17 @@ export async function getRecentFailedAttemptsCount(email: string): Promise<numbe
       }
     });
   } catch (err: any) {
-    // DB query failed, check memoryFailedAttempts
+    console.error('[auth-store] DB unavailable in getRecentFailedAttemptsCount:', err?.message);
+    throw new AuthStoreUnavailableError('AUTH_STORE_UNAVAILABLE');
   }
-
-  const entry = memoryFailedAttempts.get(email);
-  if (!entry || Date.now() - entry.lastAttempt > 15 * 60 * 1000) {
-    return 0;
-  }
-  return entry.count;
 }
 
+/**
+ * ASYMMETRY DESIGN DECISION:
+ * If DB logging for a login attempt fails, we log the error via console.error,
+ * but DO NOT throw AuthStoreUnavailableError so that an already-authenticated user
+ * with valid credentials is not blocked from signing in due to an audit metric logging failure.
+ */
 export async function recordLoginAttempt(email: string, userId: string | null, success: boolean): Promise<void> {
   if (isMemoryMode()) {
     if (!success) {
@@ -212,7 +211,7 @@ export async function recordLoginAttempt(email: string, userId: string | null, s
       data: { email, userId, success }
     });
   } catch (err: any) {
-    // Non-blocking login attempt logging
+    console.error('[auth-store] Non-blocking DB error recording login attempt:', err?.message);
   }
 
   if (!success) {

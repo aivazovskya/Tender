@@ -6,6 +6,7 @@ const { PATCH: patchSecurityInstrument } = require('../../src/app/api/security-i
 const { POST: askTender } = require('../../src/app/api/tenders/ask/route');
 const { GET: getMetrics } = require('../../src/app/api/admin/metrics/route');
 const { POST: registerHandler } = require('../../src/app/api/auth/register/route');
+const { POST: loginHandler } = require('../../src/app/api/auth/login/route');
 const { validateApiAuth } = require('../../src/lib/security/auth');
 
 console.log('🧪 Starting Auth Audit Critical Fixes Test Suite...\n');
@@ -28,6 +29,7 @@ function createMockReq(urlStr, options = {}) {
 async function runTests() {
   const origEnv = process.env.NODE_ENV;
   const origAllowDemo = process.env.ALLOW_DEMO_AUTH;
+  const origAuthStoreMode = process.env.AUTH_STORE_MODE;
 
   try {
     // -------------------------------------------------------------
@@ -37,6 +39,7 @@ async function runTests() {
 
     process.env.NODE_ENV = 'production';
     delete process.env.ALLOW_DEMO_AUTH;
+    delete process.env.AUTH_STORE_MODE;
 
     // Unauthenticated request to tenders/ask route
     const reqAsk = createMockReq('http://localhost/api/tenders/ask', { body: { tenderId: 't-1', question: 'test' } });
@@ -72,6 +75,7 @@ async function runTests() {
     // 2️⃣ Test Finding 2: Legacy fallback removal for sess-, user_session_, demo-
     // -------------------------------------------------------------
     console.log('\n  2️⃣ Testing Finding 2 (Removal of legacy session prefix fallback)...');
+    process.env.AUTH_STORE_MODE = 'memory';
 
     const fakePrefixes = ['sess-fake-12345678', 'user_session_fake_token', 'demo-fake-session-id'];
     for (const fakeSessionId of fakePrefixes) {
@@ -110,7 +114,8 @@ async function runTests() {
     // -------------------------------------------------------------
     // 4️⃣ Test Finding 5: Email enumeration protection on registration
     // -------------------------------------------------------------
-    console.log('\n  4️⃣ Testing Finding 5 (Email enumeration protection on registration)...');
+    console.log('\n  4️⃣ Testing Finding 5 (Email enumeration protection on registration in memory mode)...');
+    process.env.AUTH_STORE_MODE = 'memory';
 
     const testEmail = `enum_protection_${Date.now()}@tender.ai`;
     const testPassword = 'Password123!';
@@ -136,6 +141,32 @@ async function runTests() {
     );
     console.log('     ✅ Duplicate registration returns 400 with non-enumerating generic message');
 
+    // -------------------------------------------------------------
+    // 5️⃣ Test Removal of Silent Memory Fallback (HTTP 503 on DB error)
+    // -------------------------------------------------------------
+    console.log('\n  5️⃣ Testing Removal of Silent Memory Fallback (HTTP 503 on DB failure)...');
+
+    // Disable AUTH_STORE_MODE memory override to test DB connection failure handling when Postgres is down
+    delete process.env.AUTH_STORE_MODE;
+
+    const dbFailRegReq = createMockReq('http://localhost/api/auth/register', {
+      body: { email: `db_fail_${Date.now()}@tender.ai`, password: testPassword }
+    });
+    const dbFailRegRes = await registerHandler(dbFailRegReq);
+    assert.strictEqual(dbFailRegRes.status, 503, 'Register route must return 503 Service Unavailable when DB fails without memory mode');
+    const dbFailRegData = await dbFailRegRes.json();
+    assert.strictEqual(dbFailRegData.message, 'Сервис авторизации временно недоступен. Попробуйте позже.');
+    console.log('     ✅ POST /api/auth/register returned 503 Service Unavailable on DB error');
+
+    const dbFailLoginReq = createMockReq('http://localhost/api/auth/login', {
+      body: { email: `db_fail_${Date.now()}@tender.ai`, password: testPassword }
+    });
+    const dbFailLoginRes = await loginHandler(dbFailLoginReq);
+    assert.strictEqual(dbFailLoginRes.status, 503, 'Login route must return 503 Service Unavailable when DB fails without memory mode');
+    const dbFailLoginData = await dbFailLoginRes.json();
+    assert.strictEqual(dbFailLoginData.message, 'Сервис авторизации временно недоступен. Попробуйте позже.');
+    console.log('     ✅ POST /api/auth/login returned 503 Service Unavailable on DB error');
+
     console.log('\n🎉 ALL AUTH AUDIT CRITICAL FIXES TESTS PASSED SUCCESSFULLY!\n');
   } finally {
     process.env.NODE_ENV = origEnv;
@@ -143,6 +174,11 @@ async function runTests() {
       process.env.ALLOW_DEMO_AUTH = origAllowDemo;
     } else {
       delete process.env.ALLOW_DEMO_AUTH;
+    }
+    if (origAuthStoreMode !== undefined) {
+      process.env.AUTH_STORE_MODE = origAuthStoreMode;
+    } else {
+      delete process.env.AUTH_STORE_MODE;
     }
   }
 }
