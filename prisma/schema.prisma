@@ -100,6 +100,7 @@ model Tender {
   requirements               TenderRequirementItem[]
   securityInstruments        SecurityInstrument[]
   contractExecution          ContractExecution?
+  deadlines                  TenderDeadline[]
 
   @@unique([source, externalId])
 }
@@ -258,6 +259,7 @@ model CompanyProfile {
   billingAuditLogs BillingAuditLog[]
   generatedDocs GeneratedDocument[]
   securityInstruments SecurityInstrument[]
+  deadlines           TenderDeadline[]
 }
 
 model User {
@@ -631,6 +633,43 @@ model ContractMilestone {
   completedAt DateTime?
   status      MilestoneStatus   @default(PENDING)
 }
+
+enum DeadlineType {
+  SUBMISSION_DEADLINE
+  CLARIFICATION_DEADLINE
+  SECURITY_DEPOSIT_DEADLINE
+  APPEAL_DEADLINE
+  CONTRACT_SIGNING_DEADLINE
+  CUSTOM
+}
+
+enum DeadlineStatus {
+  PENDING
+  COMPLETED
+  MISSED
+  CANCELLED
+}
+
+model TenderDeadline {
+  id             String         @id @default(cuid())
+  tenderId       String
+  tender         Tender         @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  companyId      String
+  companyProfile CompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  type           DeadlineType
+  dueAt          DateTime
+  status         DeadlineStatus @default(PENDING)
+  title          String?
+  notifiedAt     DateTime?
+  completedAt    DateTime?
+  createdBy      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([companyId, status, dueAt])
+  @@index([tenderId])
+}
+
 
 
 

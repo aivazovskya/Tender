@@ -3,6 +3,7 @@ import { prisma } from '../prisma';
 import { DocumentExtractionService } from './document-extraction.service';
 import { AIService } from './ai.service';
 import { ReputationService } from './reputation.service';
+import { DeadlineService } from './deadline.service';
 import { diffTenderFields } from '../ingestion/diff';
 
 export class IngestionProcessorService {
@@ -228,6 +229,16 @@ export class IngestionProcessorService {
 
             return tender;
           });
+
+          // Auto-create SUBMISSION_DEADLINE for company profiles
+          try {
+            const profiles = await prisma.companyProfile.findMany({ select: { id: true } });
+            for (const p of profiles) {
+              await DeadlineService.autoCreateSubmissionDeadline(savedTender.id, p.id, new Date(t.deadlineDate));
+            }
+          } catch {
+            // Ignore if DB unreachable in offline mode
+          }
 
           savedTenders.push(savedTender);
         } catch (dbErr: any) {
