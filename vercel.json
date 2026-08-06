@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/check-upcoming-deadlines",
       "schedule": "0 7,19 * * *"
+    },
+    {
+      "path": "/api/cron/check-submitted-tender-results",
+      "schedule": "0 6,18 * * *"
     }
   ]
 }
