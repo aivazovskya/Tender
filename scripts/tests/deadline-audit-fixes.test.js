@@ -80,6 +80,18 @@ async function testDefect1IngestionAndKanban() {
   );
   console.log('   ✅ POST /api/kanban correctly calls autoCreateSubmissionDeadline with resolveOwnCompanyProfile(auth.userId)');
 
+  const publicKanbanRouteCode = fs.readFileSync(path.join(process.cwd(), 'src/app/api/public/v1/kanban/route.ts'), 'utf8');
+  assert.ok(
+    publicKanbanRouteCode.includes('savedCard.tender?.deadlineDate'),
+    'POST /api/public/v1/kanban MUST check savedCard.tender?.deadlineDate'
+  );
+  assert.strictEqual(
+    publicKanbanRouteCode.includes('tenderDate = savedCard.tender?.deadlineDate ? new Date(savedCard.tender.deadlineDate) : new Date()'),
+    false,
+    'POST /api/public/v1/kanban MUST NOT fallback to new Date() for deadline creation'
+  );
+  console.log('   ✅ POST /api/public/v1/kanban correctly requires savedCard.tender?.deadlineDate without fallback date');
+
   const migrationCode = fs.readFileSync(path.join(process.cwd(), 'scripts/migrations/purge-unlinked-submission-deadlines.ts'), 'utf8');
   assert.ok(
     migrationCode.includes('purgeUnlinkedSubmissionDeadlines'),

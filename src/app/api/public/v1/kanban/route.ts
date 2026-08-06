@@ -138,12 +138,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const companyProfile = await resolveOwnCompanyProfile(userId);
-    if (companyProfile && savedCard?.tenderId) {
-      const tenderDate = savedCard.tender?.deadlineDate ? new Date(savedCard.tender.deadlineDate) : new Date();
+    if (companyProfile && savedCard?.tenderId && savedCard.tender?.deadlineDate) {
       await DeadlineService.autoCreateSubmissionDeadline(
         savedCard.tenderId,
         companyProfile.id,
-        tenderDate
+        new Date(savedCard.tender.deadlineDate)
       );
     }
   } catch {
