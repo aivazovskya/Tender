@@ -3,6 +3,7 @@ import { prisma } from '../prisma';
 import { DocumentExtractionService } from './document-extraction.service';
 import { AIService } from './ai.service';
 import { ReputationService } from './reputation.service';
+import { ChangeNotificationService } from './change-notification.service';
 import { diffTenderFields } from '../ingestion/diff';
 
 export class IngestionProcessorService {
@@ -92,6 +93,7 @@ export class IngestionProcessorService {
         t.riskScore = riskScore;
 
         // 3. Persist into PostgreSQL Database atomically via prisma.$transaction (Bug #18)
+        const pendingChangeNotifications: Array<{ tenderId: string; tender: any; changes: any[] }> = [];
         try {
           const savedTender = await prisma.$transaction(async (tx) => {
             const existing = await tx.tender.findUnique({
@@ -224,10 +226,29 @@ export class IngestionProcessorService {
                   changedBy: 'System Parser'
                 }))
               });
+
+              pendingChangeNotifications.push({
+                tenderId: tender.id,
+                tender,
+                changes: auditLogsToCreate
+              });
             }
 
             return tender;
           });
+
+          // Dispatch notifications for tender changes post-transaction
+          for (const pending of pendingChangeNotifications) {
+            try {
+              await ChangeNotificationService.notifyInterestedCompanies(
+                pending.tenderId,
+                pending.tender,
+                pending.changes
+              );
+            } catch (notifErr: any) {
+              console.warn('[IngestionProcessorService] Ошибка отправки уведомлений об изменениях тендера:', notifErr?.message);
+            }
+          }
 
           savedTenders.push(savedTender);
         } catch (dbErr: any) {
