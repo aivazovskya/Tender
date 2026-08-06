@@ -7,12 +7,13 @@ export async function POST(request: NextRequest) {
     const cronSecret = request.headers.get('x-cron-secret') || request.headers.get('X-Cron-Secret');
     const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
     
-    const expectedSecret = process.env.CRON_SECRET || process.env.ADMIN_API_KEY || 'tenderai-cron-secret-2026';
+    const expectedSecret = process.env.CRON_SECRET || process.env.ADMIN_API_KEY;
     const isProd = process.env.NODE_ENV === 'production';
 
-    const isAuthorized = cronSecret === expectedSecret || 
-      (authHeader && authHeader.endsWith(expectedSecret)) || 
-      (!isProd && !cronSecret);
+    const isAuthorized = Boolean(expectedSecret && (
+      cronSecret === expectedSecret ||
+      (authHeader && authHeader.endsWith(expectedSecret))
+    )) || (!isProd && !cronSecret);
 
     if (!isAuthorized) {
       return NextResponse.json(

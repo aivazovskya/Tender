@@ -12,11 +12,18 @@ export async function POST(request: NextRequest) {
 
 async function handleCronJob(request: NextRequest) {
   try {
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret) {
+      console.error('[Cron] CRON_SECRET is not configured');
+      return NextResponse.json(
+        { success: false, message: 'Server misconfiguration' },
+        { status: 500 }
+      );
+    }
+
     const authHeader = request.headers.get('x-cron-secret') || request.headers.get('X-Cron-Secret');
     const { searchParams } = new URL(request.url);
     const secretQuery = searchParams.get('cronSecret') || searchParams.get('secret');
-
-    const cronSecret = process.env.CRON_SECRET || 'tender-cron-secret-key';
     const providedSecret = authHeader || secretQuery;
 
     if (!providedSecret || providedSecret !== cronSecret) {

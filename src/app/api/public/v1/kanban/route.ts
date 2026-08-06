@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validatePublicApiKey } from '@/lib/security/public-api-guard';
 import { prisma } from '@/lib/prisma';
 import { INITIAL_TENDERS as mockTenders } from '@/lib/mockData';
+import { resolveOwnCompanyProfile } from '@/lib/security/resolve-company-profile';
+import { DeadlineService } from '@/lib/services/deadline.service';
 
 export async function GET(request: NextRequest) {
   // 1. Enforce Public API Key Authentication & Enterprise Guard
@@ -132,6 +134,20 @@ export async function POST(request: NextRequest) {
       stageEnteredAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
+  }
+
+  try {
+    const companyProfile = await resolveOwnCompanyProfile(userId);
+    if (companyProfile && savedCard?.tenderId) {
+      const tenderDate = savedCard.tender?.deadlineDate ? new Date(savedCard.tender.deadlineDate) : new Date();
+      await DeadlineService.autoCreateSubmissionDeadline(
+        savedCard.tenderId,
+        companyProfile.id,
+        tenderDate
+      );
+    }
+  } catch {
+    // Ignore fallback errors
   }
 
   return NextResponse.json({

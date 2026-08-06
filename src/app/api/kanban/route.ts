@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
+import { resolveOwnCompanyProfile } from '@/lib/security/resolve-company-profile';
+import { DeadlineService } from '@/lib/services/deadline.service';
 
 export async function GET(request: NextRequest) {
   const auth = await validateApiAuth(request);
@@ -106,6 +108,19 @@ export async function POST(request: NextRequest) {
         },
         include: { tender: true }
       });
+
+      try {
+        const companyProfile = await resolveOwnCompanyProfile(auth.userId);
+        if (companyProfile && card.tender?.deadlineDate) {
+          await DeadlineService.autoCreateSubmissionDeadline(
+            card.tenderId,
+            companyProfile.id,
+            new Date(card.tender.deadlineDate)
+          );
+        }
+      } catch (ddlErr: any) {
+        console.warn('[API /api/kanban POST] Could not auto-create submission deadline:', ddlErr?.message);
+      }
     }
 
     return NextResponse.json({ success: true, card });
