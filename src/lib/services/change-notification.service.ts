@@ -119,14 +119,42 @@ export class ChangeNotificationService {
 
         if (!profile && card.organizationId) {
           profile = await prisma.companyProfile.findFirst({
-            where: { organizationId: card.organizationId }
+            where: { organizationId: card.organizationId },
+            include: {
+              user: {
+                include: {
+                  notificationSetting: true
+                }
+              }
+            }
           });
         }
 
         if (!profile) continue;
 
         // Check if user disabled Telegram notifications
-        const notificationSetting = profile.user?.notificationSetting;
+        let notificationSetting = profile.user?.notificationSetting;
+
+        // If organization profile has no direct user link, resolve setting via organization OWNER/ADMIN
+        if (!notificationSetting && card.organizationId) {
+          const orgMember = await prisma.organizationMember.findFirst({
+            where: {
+              organizationId: card.organizationId,
+              role: { in: ['OWNER', 'ADMIN'] }
+            },
+            include: {
+              user: {
+                include: {
+                  notificationSetting: true
+                }
+              }
+            }
+          });
+          if (orgMember?.user?.notificationSetting) {
+            notificationSetting = orgMember.user.notificationSetting;
+          }
+        }
+
         if (notificationSetting && notificationSetting.telegramNotify === false) {
           continue;
         }

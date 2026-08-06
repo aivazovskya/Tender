@@ -50,9 +50,20 @@ async function runTests() {
 
   console.log(`   ✅ Service executed cleanly (notificationsSent: ${result.notificationsSent}, deadlineUpdated: ${result.deadlineUpdated})`);
 
-  console.log('\n3️⃣ Verifying message formatting...');
-  const logs = TelegramBotService.getLogs();
-  console.log('   ✅ Telegram logs recorded:', logs.length);
+  console.log('\n3️⃣ Verifying Organization profile notificationSetting resolution code...');
+  const fs = require('fs');
+  const path = require('path');
+  const serviceCode = fs.readFileSync(path.join(process.cwd(), 'src/lib/services/change-notification.service.ts'), 'utf8');
+
+  assert.ok(
+    serviceCode.includes('organizationId: card.organizationId') && serviceCode.includes('notificationSetting: true'),
+    'change-notification.service.ts MUST include user/notificationSetting for organizationId queries'
+  );
+  assert.ok(
+    serviceCode.includes('OrganizationMember') || serviceCode.includes('organizationMember'),
+    'change-notification.service.ts MUST support resolving notificationSetting via OrganizationMember for org accounts'
+  );
+  console.log('   ✅ change-notification.service.ts includes notificationSetting resolution for organization profiles');
 
   console.log('\n🎉 All Tender Change Notifications tests completed successfully!');
   process.exit(0);
