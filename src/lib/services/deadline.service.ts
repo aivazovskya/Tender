@@ -401,6 +401,66 @@ export class DeadlineService {
   }
 
   /**
+   * Auto-creates APPEAL_DEADLINE for a tender and company if not existing and dueAt is in the future
+   */
+  static async autoCreateAppealDeadline(
+    tenderId: string,
+    companyId: string,
+    resultDate: Date,
+    appealWindowDays: number = Number(process.env.APPEAL_WINDOW_DAYS || 10)
+  ): Promise<DeadlineRecord | null> {
+    const dueAt = new Date(new Date(resultDate).getTime() + appealWindowDays * 24 * 60 * 60 * 1000);
+    if (dueAt <= new Date()) return null;
+
+    if (isMemoryMode()) {
+      const existing = Array.from(memoryDeadlines.values()).find(
+        d => d.tenderId === tenderId && d.companyId === companyId && d.type === 'APPEAL_DEADLINE'
+      );
+      if (existing) return existing;
+      return this.createDeadline({
+        tenderId,
+        companyId,
+        type: 'APPEAL_DEADLINE',
+        dueAt,
+        title: 'Срок подачи жалобы на результаты закупки'
+      });
+    }
+
+    try {
+      const existing = await prisma.tenderDeadline.findFirst({
+        where: {
+          tenderId,
+          companyId,
+          type: 'APPEAL_DEADLINE'
+        }
+      });
+      if (existing) return existing as any;
+
+      return await this.createDeadline({
+        tenderId,
+        companyId,
+        type: 'APPEAL_DEADLINE',
+        dueAt,
+        title: 'Срок подачи жалобы на результаты закупки'
+      });
+    } catch (err: any) {
+      console.warn('[DeadlineService] DB fallback autoCreateAppealDeadline:', err?.message);
+      const memExisting = Array.from(memoryDeadlines.values()).find(
+        d => d.tenderId === tenderId && d.companyId === companyId && d.type === 'APPEAL_DEADLINE'
+      );
+      if (memExisting) return memExisting;
+
+      return this.createDeadline({
+        tenderId,
+        companyId,
+        type: 'APPEAL_DEADLINE',
+        dueAt,
+        title: 'Срок подачи жалобы на результаты закупки'
+      });
+    }
+  }
+
+  /**
    * Updates deadline status, title, dueAt
    */
   static async updateDeadline(

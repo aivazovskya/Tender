@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { GoszakupApiAdapter } from '@/lib/ingestion/goszakup.adapter';
 import { resolveOwnCompanyProfile } from '@/lib/security/resolve-company-profile';
 import { TelegramBotService } from '@/lib/services/telegram.service';
+import { DeadlineService } from '@/lib/services/deadline.service';
 
 export async function GET(request: NextRequest) {
   return handleCronJob(request);
@@ -113,8 +114,22 @@ async function handleCronJob(request: NextRequest) {
         console.warn(`[Cron check-submitted-tender-results] DB error updating card ${card.id}:`, dbErr?.message);
       }
 
-      if (isWon) wonCount++;
-      else lostCount++;
+      if (isWon) {
+        wonCount++;
+      } else {
+        lostCount++;
+        // Auto-create APPEAL_DEADLINE for LOST tenders
+        const resultDate = buyResult.resultDate ? new Date(buyResult.resultDate) : new Date();
+        try {
+          await DeadlineService.autoCreateAppealDeadline(
+            card.tenderId,
+            profile.id,
+            resultDate
+          );
+        } catch (appealErr: any) {
+          console.warn(`[Cron check-submitted-tender-results] Error auto-creating appeal deadline for card ${card.id}:`, appealErr?.message);
+        }
+      }
 
       // 6. Send Telegram Notification
       const chatId = profile.telegramChatId || process.env.TELEGRAM_DEFAULT_CHAT_ID;
