@@ -73,7 +73,13 @@ async function handleCronJob(request: NextRequest) {
         }
       }
 
-      const companyBin = profile?.bin || '123456789012';
+      if (!profile || !profile.bin) {
+        console.warn(`[Cron check-submitted-tender-results] Cannot resolve company profile for card ${card.id}, skipping`);
+        pendingCount++;
+        continue;
+      }
+
+      const companyBin = profile.bin;
 
       // 3. Fetch results from Goszakup API
       let buyResult: any = null;
@@ -111,7 +117,7 @@ async function handleCronJob(request: NextRequest) {
       else lostCount++;
 
       // 6. Send Telegram Notification
-      const chatId = profile?.telegramChatId || process.env.TELEGRAM_DEFAULT_CHAT_ID;
+      const chatId = profile.telegramChatId || process.env.TELEGRAM_DEFAULT_CHAT_ID;
       const statusText = isWon ? '🏆 <b>ПОБЕДА!</b>' : '❌ <b>Не выиграно</b>';
       const amountFormatted = Number(finalAmount).toLocaleString('ru-RU');
 

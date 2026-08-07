@@ -82,11 +82,45 @@ async function testVercelCronRegistration() {
   console.log('   ✅ vercel.json contains /api/cron/check-submitted-tender-results with schedule "0 6,18 * * *"');
 }
 
+async function testUnresolvedProfileSkipping() {
+  console.log('\n4️⃣ Testing Unresolved Profile Skipping (No Fallback BIN)...');
+  const { prisma } = require('../../src/lib/prisma');
+  const origFindMany = prisma.kanbanCard.findMany;
+
+  try {
+    prisma.kanbanCard.findMany = async () => [
+      {
+        id: 'test-card-no-profile',
+        userId: null,
+        organizationId: null,
+        tender: { externalId: '987150-2026-won', title: 'Test Tender' }
+      }
+    ];
+
+    process.env.CRON_SECRET = 'valid-test-secret-123';
+    const req = {
+      headers: new Map([['x-cron-secret', 'valid-test-secret-123']]),
+      url: 'http://localhost/api/cron/check-submitted-tender-results'
+    };
+    req.headers.get = (name) => name.toLowerCase() === 'x-cron-secret' ? 'valid-test-secret-123' : null;
+
+    const res = await checkSubmittedResultsGET(req);
+    const data = await res.json();
+    assert.strictEqual(data.success, true);
+    assert.strictEqual(data.wonCount, 0, 'Card without resolved profile must NOT be counted as won');
+    assert.strictEqual(data.pendingCount, 1, 'Card without resolved profile must be skipped and counted as pending');
+    console.log('   ✅ Card with unresolvable company profile is safely skipped as pending');
+  } finally {
+    prisma.kanbanCard.findMany = origFindMany;
+  }
+}
+
 async function runAll() {
   try {
     await testGoszakupAdapterFetchBuyResult();
     await testCronSecurityAndExecution();
     await testVercelCronRegistration();
+    await testUnresolvedProfileSkipping();
     console.log('\n🎉 Submitted Tender Results Tracking Test Suite completed successfully!');
     process.exit(0);
   } catch (err) {
