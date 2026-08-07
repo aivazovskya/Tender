@@ -260,6 +260,7 @@ model CompanyProfile {
   generatedDocs GeneratedDocument[]
   securityInstruments SecurityInstrument[]
   deadlines           TenderDeadline[]
+  contractExecutions  ContractExecution[]
 }
 
 model User {
@@ -608,10 +609,19 @@ enum MilestoneStatus {
   OVERDUE
 }
 
+enum ActStatus {
+  NOT_SUBMITTED
+  PENDING_SIGNATURE
+  SIGNED
+  DISPUTED
+}
+
 model ContractExecution {
   id                 String                  @id @default(cuid())
   tenderId           String                  @unique
   tender             Tender                  @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  companyProfileId   String
+  companyProfile     CompanyProfile          @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
 
   contractSignedAt   DateTime?
   deliveryDeadline   DateTime
@@ -622,16 +632,23 @@ model ContractExecution {
 
   createdAt          DateTime                @default(now())
   updatedAt          DateTime                @updatedAt
+
+  @@index([companyProfileId])
 }
 
 model ContractMilestone {
-  id          String            @id @default(cuid())
-  contractId  String
-  contract    ContractExecution @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  label       String
-  dueDate     DateTime
-  completedAt DateTime?
-  status      MilestoneStatus   @default(PENDING)
+  id            String            @id @default(cuid())
+  contractId    String
+  contract      ContractExecution @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  label         String
+  dueDate       DateTime
+  completedAt   DateTime?
+  status        MilestoneStatus   @default(PENDING)
+
+  paymentAmount Decimal?          @db.Decimal(18, 2)
+  actStatus     ActStatus         @default(NOT_SUBMITTED)
+  actSignedAt   DateTime?
+  paidAt        DateTime?
 }
 
 enum DeadlineType {

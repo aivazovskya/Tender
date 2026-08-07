@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
+import { resolveOwnCompanyProfile } from '@/lib/security/resolve-company-profile';
 import { DEFAULT_PENALTY_RATE_PER_DAY } from '@/lib/constants/tender-risk';
 
 export async function GET(
@@ -8,9 +9,19 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   const auth = await validateApiAuth(request);
+  if (!auth.authorized && auth.response) return auth.response;
+
   const tenderId = params.id;
 
   try {
+    const companyProfile = await resolveOwnCompanyProfile(auth.userId);
+    if (!companyProfile) {
+      return NextResponse.json(
+        { success: false, message: 'Профиль компании не найден' },
+        { status: 404 }
+      );
+    }
+
     let execution = await prisma.contractExecution.findUnique({
       where: { tenderId },
       include: {
@@ -19,8 +30,11 @@ export async function GET(
       }
     });
 
-    if (!execution) {
-      return NextResponse.json({ success: true, execution: null });
+    if (!execution || execution.companyProfileId !== companyProfile.id) {
+      return NextResponse.json(
+        { success: false, message: 'Исполнение контракта не найдено' },
+        { status: 404 }
+      );
     }
 
     // Dynamic auto-marking of OVERDUE milestones
@@ -58,13 +72,36 @@ export async function GET(
       actualPenaltyAmount = Math.round(delayDays * DEFAULT_PENALTY_RATE_PER_DAY * Number(execution!.tender.amount));
     }
 
+    // Calculate Payment & Act Metrics
+    let expectedPaymentSum = 0;
+    let receivedPaymentSum = 0;
+    const disputedMilestones: any[] = [];
+
+    for (const m of execution!.milestones) {
+      const amt = Number(m.paymentAmount || 0);
+      if (m.paidAt) {
+        receivedPaymentSum += amt;
+      } else {
+        expectedPaymentSum += amt;
+      }
+
+      if (m.actStatus === 'DISPUTED') {
+        disputedMilestones.push(m);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       execution,
       metrics: {
         delayDays,
         actualPenaltyAmount,
-        isOverdue: !execution!.actualDeliveryDate && now > deadline
+        isOverdue: !execution!.actualDeliveryDate && now > deadline,
+        totalContractAmount: Number(execution!.tender.amount),
+        expectedPaymentSum,
+        receivedPaymentSum,
+        disputedMilestonesCount: disputedMilestones.length,
+        disputedMilestones
       }
     });
   } catch (error: any) {
@@ -86,6 +123,14 @@ export async function POST(
   const tenderId = params.id;
 
   try {
+    const companyProfile = await resolveOwnCompanyProfile(auth.userId);
+    if (!companyProfile) {
+      return NextResponse.json(
+        { success: false, message: 'Профиль компании не найден' },
+        { status: 404 }
+      );
+    }
+
     const body = await request.json();
     const { contractSignedAt, deliveryDeadline, milestones } = body;
 
@@ -101,6 +146,7 @@ export async function POST(
     const execution = await prisma.contractExecution.create({
       data: {
         tenderId,
+        companyProfileId: companyProfile.id,
         contractSignedAt: contractSignedAt ? new Date(contractSignedAt) : new Date(),
         deliveryDeadline: new Date(deliveryDeadline),
         status: 'IN_PROGRESS',
@@ -108,7 +154,11 @@ export async function POST(
           create: milestones.map((m: any) => ({
             label: m.label,
             dueDate: new Date(m.dueDate),
-            status: 'PENDING'
+            status: 'PENDING',
+            paymentAmount: m.paymentAmount ? Number(m.paymentAmount) : null,
+            actStatus: m.actStatus || 'NOT_SUBMITTED',
+            actSignedAt: m.actSignedAt ? new Date(m.actSignedAt) : null,
+            paidAt: m.paidAt ? new Date(m.paidAt) : null
           }))
         } : undefined
       },
@@ -135,8 +185,16 @@ export async function PATCH(
   const tenderId = params.id;
 
   try {
+    const companyProfile = await resolveOwnCompanyProfile(auth.userId);
+    if (!companyProfile) {
+      return NextResponse.json(
+        { success: false, message: 'Профиль компании не найден' },
+        { status: 404 }
+      );
+    }
+
     const existing = await prisma.contractExecution.findUnique({ where: { tenderId } });
-    if (!existing) {
+    if (!existing || existing.companyProfileId !== companyProfile.id) {
       return NextResponse.json({ success: false, message: 'Исполнение контракта не найдено' }, { status: 404 });
     }
 
