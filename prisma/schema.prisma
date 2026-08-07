@@ -670,6 +670,18 @@ model TenderDeadline {
   @@index([tenderId])
 }
 
+model CustomerWinnerCache {
+  id          String   @id @default(cuid())
+  customerBin String
+  winnerBin   String?
+  winnerName  String?
+  tenderCount Int      @default(0)
+  sampleSize  Int      @default(0)
+  checkedAt   DateTime @default(now())
+
+  @@index([customerBin])
+}
+
 
 
 
