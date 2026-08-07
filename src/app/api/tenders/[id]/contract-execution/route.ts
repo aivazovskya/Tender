@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
 import { resolveOwnCompanyProfile } from '@/lib/security/resolve-company-profile';
@@ -155,7 +156,7 @@ export async function POST(
             label: m.label,
             dueDate: new Date(m.dueDate),
             status: 'PENDING',
-            paymentAmount: m.paymentAmount ? Number(m.paymentAmount) : null,
+            paymentAmount: m.paymentAmount != null ? new Prisma.Decimal(m.paymentAmount) : null,
             actStatus: m.actStatus || 'NOT_SUBMITTED',
             actSignedAt: m.actSignedAt ? new Date(m.actSignedAt) : null,
             paidAt: m.paidAt ? new Date(m.paidAt) : null

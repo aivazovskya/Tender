@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
 import { resolveOwnCompanyProfile } from '@/lib/security/resolve-company-profile';
@@ -49,7 +50,7 @@ export async function PATCH(
     if (label) updateData.label = label.trim();
     if (dueDate) updateData.dueDate = new Date(dueDate);
 
-    if (paymentAmount !== undefined) updateData.paymentAmount = paymentAmount !== null ? Number(paymentAmount) : null;
+    if (paymentAmount !== undefined) updateData.paymentAmount = paymentAmount != null ? new Prisma.Decimal(paymentAmount) : null;
     if (actStatus) updateData.actStatus = actStatus;
     if (actSignedAt !== undefined) updateData.actSignedAt = actSignedAt ? new Date(actSignedAt) : null;
     if (paidAt !== undefined) updateData.paidAt = paidAt ? new Date(paidAt) : null;
