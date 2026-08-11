@@ -389,8 +389,7 @@ export default function HomePage() {
       const res = await fetch('/api/export/tenders', {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
-          'X-User-Plan': userTariff
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           region: selectedRegion,
@@ -439,8 +438,7 @@ export default function HomePage() {
       const res = await fetch('/api/export/kanban', {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
-          'X-User-Plan': userTariff
+          'Content-Type': 'application/json'
         }
       });
 
@@ -478,11 +476,7 @@ export default function HomePage() {
     }
 
     try {
-      const res = await fetch(`/api/export/tenders/${encodeURIComponent(tenderId)}/pdf`, {
-        headers: {
-          'X-User-Plan': userTariff
-        }
-      });
+      const res = await fetch(`/api/export/tenders/${encodeURIComponent(tenderId)}/pdf`);
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));

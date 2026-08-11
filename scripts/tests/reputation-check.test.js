@@ -7,6 +7,7 @@ const { IngestionProcessorService } = require('../../src/lib/services/ingestion-
 const { GET } = require('../../src/app/api/reputation/check/route');
 
 async function runTests() {
+  process.env.ALLOW_DEMO_AUTH = 'true';
   console.log('🧪 [Test Suite] Testing Customer/Supplier Reputation Check & Goszakup RNU Integration (Phase 1)...\n');
 
   // Test 1: 12-digit BIN/IIN Format Validation

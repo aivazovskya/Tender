@@ -26,6 +26,8 @@ function mockReq(headersObj = {}) {
 }
 
 (async () => {
+  process.env.ALLOW_DEMO_AUTH = 'true';
+
   // Test Free Plan (Forbidden)
   const freeRes = await validateExportAccess(mockReq({ 'X-User-Plan': 'FREE' }));
   assert.strictEqual(freeRes.authorized, false, 'Free plan must be rejected');

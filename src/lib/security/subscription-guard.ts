@@ -49,7 +49,11 @@ export async function validateExportAccess(request: NextRequest): Promise<Subscr
     }
   }
 
-  if (headerPlan) {
+  const isProd = process.env.NODE_ENV === 'production';
+  const allowDemoAuth = process.env.ALLOW_DEMO_AUTH === 'true';
+
+  // Header override allowed ONLY in non-production environments when ALLOW_DEMO_AUTH is explicitly enabled
+  if (headerPlan && !isProd && allowDemoAuth) {
     userPlan = headerPlan.toUpperCase();
   }
 
@@ -113,7 +117,11 @@ export async function validateReputationAccess(request: NextRequest): Promise<Su
     } catch {}
   }
 
-  if (headerPlan) {
+  const isProd = process.env.NODE_ENV === 'production';
+  const allowDemoAuth = process.env.ALLOW_DEMO_AUTH === 'true';
+
+  // Header override allowed ONLY in non-production environments when ALLOW_DEMO_AUTH is explicitly enabled
+  if (headerPlan && !isProd && allowDemoAuth) {
     userPlan = headerPlan.toUpperCase();
   }
 

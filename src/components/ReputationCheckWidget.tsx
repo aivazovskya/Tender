@@ -48,11 +48,7 @@ export const ReputationCheckWidget: React.FC<ReputationCheckWidgetProps> = ({
     setLoading(true);
 
     try {
-      const res = await fetch(`/api/reputation/check?bin=${cleanBin}&type=${entityType}`, {
-        headers: {
-          'x-user-plan': userPlan
-        }
-      });
+      const res = await fetch(`/api/reputation/check?bin=${cleanBin}&type=${entityType}`);
       const data = await res.json();
 
       if (res.status === 403 && data.error === 'FORBIDDEN_PLAN') {
