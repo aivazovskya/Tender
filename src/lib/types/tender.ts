@@ -121,6 +121,7 @@ export interface ReputationCheckResult {
   banEndDate?: string | null;
   status: 'CLEAN' | 'BLACKLISTED' | 'NOT_FOUND' | 'UNKNOWN';
   stale?: boolean;
+  isFallback?: boolean;
   checkedAt?: string;
   expiresAt?: string;
   source: string;

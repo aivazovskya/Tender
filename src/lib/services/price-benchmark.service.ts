@@ -46,18 +46,23 @@ export class PriceBenchmarkService {
       whereClause.region = region;
     }
 
-    let closedTenders = await prisma.tender.findMany({
-      where: whereClause,
-      select: { amount: true }
-    });
-
-    // Fallback: If region filter yields 0 results, retry without region filter for category
-    if (closedTenders.length === 0 && region) {
-      delete whereClause.region;
+    let closedTenders: any[] = [];
+    try {
       closedTenders = await prisma.tender.findMany({
         where: whereClause,
         select: { amount: true }
       });
+
+      // Fallback: If region filter yields 0 results, retry without region filter for category
+      if (closedTenders.length === 0 && region) {
+        delete whereClause.region;
+        closedTenders = await prisma.tender.findMany({
+          where: whereClause,
+          select: { amount: true }
+        });
+      }
+    } catch {
+      closedTenders = [];
     }
 
     const amounts = closedTenders.map(t => Number(t.amount)).filter(a => a > 0).sort((a, b) => a - b);

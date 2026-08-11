@@ -172,13 +172,20 @@ export const ReputationCheckWidget: React.FC<ReputationCheckWidgetProps> = ({
 
       {result && (
         <div className={`p-4 rounded-xl border text-xs space-y-2 shadow-subtle ${
-          result.isBlacklisted
+          result.isFallback || result.source === 'DEMO_FALLBACK'
+            ? 'bg-amber-50 border-amber-200 text-amber-900'
+            : result.isBlacklisted
             ? 'bg-rose-50 border-rose-200 text-rose-900'
             : 'bg-emerald-50 border-emerald-200 text-emerald-900'
         }`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2 font-bold">
-              {result.isBlacklisted ? (
+              {result.isFallback || result.source === 'DEMO_FALLBACK' ? (
+                <>
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Проверка не выполнена (Демо-режим)</span>
+                </>
+              ) : result.isBlacklisted ? (
                 <>
                   <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
                   <span>Внесен в Реестр недобросовестных участников!</span>
@@ -191,11 +198,15 @@ export const ReputationCheckWidget: React.FC<ReputationCheckWidgetProps> = ({
               )}
             </div>
 
-            {result.stale && (
+            {result.isFallback || result.source === 'DEMO_FALLBACK' ? (
+              <span className="px-2 py-0.5 rounded bg-amber-100 border border-amber-300 text-[10px] text-amber-900 font-mono font-semibold">
+                Демо-данные
+              </span>
+            ) : result.stale ? (
               <span className="px-2 py-0.5 rounded bg-paper border border-hairline text-[10px] text-mid-gray font-mono">
                 Stale cache
               </span>
-            )}
+            ) : null}
           </div>
 
           <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
@@ -205,7 +216,7 @@ export const ReputationCheckWidget: React.FC<ReputationCheckWidgetProps> = ({
             </div>
             <div>
               <span className="text-mid-gray block">Источник:</span>
-              <span>{result.source}</span>
+              <span>{result.isFallback || result.source === 'DEMO_FALLBACK' ? 'Демо-режим (Токен не настроен)' : result.source}</span>
             </div>
 
             {result.banEndDate && (
@@ -219,7 +230,7 @@ export const ReputationCheckWidget: React.FC<ReputationCheckWidgetProps> = ({
 
             {result.reason && (
               <div className="col-span-2 pt-1 border-t border-hairline/40">
-                <span className="text-mid-gray block">Причина:</span>
+                <span className="text-mid-gray block">Причина / Примечание:</span>
                 <span>{result.reason}</span>
               </div>
             )}

@@ -75,9 +75,10 @@ export class ReputationService {
         banEndDate: cachedRecord.banEndDate ? new Date(cachedRecord.banEndDate).toISOString() : null,
         status: isStillBanned ? 'BLACKLISTED' : 'CLEAN',
         stale: false,
+        isFallback: cachedRecord.isFallback || false,
         checkedAt: new Date(cachedRecord.checkedAt).toISOString(),
         expiresAt: new Date(cachedRecord.expiresAt).toISOString(),
-        source: 'Goszakup RNU (РНУ ГЗ)'
+        source: cachedRecord.source || 'Goszakup RNU (РНУ ГЗ)'
       };
     }
 
@@ -100,55 +101,60 @@ export class ReputationService {
         banEndDate: apiResult.banEndDate ? apiResult.banEndDate.toISOString() : null,
         status: apiResult.status,
         stale: false,
+        isFallback: apiResult.isFallback || false,
         checkedAt: nowIso,
         expiresAt: expiresAt.toISOString(),
-        source: 'Goszakup RNU (РНУ ГЗ)'
+        source: apiResult.source || 'Goszakup RNU (РНУ ГЗ)'
       };
 
-      // Save/Upsert into DB
-      try {
-        await (prisma as any).reputationCheck.upsert({
-          where: {
-            bin_entityType: {
+      // Save/Upsert into DB (skip for demo fallbacks to prevent cache pollution)
+      if (!resultData.isFallback) {
+        try {
+          await (prisma as any).reputationCheck.upsert({
+            where: {
+              bin_entityType: {
+                bin: cleanedBin,
+                entityType: entityType as any
+              }
+            },
+            update: {
+              isBlacklisted: resultData.isBlacklisted,
+              registryRecordId: resultData.registryRecordId,
+              reason: resultData.reason,
+              banStartDate: resultData.banStartDate ? new Date(resultData.banStartDate) : null,
+              banEndDate: resultData.banEndDate ? new Date(resultData.banEndDate) : null,
+              rawResponse: apiResult.raw || null,
+              checkedAt: now,
+              expiresAt
+            },
+            create: {
               bin: cleanedBin,
-              entityType: entityType as any
+              entityType: entityType as any,
+              isBlacklisted: resultData.isBlacklisted,
+              registryRecordId: resultData.registryRecordId,
+              reason: resultData.reason,
+              banStartDate: resultData.banStartDate ? new Date(resultData.banStartDate) : null,
+              banEndDate: resultData.banEndDate ? new Date(resultData.banEndDate) : null,
+              rawResponse: apiResult.raw || null,
+              checkedAt: now,
+              expiresAt
             }
-          },
-          update: {
-            isBlacklisted: resultData.isBlacklisted,
-            registryRecordId: resultData.registryRecordId,
-            reason: resultData.reason,
-            banStartDate: resultData.banStartDate ? new Date(resultData.banStartDate) : null,
-            banEndDate: resultData.banEndDate ? new Date(resultData.banEndDate) : null,
-            rawResponse: apiResult.raw || null,
-            checkedAt: now,
-            expiresAt
-          },
-          create: {
+          });
+        } catch {
+          memoryReputationCache.set(cacheKey, {
             bin: cleanedBin,
-            entityType: entityType as any,
+            entityType,
             isBlacklisted: resultData.isBlacklisted,
             registryRecordId: resultData.registryRecordId,
             reason: resultData.reason,
-            banStartDate: resultData.banStartDate ? new Date(resultData.banStartDate) : null,
-            banEndDate: resultData.banEndDate ? new Date(resultData.banEndDate) : null,
-            rawResponse: apiResult.raw || null,
-            checkedAt: now,
-            expiresAt
-          }
-        });
-      } catch {
-        memoryReputationCache.set(cacheKey, {
-          bin: cleanedBin,
-          entityType,
-          isBlacklisted: resultData.isBlacklisted,
-          registryRecordId: resultData.registryRecordId,
-          reason: resultData.reason,
-          banStartDate: resultData.banStartDate,
-          banEndDate: resultData.banEndDate,
-          checkedAt: nowIso,
-          expiresAt: expiresAt.toISOString()
-        });
+            banStartDate: resultData.banStartDate,
+            banEndDate: resultData.banEndDate,
+            isFallback: resultData.isFallback,
+            source: resultData.source,
+            checkedAt: nowIso,
+            expiresAt: expiresAt.toISOString()
+          });
+        }
       }
 
       return resultData;
@@ -213,15 +219,20 @@ export class ReputationService {
     banStartDate?: Date;
     banEndDate?: Date;
     status: 'CLEAN' | 'BLACKLISTED' | 'NOT_FOUND' | 'UNKNOWN';
+    isFallback?: boolean;
+    source?: string;
     raw?: any;
   }> {
     const token = process.env.GOSZAKUP_API_TOKEN || process.env.SAMRUK_API_TOKEN;
 
     if (!token || token.includes('your_goszakup')) {
-      // Demo/Unconfigured API token mode: return clean mock without throwing
+      // Demo/Unconfigured API token mode: return explicit demo fallback with warning flag
       return {
         isBlacklisted: false,
-        status: 'CLEAN'
+        status: 'CLEAN',
+        isFallback: true,
+        source: 'DEMO_FALLBACK',
+        reason: 'Проверка не выполнена: API-токен Госзакупок РК не настроен на сервере (Демо-режим)'
       };
     }
 
