@@ -107,7 +107,7 @@ export class ReputationService {
         source: apiResult.source || 'Goszakup RNU (РНУ ГЗ)'
       };
 
-      // Save/Upsert into DB (skip for demo fallbacks to prevent cache pollution)
+      // Save/Upsert into DB (skip for demo fallbacks to prevent DB cache pollution)
       if (!resultData.isFallback) {
         try {
           await (prisma as any).reputationCheck.upsert({
@@ -155,6 +155,20 @@ export class ReputationService {
             expiresAt: expiresAt.toISOString()
           });
         }
+      } else {
+        memoryReputationCache.set(cacheKey, {
+          bin: cleanedBin,
+          entityType,
+          isBlacklisted: resultData.isBlacklisted,
+          registryRecordId: resultData.registryRecordId,
+          reason: resultData.reason,
+          banStartDate: resultData.banStartDate,
+          banEndDate: resultData.banEndDate,
+          isFallback: resultData.isFallback,
+          source: resultData.source,
+          checkedAt: nowIso,
+          expiresAt: expiresAt.toISOString()
+        });
       }
 
       return resultData;
