@@ -67,6 +67,8 @@ class TestDummyApiAdapter extends BaseTenderAdapter {
   }
 }
 
+const { processIngestionJob } = require('../../src/lib/queue/ingestion.queue');
+
 // Register dynamic test source
 registerApiAdapter('TEST_SOURCE', TestDummyApiAdapter);
 
@@ -74,12 +76,20 @@ const testAdapterInstance = getApiAdapter('TEST_SOURCE');
 assert(testAdapterInstance instanceof TestDummyApiAdapter, 'getApiAdapter("TEST_SOURCE") must return instance of TestDummyApiAdapter');
 assert(listRegisteredApiSources().includes('TEST_SOURCE'), 'listRegisteredApiSources must include newly registered TEST_SOURCE');
 
-// Run dummy adapter ingestion pipeline
-testAdapterInstance.run().then((res) => {
+// Run dummy adapter ingestion pipeline & background job handler
+(async () => {
+  const res = await testAdapterInstance.run();
   assert.strictEqual(res.status, 'SUCCESS');
   assert.strictEqual(res.itemsNormalized, 1);
   assert.strictEqual(res.tenders[0].title, 'Test Tender');
   console.log('✔ Adding a 3rd custom API adapter via adapter-registry works seamlessly without route modification!');
+
+  // Test background queue job execution for dynamic 3rd adapter via processIngestionJob
+  const queueRes = await processIngestionJob({ source: 'TEST_SOURCE' });
+  assert.strictEqual(queueRes.status, 'SUCCESS');
+  assert.strictEqual(queueRes.itemsNormalized, 1);
+  assert.strictEqual(queueRes.tenders[0].title, 'Test Tender');
+  console.log('✔ Background BullMQ worker (processIngestionJob) successfully executes dynamic 3rd adapter via registry!');
 
   // Cleanup test adapter
   unregisterApiAdapter('TEST_SOURCE');
@@ -93,8 +103,17 @@ testAdapterInstance.run().then((res) => {
   assert(routeContent.includes('getApiAdapter(source)'), 'ingestion/route.ts must use getApiAdapter(source) registry lookup');
   console.log('✔ ingestion/route.ts verified: hardcoded if/else chain eliminated in favor of getApiAdapter(source)!');
 
+  // 5. Verify ingestion.queue.ts contains no hardcoded source === 'GOSZAKUP' logic
+  const queueContent = fs.readFileSync(path.join(__dirname, '../../src/lib/queue/ingestion.queue.ts'), 'utf8');
+  assert(!queueContent.includes("source === 'GOSZAKUP'"), "ingestion.queue.ts must not contain hardcoded `source === 'GOSZAKUP'`");
+  assert(!queueContent.includes("source === 'SAMRUK_KAZYNA'"), "ingestion.queue.ts must not contain hardcoded `source === 'SAMRUK_KAZYNA'`");
+  assert(queueContent.includes('getApiAdapter(source)'), 'ingestion.queue.ts must use getApiAdapter(source) registry lookup');
+  assert(queueContent.includes("source === 'CHECK_SLA'"), "ingestion.queue.ts must retain CHECK_SLA job handling");
+  assert(queueContent.includes("source === 'CHECK_MATCHES'"), "ingestion.queue.ts must retain CHECK_MATCHES job handling");
+  console.log('✔ ingestion.queue.ts verified: hardcoded if/else chain eliminated, uses getApiAdapter(source), SLA/MATCHES jobs preserved!');
+
   console.log('\n🎉 Ingestion Adapter Registry Test Suite completed successfully!');
-}).catch(err => {
+})().catch(err => {
   console.error('💥 Test execution error:', err);
   process.exit(1);
 });
