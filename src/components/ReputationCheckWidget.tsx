@@ -170,73 +170,94 @@ export const ReputationCheckWidget: React.FC<ReputationCheckWidgetProps> = ({
         </div>
       )}
 
-      {result && (
-        <div className={`p-4 rounded-xl border text-xs space-y-2 shadow-subtle ${
-          result.isFallback || result.source === 'DEMO_FALLBACK'
-            ? 'bg-amber-50 border-amber-200 text-amber-900'
-            : result.isBlacklisted
-            ? 'bg-rose-50 border-rose-200 text-rose-900'
-            : 'bg-emerald-50 border-emerald-200 text-emerald-900'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2 font-bold">
-              {result.isFallback || result.source === 'DEMO_FALLBACK' ? (
-                <>
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>Проверка не выполнена (Демо-режим)</span>
-                </>
-              ) : result.isBlacklisted ? (
-                <>
-                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>Внесен в Реестр недобросовестных участников!</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Не найден в РНУ (Чистый контрагент)</span>
-                </>
-              )}
+      {result && (() => {
+        const isDemoFallback = result.source === 'DEMO_FALLBACK';
+        const isNetworkError = result.source === 'NETWORK_ERROR_FALLBACK' || result.status === 'UNKNOWN';
+        const isWarning = Boolean(result.isFallback || isDemoFallback || isNetworkError);
+
+        return (
+          <div className={`p-4 rounded-xl border text-xs space-y-2 shadow-subtle ${
+            isWarning
+              ? 'bg-amber-50 border-amber-200 text-amber-900'
+              : result.isBlacklisted
+              ? 'bg-rose-50 border-rose-200 text-rose-900'
+              : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 font-bold">
+                {isDemoFallback ? (
+                  <>
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Проверка не выполнена (Демо-режим)</span>
+                  </>
+                ) : isNetworkError ? (
+                  <>
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Проверка не выполнена (Реестр РНУ недоступен)</span>
+                  </>
+                ) : result.isBlacklisted ? (
+                  <>
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>Внесен в Реестр недобросовестных участников!</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Не найден в РНУ (Чистый контрагент)</span>
+                  </>
+                )}
+              </div>
+
+              {isDemoFallback ? (
+                <span className="px-2 py-0.5 rounded bg-amber-100 border border-amber-300 text-[10px] text-amber-900 font-mono font-semibold">
+                  Демо-данные
+                </span>
+              ) : isNetworkError ? (
+                <span className="px-2 py-0.5 rounded bg-amber-100 border border-amber-300 text-[10px] text-amber-900 font-mono font-semibold">
+                  Ошибка сети/API
+                </span>
+              ) : result.stale ? (
+                <span className="px-2 py-0.5 rounded bg-paper border border-hairline text-[10px] text-mid-gray font-mono">
+                  Stale cache
+                </span>
+              ) : null}
             </div>
 
-            {result.isFallback || result.source === 'DEMO_FALLBACK' ? (
-              <span className="px-2 py-0.5 rounded bg-amber-100 border border-amber-300 text-[10px] text-amber-900 font-mono font-semibold">
-                Демо-данные
-              </span>
-            ) : result.stale ? (
-              <span className="px-2 py-0.5 rounded bg-paper border border-hairline text-[10px] text-mid-gray font-mono">
-                Stale cache
-              </span>
-            ) : null}
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
-            <div>
-              <span className="text-mid-gray block">БИН:</span>
-              <span className="font-mono font-semibold">{result.bin}</span>
-            </div>
-            <div>
-              <span className="text-mid-gray block">Источник:</span>
-              <span>{result.isFallback || result.source === 'DEMO_FALLBACK' ? 'Демо-режим (Токен не настроен)' : result.source}</span>
-            </div>
-
-            {result.banEndDate && (
-              <div className="col-span-2">
-                <span className="text-mid-gray block">Срок дисквалификации:</span>
-                <span className="font-semibold text-rose-700">
-                  до {new Date(result.banEndDate).toLocaleDateString('ru-RU')}
+            <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+              <div>
+                <span className="text-mid-gray block">БИН:</span>
+                <span className="font-mono font-semibold">{result.bin}</span>
+              </div>
+              <div>
+                <span className="text-mid-gray block">Источник:</span>
+                <span>
+                  {isDemoFallback
+                    ? 'Демо-режим (Токен не настроен)'
+                    : isNetworkError
+                    ? 'Goszakup RNU (Сбой подключения)'
+                    : result.source}
                 </span>
               </div>
-            )}
 
-            {result.reason && (
-              <div className="col-span-2 pt-1 border-t border-hairline/40">
-                <span className="text-mid-gray block">Причина / Примечание:</span>
-                <span>{result.reason}</span>
-              </div>
-            )}
+              {result.banEndDate && (
+                <div className="col-span-2">
+                  <span className="text-mid-gray block">Срок дисквалификации:</span>
+                  <span className="font-semibold text-rose-700">
+                    до {new Date(result.banEndDate).toLocaleDateString('ru-RU')}
+                  </span>
+                </div>
+              )}
+
+              {result.reason && (
+                <div className="col-span-2 pt-1 border-t border-hairline/40">
+                  <span className="text-mid-gray block">Причина / Примечание:</span>
+                  <span>{result.reason}</span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

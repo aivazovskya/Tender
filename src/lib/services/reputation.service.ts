@@ -204,9 +204,10 @@ export class ReputationService {
         banEndDate: null,
         status: 'UNKNOWN',
         stale: true,
+        isFallback: true,
         checkedAt: nowIso,
         expiresAt: nowIso,
-        source: 'Goszakup RNU (РНУ ГЗ)'
+        source: 'NETWORK_ERROR_FALLBACK'
       };
     }
   }

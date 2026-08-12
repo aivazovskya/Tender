@@ -48,6 +48,34 @@ console.log('🧪 [Test Suite] Testing Code Review Defect Fixes (Price-Benchmark
     process.env.GOSZAKUP_API_TOKEN = origToken;
   }
 
+  // 3. Test Reputation Service Network/API Error Fallback Flag
+  console.log('\n▶ 3. Testing Reputation Service Network Error Fallback Flag...');
+  process.env.GOSZAKUP_API_TOKEN = 'real-token-12345';
+
+  const origFetch = global.fetch;
+  global.fetch = async () => {
+    throw new Error('Connection refused (ETIMEDOUT ows.goszakup.gov.kz)');
+  };
+
+  try {
+    const netErrBin = '880101300888';
+    const netErrResult = await ReputationService.checkBin(netErrBin, 'CUSTOMER');
+
+    assert.strictEqual(netErrResult.isFallback, true, 'Network error must return isFallback: true');
+    assert.strictEqual(netErrResult.source, 'NETWORK_ERROR_FALLBACK', 'Network error must set source: NETWORK_ERROR_FALLBACK');
+    assert.strictEqual(netErrResult.status, 'UNKNOWN', 'Network error must set status: UNKNOWN');
+    assert.strictEqual(netErrResult.stale, true, 'Network error must set stale: true');
+    assert(netErrResult.reason.includes('Внешний сервис РНУ недоступен'), 'Reason must describe service unavailability');
+    console.log('  ✅ Network error correctly sets isFallback: true, status: UNKNOWN, & source: NETWORK_ERROR_FALLBACK!');
+  } finally {
+    global.fetch = origFetch;
+    if (origToken) {
+      process.env.GOSZAKUP_API_TOKEN = origToken;
+    } else {
+      delete process.env.GOSZAKUP_API_TOKEN;
+    }
+  }
+
   console.log('\n🎉 All Code Review Defect Fix Tests Passed Successfully!');
 })().catch(err => {
   console.error('💥 Test Execution Error:', err);
