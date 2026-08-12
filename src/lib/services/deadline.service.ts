@@ -58,6 +58,25 @@ function isMemoryMode(): boolean {
   return process.env.AUTH_STORE_MODE === 'memory';
 }
 
+/**
+ * Adds N working days (Monday-Friday) to a given date, skipping weekends (Saturday and Sunday).
+ * Note: Does not include national holiday calendars; this is a conservative approximation
+ * ensuring the displayed deadline is on or slightly before the statutory limit (Law of RoK on Public Procurement, Art. 47).
+ */
+export function addWorkingDays(startDate: Date, days: number): Date {
+  const result = new Date(startDate);
+  let added = 0;
+  while (added < days) {
+    result.setDate(result.getDate() + 1);
+    const dayOfWeek = result.getDay();
+    // 0 = Sunday, 6 = Saturday
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      added++;
+    }
+  }
+  return result;
+}
+
 export class DeadlineService {
   /**
    * Helper to compute urgencyByTime (0 - 100)
@@ -407,9 +426,9 @@ export class DeadlineService {
     tenderId: string,
     companyId: string,
     resultDate: Date,
-    appealWindowDays: number = Number(process.env.APPEAL_WINDOW_DAYS || 10)
+    appealWindowDays: number = Number(process.env.APPEAL_WINDOW_DAYS || 3)
   ): Promise<DeadlineRecord | null> {
-    const dueAt = new Date(new Date(resultDate).getTime() + appealWindowDays * 24 * 60 * 60 * 1000);
+    const dueAt = addWorkingDays(new Date(resultDate), appealWindowDays);
     if (dueAt <= new Date()) return null;
 
     if (isMemoryMode()) {

@@ -155,12 +155,22 @@ export class CompetitionService {
     if (!userId && !bin) return { total: 0, won: 0, lost: 0 };
 
     try {
+      const whereCondition: any = {
+        stage: { in: ['WON', 'LOST'] as any },
+        tender: { category: category || undefined }
+      };
+
+      if (userId) {
+        whereCondition.userId = userId;
+      } else if (bin) {
+        whereCondition.OR = [
+          { user: { companyProfile: { bin } } },
+          { organization: { bin } }
+        ];
+      }
+
       const cards = await prisma.kanbanCard.findMany({
-        where: {
-          ...(userId ? { userId } : {}),
-          stage: { in: ['WON', 'LOST'] as any },
-          tender: { category: category || undefined }
-        },
+        where: whereCondition,
         select: { stage: true }
       });
 

@@ -37,7 +37,8 @@ const tests = [
   'scripts/tests/auth-model.test.js',
   'scripts/tests/subscription-header-bypass.test.js',
   'scripts/tests/review-defects-fixes.test.js',
-  'scripts/tests/pdf-export-font.test.js'
+  'scripts/tests/pdf-export-font.test.js',
+  'scripts/tests/legal-deadline-and-bin-filter.test.js'
 ];
 
 console.log('🚀 Running TenderAI Automated Test Suite (npm test)...\n');
