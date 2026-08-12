@@ -51,30 +51,45 @@ export async function GET(
 
     doc.on('data', (chunk) => chunks.push(chunk));
 
-    const fontPath = path.join(process.cwd(), 'public', 'fonts', 'arial.ttf');
-    const altFontPath = 'C:\\Windows\\Fonts\\arial.ttf';
+    const fontPath = path.join(process.cwd(), 'public', 'fonts', 'noto-sans.ttf');
+    const fontBoldPath = path.join(process.cwd(), 'public', 'fonts', 'noto-sans-bold.ttf');
 
     let fontLoaded = false;
+    let boldFontLoaded = false;
+
     if (fs.existsSync(fontPath)) {
       doc.registerFont('CyrillicFont', fontPath);
       doc.font('CyrillicFont');
       fontLoaded = true;
-    } else if (fs.existsSync(altFontPath)) {
-      doc.registerFont('CyrillicFont', altFontPath);
-      doc.font('CyrillicFont');
-      fontLoaded = true;
+    }
+    if (fs.existsSync(fontBoldPath)) {
+      doc.registerFont('CyrillicFont-Bold', fontBoldPath);
+      boldFontLoaded = true;
     }
 
+    const setHeaderFont = () => {
+      if (boldFontLoaded) doc.font('CyrillicFont-Bold');
+      else if (fontLoaded) doc.font('CyrillicFont');
+    };
+
+    const setBodyFont = () => {
+      if (fontLoaded) doc.font('CyrillicFont');
+    };
+
     // Header Banner
+    setHeaderFont();
     doc.fillColor('#1E293B').fontSize(16).text(`ТЕНДЕРНЫЙ ОТЧЕТ ИИ-АНАЛИТИКИ (TenderAI)`, { align: 'center' });
     doc.moveDown(0.3);
+    setBodyFont();
     doc.fillColor('#64748B').fontSize(9).text(`Сформировано: ${new Date().toLocaleString('ru-RU')} • Тариф: ${access.plan}`, { align: 'center' });
     doc.moveDown(1);
 
     // Main Lot Information
+    setHeaderFont();
     doc.fillColor('#0F172A').fontSize(14).text(`Лот №${tender.externalId}: ${tender.title}`);
     doc.moveDown(0.5);
 
+    setBodyFont();
     doc.fontSize(10).fillColor('#334155');
     doc.text(`🏛️ Заказчик: ${tender.customerName} (БИН: ${tender.customerBin || '—'})`);
     doc.text(`📍 Регион: ${tender.region}`);
@@ -88,13 +103,17 @@ export async function GET(
     doc.moveDown(1);
 
     // AI Summary Section
+    setHeaderFont();
     doc.fillColor('#0F172A').fontSize(12).text('🤖 ИИ-Суммаризация и требования:', { underline: true });
     doc.moveDown(0.3);
+    setBodyFont();
     doc.fontSize(10).fillColor('#1E293B').text(tender.aiSummary || 'Автоматическое ИИ-резюме лота не сгенерировано.');
     doc.moveDown(0.5);
 
     if (Array.isArray(tender.aiKeyRequirements) && tender.aiKeyRequirements.length > 0) {
+      setHeaderFont();
       doc.fontSize(10).fillColor('#0F172A').text('Ключевые квалификационные требования к поставщику:');
+      setBodyFont();
       tender.aiKeyRequirements.forEach((req: string, idx: number) => {
         doc.fontSize(9.5).fillColor('#334155').text(`  ${idx + 1}. ${req}`);
       });
@@ -107,6 +126,7 @@ export async function GET(
     if (riskScore > 60) riskBadge = 'Жоғары / Высокий риск (Внимание!)';
     else if (riskScore > 25) riskBadge = 'Орташа / Средний риск';
 
+    setHeaderFont();
     doc.fillColor('#0F172A').fontSize(12).text('📊 Анализ рисков участия:', { underline: true });
     doc.moveDown(0.3);
     doc.fontSize(10).fillColor(riskScore > 60 ? '#B91C1C' : riskScore > 25 ? '#B45309' : '#047857');
@@ -114,18 +134,23 @@ export async function GET(
     doc.moveDown(0.5);
 
     if (Array.isArray(tender.riskFlags) && tender.riskFlags.length > 0) {
+      setHeaderFont();
       doc.fontSize(10).fillColor('#0F172A').text('Обнаруженные риск-факторы:');
+      setBodyFont();
       tender.riskFlags.forEach((rf: any, idx: number) => {
         doc.fontSize(9.5).fillColor('#475569').text(`  • [${rf.severity || 'MEDIUM'}] ${rf.title}: ${rf.description}`);
       });
     } else {
+      setBodyFont();
       doc.fontSize(9.5).fillColor('#64748B').text('Критичные аномалии в условиях лота не зафиксированы.');
     }
     doc.moveDown(1);
 
     // Documents Section
+    setHeaderFont();
     doc.fillColor('#0F172A').fontSize(12).text('📎 Приложенные документы лота:', { underline: true });
     doc.moveDown(0.3);
+    setBodyFont();
     if (Array.isArray(tender.documents) && tender.documents.length > 0) {
       tender.documents.forEach((d: any, idx: number) => {
         doc.fontSize(9.5).fillColor('#334155').text(`  ${idx + 1}. ${d.fileName} (${d.docType || 'Техспецификация'}) — ${d.fileUrl}`);
@@ -135,6 +160,7 @@ export async function GET(
     }
 
     doc.moveDown(2);
+    setBodyFont();
     doc.fontSize(8).fillColor('#94A3B8').text('Сгенерировано платформой TenderAI Kazakhstan (https://tenderai.kz). Данный отчёт предназначен для внутреннего использования.', { align: 'center' });
 
     doc.end();
