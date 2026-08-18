@@ -81,6 +81,7 @@ async function runTests() {
 
   console.log(`  ✅ PDF generated successfully (${pdfBuffer.length} bytes, header: ${pdfHeader})`);
   console.log('\n🎉 Open Font PDF Export Test Suite completed successfully!\n');
+  process.exit(0);
 }
 
 runTests().catch(err => {

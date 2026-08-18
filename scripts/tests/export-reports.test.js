@@ -6,11 +6,13 @@ const XLSX = require('xlsx');
 
 console.log('🧪 [Test Suite] Testing Excel & PDF Report Exports (Task / ТЗ Excel & PDF Exports)...\n');
 
-// 1. Verify Cyrillic font file exists in public/fonts/
+// 1. Verify Cyrillic font files exist in public/fonts/
 console.log('▶ 1. Verifying Cyrillic TTF Font File Availability...');
-const fontPath = path.join(__dirname, '../../public/fonts/arial.ttf');
-assert(fs.existsSync(fontPath), 'public/fonts/arial.ttf must exist to ensure cross-platform Cyrillic PDF rendering!');
-console.log('  ✅ Cyrillic TTF font public/fonts/arial.ttf verified successfully!');
+const fontPath = path.join(__dirname, '../../public/fonts/noto-sans.ttf');
+const fontBoldPath = path.join(__dirname, '../../public/fonts/noto-sans-bold.ttf');
+assert(fs.existsSync(fontPath), 'public/fonts/noto-sans.ttf must exist to ensure cross-platform Cyrillic PDF rendering!');
+assert(fs.existsSync(fontBoldPath), 'public/fonts/noto-sans-bold.ttf must exist to ensure cross-platform Cyrillic PDF rendering!');
+console.log('  ✅ Cyrillic TTF fonts (noto-sans.ttf, noto-sans-bold.ttf) verified successfully!');
 
 // 2. Test Subscription Guard Authorization Logic
 console.log('\n▶ 2. Testing Subscription Guard Access Control (FREE/PRO vs TEAM/ENTERPRISE)...');
@@ -124,6 +126,7 @@ function mockReq(headersObj = {}) {
   console.log(`  ✅ PDF Tender Report generated successfully (${pdfBuffer.length} bytes)!`);
 
   console.log('\n🎉 Excel & PDF Report Exports Test Suite completed successfully!');
+  process.exit(0);
 })().catch(err => {
   console.error('💥 Test Execution Error:', err);
   process.exit(1);

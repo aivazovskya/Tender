@@ -113,6 +113,7 @@ assert(listRegisteredApiSources().includes('TEST_SOURCE'), 'listRegisteredApiSou
   console.log('✔ ingestion.queue.ts verified: hardcoded if/else chain eliminated, uses getApiAdapter(source), SLA/MATCHES jobs preserved!');
 
   console.log('\n🎉 Ingestion Adapter Registry Test Suite completed successfully!');
+  process.exit(0);
 })().catch(err => {
   console.error('💥 Test execution error:', err);
   process.exit(1);
