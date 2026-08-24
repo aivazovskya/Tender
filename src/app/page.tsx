@@ -379,12 +379,6 @@ export default function HomePage() {
 
   // Export Tenders Catalog to Excel
   const handleExportTendersExcel = async () => {
-    if (!['TEAM', 'ENTERPRISE'].includes(userTariff.toUpperCase())) {
-      showToast('Экспорт каталога тендеров в Excel доступен с тарифа Team', 'error');
-      setActiveTab('billing');
-      return;
-    }
-
     try {
       const res = await fetch('/api/export/tenders', {
         method: 'POST',
@@ -403,11 +397,6 @@ export default function HomePage() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        if (res.status === 403) {
-          showToast('Экспорт в Excel доступен только на тарифах Team и Enterprise', 'error');
-          setActiveTab('billing');
-          return;
-        }
         throw new Error(errData.message || 'Ошибка выгрузки Excel');
       }
 
@@ -428,12 +417,6 @@ export default function HomePage() {
 
   // Export Kanban Funnel Cards to Excel
   const handleExportKanbanExcel = async () => {
-    if (!['TEAM', 'ENTERPRISE'].includes(userTariff.toUpperCase())) {
-      showToast('Экспорт воронки Kanban в Excel доступен с тарифа Team', 'error');
-      setActiveTab('billing');
-      return;
-    }
-
     try {
       const res = await fetch('/api/export/kanban', {
         method: 'POST',
@@ -444,11 +427,6 @@ export default function HomePage() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        if (res.status === 403) {
-          showToast('Экспорт Kanban доступен только на тарифах Team и Enterprise', 'error');
-          setActiveTab('billing');
-          return;
-        }
         throw new Error(errData.message || 'Ошибка выгрузки Kanban');
       }
 
@@ -469,22 +447,11 @@ export default function HomePage() {
 
   // Export Single Tender Card to PDF
   const handleExportTenderPDF = async (tenderId: string, externalId: string) => {
-    if (!['TEAM', 'ENTERPRISE'].includes(userTariff.toUpperCase())) {
-      showToast('Скачивание PDF-отчета по лоту доступно с тарифа Team', 'error');
-      setActiveTab('billing');
-      return;
-    }
-
     try {
       const res = await fetch(`/api/export/tenders/${encodeURIComponent(tenderId)}/pdf`);
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        if (res.status === 403) {
-          showToast('PDF-отчет доступен только на тарифах Team и Enterprise', 'error');
-          setActiveTab('billing');
-          return;
-        }
         throw new Error(errData.message || 'Ошибка генерации PDF');
       }
 
@@ -709,11 +676,6 @@ export default function HomePage() {
                   >
                     <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Скачать Excel</span>
-                    {!['TEAM', 'ENTERPRISE'].includes(userTariff.toUpperCase()) && (
-                      <span className="ml-1 px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[9px] font-bold">
-                        Team
-                      </span>
-                    )}
                   </button>
 
                   <span className="text-xs text-mid-gray hidden sm:inline">

@@ -646,11 +646,6 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
               >
                 <Download className="w-3.5 h-3.5 text-ink" />
                 <span>Скачать PDF</span>
-                {(!userPlan || !['TEAM', 'ENTERPRISE'].includes(userPlan.toUpperCase())) && (
-                  <span className="ml-1 px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[9px] font-bold">
-                    Team
-                  </span>
-                )}
               </button>
             )}
 

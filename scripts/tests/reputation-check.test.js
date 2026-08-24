@@ -97,13 +97,13 @@ async function runTests() {
     };
   }
 
-  // 5a. FREE plan -> 403 Forbidden
+  // 5a. FREE plan -> 200 OK (Internal company policy: all plans authorized)
   const freeReq = createMockReq('http://localhost/api/reputation/check?bin=180940004512&type=SUPPLIER', { 'x-user-plan': 'FREE' });
   const freeRes = await GET(freeReq);
-  assert.strictEqual(freeRes.status, 403, 'FREE plan must be denied (HTTP 403)');
+  assert.strictEqual(freeRes.status, 200, 'FREE plan must be authorized under internal access policy (HTTP 200)');
   const freeData = await freeRes.json();
-  assert.strictEqual(freeData.error, 'FORBIDDEN_PLAN');
-  console.log('  ✅ FREE plan correctly denied access (HTTP 403 FORBIDDEN_PLAN)!');
+  assert.strictEqual(freeData.success, true);
+  console.log('  ✅ FREE plan correctly authorized under internal access policy (HTTP 200 OK)!');
 
   // 5b. PRO plan -> 200 OK
   const proReq = createMockReq('http://localhost/api/reputation/check?bin=180940004512&type=SUPPLIER', { 'x-user-plan': 'PRO' });

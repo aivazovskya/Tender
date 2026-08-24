@@ -22,32 +22,35 @@ function mockReq(headersObj = {}, cookiesObj = {}) {
   try {
     // -------------------------------------------------------------
     // Test 1: Production Environment (NODE_ENV = 'production')
+    // Unauthenticated request MUST be rejected with 401 Unauthorized
     // -------------------------------------------------------------
     console.log('▶ 1. Testing Production Mode (NODE_ENV = "production")...');
     process.env.NODE_ENV = 'production';
     delete process.env.ALLOW_DEMO_AUTH;
 
-    // Attacker sends X-User-Plan: ENTERPRISE on FREE account request
+    // Unauthenticated request attempting X-User-Plan header injection
     const exportAttackerRes = await validateExportAccess(mockReq({ 'X-User-Plan': 'ENTERPRISE' }));
-    assert.strictEqual(exportAttackerRes.authorized, false, 'Production mode MUST reject X-User-Plan header bypass for export!');
-    assert.strictEqual(exportAttackerRes.response.status, 403, 'Production mode MUST return 403 Forbidden for unprivileged export request');
-    console.log('  ✅ Export access correctly blocked (403 Forbidden) despite X-User-Plan: ENTERPRISE header in production!');
+    assert.strictEqual(exportAttackerRes.authorized, false, 'Production mode MUST reject unauthenticated request for export!');
+    assert.strictEqual(exportAttackerRes.response.status, 401, 'Production mode MUST return 401 Unauthorized for unauthenticated request');
+    console.log('  ✅ Unauthenticated export request correctly blocked with 401 Unauthorized!');
 
     const repAttackerRes = await validateReputationAccess(mockReq({ 'X-User-Plan': 'ENTERPRISE' }));
-    assert.strictEqual(repAttackerRes.authorized, false, 'Production mode MUST reject X-User-Plan header bypass for reputation check!');
-    assert.strictEqual(repAttackerRes.response.status, 403, 'Production mode MUST return 403 Forbidden for unprivileged reputation request');
-    console.log('  ✅ Reputation check access correctly blocked (403 Forbidden) despite X-User-Plan: ENTERPRISE header in production!');
+    assert.strictEqual(repAttackerRes.authorized, false, 'Production mode MUST reject unauthenticated request for reputation check!');
+    assert.strictEqual(repAttackerRes.response.status, 401, 'Production mode MUST return 401 Unauthorized for unauthenticated request');
+    console.log('  ✅ Unauthenticated reputation request correctly blocked with 401 Unauthorized!');
 
     // -------------------------------------------------------------
     // Test 2: ALLOW_DEMO_AUTH = 'false' in non-production
+    // Unauthenticated request without ALLOW_DEMO_AUTH MUST be rejected
     // -------------------------------------------------------------
     console.log('\n▶ 2. Testing Non-Production with ALLOW_DEMO_AUTH disabled...');
     process.env.NODE_ENV = 'development';
     process.env.ALLOW_DEMO_AUTH = 'false';
 
     const devBypassRes = await validateExportAccess(mockReq({ 'X-User-Plan': 'ENTERPRISE' }));
-    assert.strictEqual(devBypassRes.authorized, false, 'Header bypass MUST be rejected when ALLOW_DEMO_AUTH is false');
-    console.log('  ✅ X-User-Plan header ignored when ALLOW_DEMO_AUTH is disabled!');
+    assert.strictEqual(devBypassRes.authorized, false, 'Unauthenticated request MUST be rejected when ALLOW_DEMO_AUTH is false');
+    assert.strictEqual(devBypassRes.response.status, 401, 'Must return 401 Unauthorized');
+    console.log('  ✅ Unauthenticated request correctly blocked when ALLOW_DEMO_AUTH is disabled!');
 
     // -------------------------------------------------------------
     // Test 3: ALLOW_DEMO_AUTH = 'true' in non-production (Developer/Demo mode)

@@ -14,8 +14,8 @@ assert(fs.existsSync(fontPath), 'public/fonts/noto-sans.ttf must exist to ensure
 assert(fs.existsSync(fontBoldPath), 'public/fonts/noto-sans-bold.ttf must exist to ensure cross-platform Cyrillic PDF rendering!');
 console.log('  ✅ Cyrillic TTF fonts (noto-sans.ttf, noto-sans-bold.ttf) verified successfully!');
 
-// 2. Test Subscription Guard Authorization Logic
-console.log('\n▶ 2. Testing Subscription Guard Access Control (FREE/PRO vs TEAM/ENTERPRISE)...');
+// 2. Test Subscription Guard Authorization Logic (Internal company policy: all plans allowed)
+console.log('\n▶ 2. Testing Subscription Guard Access Control (Internal unrestricted access policy)...');
 const { validateExportAccess } = require('../../src/lib/security/subscription-guard');
 
 // Mock request helper
@@ -30,17 +30,15 @@ function mockReq(headersObj = {}) {
 (async () => {
   process.env.ALLOW_DEMO_AUTH = 'true';
 
-  // Test Free Plan (Forbidden)
+  // Test Free Plan (Allowed under internal policy)
   const freeRes = await validateExportAccess(mockReq({ 'X-User-Plan': 'FREE' }));
-  assert.strictEqual(freeRes.authorized, false, 'Free plan must be rejected');
-  assert.strictEqual(freeRes.response.status, 403, 'Free plan must return HTTP 403');
-  console.log('  ✅ FREE subscription plan correctly denied access (HTTP 403 Forbidden)!');
+  assert.strictEqual(freeRes.authorized, true, 'FREE plan must be authorized for export under internal access policy');
+  console.log('  ✅ FREE subscription plan authorized for export under internal policy!');
 
-  // Test Pro Plan (Forbidden)
+  // Test Pro Plan (Allowed under internal policy)
   const proRes = await validateExportAccess(mockReq({ 'X-User-Plan': 'PRO' }));
-  assert.strictEqual(proRes.authorized, false, 'Pro plan must be rejected');
-  assert.strictEqual(proRes.response.status, 403, 'Pro plan must return HTTP 403');
-  console.log('  ✅ PRO subscription plan correctly denied access (HTTP 403 Forbidden)!');
+  assert.strictEqual(proRes.authorized, true, 'PRO plan must be authorized for export under internal access policy');
+  console.log('  ✅ PRO subscription plan authorized for export under internal policy!');
 
   // Test Team Plan (Allowed)
   const teamRes = await validateExportAccess(mockReq({ 'X-User-Plan': 'TEAM' }));

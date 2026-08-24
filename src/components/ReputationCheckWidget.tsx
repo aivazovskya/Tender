@@ -30,8 +30,6 @@ export const ReputationCheckWidget: React.FC<ReputationCheckWidgetProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
 
-  const isProOrAbove = ['PRO', 'TEAM', 'ENTERPRISE'].includes(userPlan.toUpperCase());
-
   const handleCheck = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanBin = bin.trim();

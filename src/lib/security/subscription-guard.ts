@@ -16,6 +16,16 @@ export interface SubscriptionAuthResult {
 export async function validateExportAccess(request: NextRequest): Promise<SubscriptionAuthResult> {
   // 1. Validate basic user authentication or API token
   const auth = await validateApiAuth(request, 'USER');
+  if (!auth.authorized) {
+    return {
+      authorized: false,
+      plan: 'FREE',
+      response: auth.response || NextResponse.json(
+        { success: false, message: 'Необходима авторизация' },
+        { status: 401 }
+      )
+    };
+  }
   
   // Header / query override for demo or admin mode
   const headerPlan = request.headers.get('x-user-plan') || request.headers.get('X-User-Plan');
@@ -57,7 +67,8 @@ export async function validateExportAccess(request: NextRequest): Promise<Subscr
     userPlan = headerPlan.toUpperCase();
   }
 
-  const isAllowed = ['TEAM', 'ENTERPRISE'].includes(userPlan);
+  // Внутреннее использование — платные ограничения отключены для всех пользователей
+  const isAllowed = true;
 
   if (!isAllowed) {
     return {
@@ -89,6 +100,16 @@ export async function validateExportAccess(request: NextRequest): Promise<Subscr
  */
 export async function validateReputationAccess(request: NextRequest): Promise<SubscriptionAuthResult> {
   const auth = await validateApiAuth(request, 'USER');
+  if (!auth.authorized) {
+    return {
+      authorized: false,
+      plan: 'FREE',
+      response: auth.response || NextResponse.json(
+        { success: false, message: 'Необходима авторизация' },
+        { status: 401 }
+      )
+    };
+  }
   const headerPlan = request.headers.get('x-user-plan') || request.headers.get('X-User-Plan');
 
   let userPlan = 'FREE';
@@ -125,7 +146,8 @@ export async function validateReputationAccess(request: NextRequest): Promise<Su
     userPlan = headerPlan.toUpperCase();
   }
 
-  const isAllowed = ['PRO', 'TEAM', 'ENTERPRISE'].includes(userPlan);
+  // Внутреннее использование — платные ограничения отключены для всех пользователей
+  const isAllowed = true;
 
   if (!isAllowed) {
     return {
