@@ -1,0 +1,416 @@
+[
+  {
+    "file": "adapter-registry.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "2.40",
+    "stdout": "🧪 [Test Suite] Testing Ingestion Adapter Registry (Task / ТЗ API Registry)...\n\n✔ Registered API sources listed successfully: GOSZAKUP, SAMRUK_KAZYNA\n✔ getApiAdapter factory instantiates correct adapter instances & handles unknown sources gracefully!\n✔ Adding a 3rd custom API adapter via adapter-registry works seamlessly without route modification!\n[BullMQ Worker] Обработка фоновой задачи инжеста для источника: TEST_SOURCE\n✔ Background BullMQ worker (processIngestionJob) successfully executes dynamic 3rd adapter via registry!\n✔ ingestion/route.ts verified: hardcoded if/else chain eliminated in favor of getApiAdapter(source)!\n✔ ingestion.queue.ts verified: hardcoded if/else chain eliminated, uses getApiAdapter(source), SLA/MATCHES jobs preserved!\n\n🎉 Ingestion Adapter Registry Test Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "appeal-deadline.test.js",
+    "status": "FAIL",
+    "exitCode": 1,
+    "signal": null,
+    "duration": "1.28",
+    "stdout": "🧪 Starting Appeal Deadline Reminders Test Suite...\n\n1️⃣ Testing DeadlineService.autoCreateAppealDeadline unit logic...\n",
+    "stderr": "\n❌ Test Failure: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ 1788760995\n- 1788415395\n      ^\n\n    at testAutoCreateAppealDeadlineUnit (C:\\Users\\Nurbek Bereketuly\\Desktop\\Projects\\Tender\\scripts\\tests\\appeal-deadline.test.js:25:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async runAll (C:\\Users\\Nurbek Bereketuly\\Desktop\\Projects\\Tender\\scripts\\tests\\appeal-deadline.test.js:94:5) {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 1788760995,\n  expected: 1788415395,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n"
+  },
+  {
+    "file": "auth-audit-critical-fixes.test.js",
+    "status": "FAIL",
+    "exitCode": 1,
+    "signal": null,
+    "duration": "0.75",
+    "stdout": "🧪 Starting Auth Audit Critical Fixes Test Suite...\n\n  1️⃣ Testing Finding 1 (Unawaited validateApiAuth fix in real route handlers)...\n     ✅ POST /api/tenders/ask returned 401 when unauthenticated\n     ✅ PATCH /api/tenders/[id]/requirements/[itemId] returned 401 when unauthenticated\n     ✅ DELETE /api/tenders/[id]/requirements/[itemId] returned 401 when unauthenticated\n     ✅ PATCH /api/security-instruments/[id] returned 401 when unauthenticated\n     ✅ GET /api/admin/metrics returned 401 when unauthenticated\n\n  2️⃣ Testing Finding 2 (Removal of legacy session prefix fallback)...\n     ✅ Cookie tender_session_id=sess-fake-12345678 correctly returned 401 Unauthorized\n     ✅ Cookie tender_session_id=user_session_fake_token correctly returned 401 Unauthorized\n     ✅ Cookie tender_session_id=demo-fake-session-id correctly returned 401 Unauthorized\n\n  3️⃣ Testing Finding 3 (ALLOW_DEMO_AUTH environment flag requirement)...\n     ✅ Production unauthenticated request without ALLOW_DEMO_AUTH rejected with 401\n     ✅ With ALLOW_DEMO_AUTH=true, demo-user-id fallback operates as expected\n\n  4️⃣ Testing Finding 5 (Email enumeration protection on registration in memory mode)...\n     ✅ Duplicate registration returns 400 with non-enumerating generic message\n\n  5️⃣ Testing Removal of Silent Memory Fallback (HTTP 503 on DB failure)...\n",
+    "stderr": "❌ Auth Audit Critical Fixes Test Failed: AssertionError [ERR_ASSERTION]: Register route must return 503 Service Unavailable when DB fails without memory mode\n\n200 !== 503\n\n    at runTests (C:\\Users\\Nurbek Bereketuly\\Desktop\\Projects\\Tender\\scripts\\tests\\auth-audit-critical-fixes.test.js:156:12) {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: 200,\n  expected: 503,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n"
+  },
+  {
+    "file": "auth-model.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "2.12",
+    "stdout": "🧪 Starting Auth & Registration Security Module Tests...\n\n  1️⃣ Testing Registration Validation & User Creation...\n     ✅ Short password rejected with 400\n     ✅ User successfully registered with password hash in DB & no hash exposure in response\n     ✅ Duplicate email registration rejected with 400\n  2️⃣ Testing Login & Rate Limiting...\n     ✅ Wrong password rejected with 401\n     ✅ Login successful & session cookie issued: sess_1787551397159_jsjclwc\n  3️⃣ Testing Rate Limiting (5 failed attempts block)...\n     ✅ Brute-force rate limiting triggered: HTTP 429 returned after 5 failed attempts\n  4️⃣ Testing Auth Me & Session Invalidation...\n     ✅ /api/auth/me resolved valid session to correct user\n     ✅ /api/auth/logout invalidated DB session & cleared session cookie\n\n🎉 ALL AUTH & REGISTRATION TESTS PASSED PERFECTLY!\n\n",
+    "stderr": ""
+  },
+  {
+    "file": "bot-payload.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.20",
+    "stdout": "🧪 [Test Suite] Testing Telegram Bot Deep Link Payload Extraction (Bug #7)...\n  ✅ TelegrafBotService.generateDeepLink generates valid payload link\n🎉 Telegram Bot Payload Test Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "bot-spec-command.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.14",
+    "stdout": "🧪 [Test Suite] Testing Telegram Bot /spec & /tz commands (Task 1)...\n  ✅ /spec without args returns helpful prompt\n  ✅ /spec with valid externalId returns formatted AI summary HTML\n  ✅ /tz 1 returns summary for first searched tender\n  ✅ /spec with invalid ID returns graceful error message\n  ✅ /help includes /spec documentation\n🎉 Telegram Bot /spec & /tz Command Test Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "cash-flow.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.28",
+    "stdout": "🧪 Starting Cash Flow & Deposit Frozen Funds Tracking Test Suite...\n\n1️⃣ Testing CashFlowService.getCashFlowSummary deposit vs guarantee isolation...\n   ✅ getCashFlowSummary correctly isolates frozen deposit cash from bank guarantees\n\n2️⃣ Testing CashFlowService.getCashFlowTimeline forecast & horizon grouping...\n   ✅ getCashFlowTimeline correctly sorts deposits by expiryDate ASC and groups by horizons\n\n3️⃣ Testing API Routes (/api/finance/cash-flow-summary & /api/finance/cash-flow-timeline)...\n   ✅ GET /api/finance/cash-flow-summary returns HTTP 200 with company liquidity summary\n   ✅ GET /api/finance/cash-flow-timeline returns HTTP 200 with forecast release timeline\n\n🎉 Cash Flow & Deposit Frozen Funds Tracking Test Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "check-matches.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.10",
+    "stdout": "🧪 [Test Suite] Testing Auto Notifications for Company Profile AI Matches (Task / ТЗ Match Notifications)...\n\n▶ 1. Testing minRiskNotify risk threshold semantics...\n  ✅ Semantics verified: minRiskNotify (50) correctly permits low-risk tender (20) and excludes high-risk tender (80)!\n\n▶ 2. Testing Opt-Out handling (telegramNotify = false)...\n  ✅ Opt-out setting correctly respects user notification preference!\n\n▶ 3. Testing Notification Idempotency (7-day cache key)...\n  ✅ Idempotency key pattern match_notified:<profileId>:<tenderId> prevents duplicate notifications!\n\n▶ 4. Verifying Route & BullMQ Worker Registration...\n  ✅ check-matches/route.ts correctly implements authentication, AI matching, risk filtering, and idempotency!\n  ✅ BullMQ worker & scheduler registered repeat-CHECK_MATCHES job successfully!\n\n🎉 Auto Notifications for Company Profile Matches Test Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "client-secrets-guard.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.36",
+    "stdout": "🧪 Running Client Secrets Guard Unit & Integration Tests...\n\n▶ Testing current codebase with check-client-secrets.js...\n✔ Clean codebase verification passed!\n▶ Testing regression simulation (Bug #25 leak)...\n✔ Regression test for Bug #25 passed (correctly caught leak and returned exit code 1)!\n\n🎉 All Client Secrets Guard tests passed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "competition-estimate.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.30",
+    "stdout": "🧪 [Test Suite] Testing Competition & Win Probability Engine (Phase 1 / Task #3)...\n\n▶ 1. Testing Single Source Procurement (SINGLE_SOURCE)...\n  ✅ SINGLE_SOURCE handled correctly (LOW competition, 1 participant, winProbability = null)!\n\n▶ 2. Testing Competitive Method & Financial Heuristic Fallback (Criteria #2 & #4)...\n  ✅ Fallback heuristic returns LOW confidence and explicit basis!\n\n▶ 2b. Testing Large Sample Size (sampleSize >= 20) Confidence Check (Defect #1 Fix)...\n  ✅ Large sample size (sampleSize >= 20) strictly retains confidence = LOW for estimated participants!\n\n▶ 3. Testing Personal Win Probability Hard Threshold (4 vs 5 deals)...\n  ✅ 4 completed deals (< 5 threshold) correctly returns winProbability = null + insufficient_history!\n  ✅ 5 completed deals (>= 5 threshold) correctly returns winProbability = 60%!\n\n▶ 4. Testing Privacy Guard for Small Sample Size (sampleSize < 3)...\n  ✅ Privacy guard hides detailed counts when sampleSize < 3!\n\n▶ 5. Testing Recompute Stats Cron Security Authorization (Criteria #6)...\n  ✅ Recompute stats cron endpoint returns HTTP 401 without valid X-Cron-Secret!\n  ✅ Authorized recompute stats request executed successfully (HTTP 200 OK)!\n\n▶ 6. Verifying Research Spike & Module 9 Documentation in README.md (Criteria #7)...\n  ✅ README.md explicitly documents Module 9 & estimatedParticipants heuristic!\n\n🎉 Competition & Win Probability Engine Test Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "contract-acts.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.27",
+    "stdout": "🧪 Starting Contract Execution Acts Tracker & Tenant Isolation Test Suite...\n\n1️⃣ Testing Strict Tenant Isolation Fix (Security Audit)...\n   ✅ GET /contract-execution denies unauthorized access with HTTP 404\n   ✅ PATCH /contract-execution denies unauthorized access with HTTP 404\n   ✅ POST /contract-execution/milestones denies unauthorized access with HTTP 404\n   ✅ PATCH /contract-execution/milestones/[milestoneId] denies unauthorized access with HTTP 404\n\n2️⃣ Testing Milestone Act Status Transitions & Payment Metrics...\n   ✅ Initial metrics correctly sum expected payments (10M) and highlight DISPUTED milestone\n   ✅ Updating milestone paidAt correctly updates received and expected payment sums\n\n🎉 Contract Execution Acts Tracker & Tenant Isolation Test Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "customer-analytics.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.79",
+    "stdout": "🧪 Starting Customer Procurement History Analytics Test Suite...\n\n1️⃣ Testing BIN format validation...\n   ✅ Throws error on invalid 5-digit BIN\n\n2️⃣ Testing Internal Customer Stats Aggregation (2.1)...\n   ✅ Accurately aggregates 12-month internal procurement stats, median, and publication frequency\n\n3️⃣ Testing Customer Reputation Integration (2.2)...\n   ✅ Successfully invokes ReputationService.checkBin with CUSTOMER entity type\n\n4️⃣ Testing Lazy Customer Winners Cache (2.3)...\n   ✅ Cache miss correctly fetches winner details\n   ✅ Cache hit returns cached winner analysis within 24h TTL\n\n5️⃣ Testing API Routes (/api/customers/[bin]/stats & /api/customers/[bin]/winners)...\n   ✅ GET /api/customers/invalid-bin/stats returns HTTP 400 Invalid BIN\n   ✅ GET /api/customers/050240003412/stats returns HTTP 200 with stats & reputation\n   ✅ POST /api/customers/050240003412/winners returns HTTP 200 with winners data\n\n🎉 Customer Procurement History Analytics Test Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "deadline-audit-fixes.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.22",
+    "stdout": "🧪 Starting Deadline Tracker Audit Fixes Verification Test Suite...\n\n1️⃣ Testing Defect 3: CRON_SECRET Protection in /api/cron/check-upcoming-deadlines...\n   ✅ Missing CRON_SECRET correctly returns 500 Server misconfiguration\n   ✅ Invalid X-Cron-Secret header correctly returns 401 Unauthorized\n\n2️⃣ Testing Defect 2: vercel.json Cron Registration...\n   ✅ vercel.json contains /api/cron/check-upcoming-deadlines with schedule \"0 7,19 * * *\"\n\n3️⃣ Testing Defect 1: Removal of auto-deadlines from ingestion & move to Kanban Card creation...\n   ✅ ingestion-processor.service.ts correctly has NO auto-deadline creation code\n   ✅ POST /api/kanban correctly calls autoCreateSubmissionDeadline with resolveOwnCompanyProfile(auth.userId)\n   ✅ POST /api/public/v1/kanban correctly requires savedCard.tender?.deadlineDate without fallback date\n   ✅ Migration script scripts/migrations/purge-unlinked-submission-deadlines.ts is present\n\n🎉 All Deadline Audit Fixes tests passed successfully!\n",
+    "stderr": "[Cron] CRON_SECRET is not configured\n"
+  },
+  {
+    "file": "deadline-tracker.test.js",
+    "status": "FAIL",
+    "exitCode": 1,
+    "signal": null,
+    "duration": "0.28",
+    "stdout": "🧪 Starting Deadline Tracker with Prioritization Test Suite...\n\n  1️⃣ Testing Urgency Score & Criticality Zone Calculations...\n     ✅ Time urgency scores (100, 80, 50, 25, 10) calculated correctly\n     ✅ Criticality zones (🔴 CRITICAL, 🟠 SOON, 🟡 MEDIUM, ⚪ PLANNED) evaluated correctly\n     ✅ Composite urgency score with win probability weighted correctly (score = 86)\n     ✅ Weight redistribution when winProbability is null verified\n\n  2️⃣ Testing Service Methods & Auto-Creation of SUBMISSION_DEADLINE...\n     ✅ SUBMISSION_DEADLINE auto-created cleanly without duplicates\n     ✅ CUSTOM deadline created successfully\n     ✅ Deadlines returned sorted by urgencyScore DESC\n\n  3️⃣ Testing API Endpoints & Tenant Isolation...\n     ✅ GET /api/deadlines returns 401 when unauthenticated\n     ✅ POST /api/deadlines returns 401 when unauthenticated\n     ✅ GET /api/deadlines authorized and returned company deadlines\n     ✅ GET /api/deadlines/summary returned aggregated criticality counters: {\n  critical: 1,\n  soon: 1,\n  medium: 0,\n  planned: 0,\n  totalPending: 2,\n  missed: 0,\n  completed: 0\n}\n     ✅ PATCH /api/deadlines/[id] updated status to COMPLETED\n\n  4️⃣ Testing Cron Endpoint & Telegram Notifications Security...\n",
+    "stderr": "[Cron] CRON_SECRET is not configured\n❌ Deadline Tracker Test Failed: AssertionError [ERR_ASSERTION]: Cron without X-Cron-Secret must return 401\n\n500 !== 401\n\n    at runTests (C:\\Users\\Nurbek Bereketuly\\Desktop\\Projects\\Tender\\scripts\\tests\\deadline-tracker.test.js:174:10) {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: 500,\n  expected: 401,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n"
+  },
+  {
+    "file": "document-extraction.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "10.16",
+    "stdout": "🧪 [Test Suite] Testing DocumentExtractionService & SSRF protection (Task 2)...\n  ✅ SSRF protection correctly blocks internal IP URLs\n  ✅ Local demo document /docs/tz_software.pdf extracted successfully\n  ✅ Network failure handled gracefully without crashing\n🎉 DocumentExtractionService Test Suite completed successfully!\n",
+    "stderr": "[DocumentExtractionService] SSRF Protection blocked request to 'http://127.0.0.1/tz.pdf': Обращение к loopback IP (127.0.0.0/8, 0.0.0.0) запрещено\n[DocumentExtractionService] SSRF Protection blocked request to 'http://169.254.169.254/latest/meta-data': Обращение к link-local / Cloud Metadata IP (169.254.0.0/16) запрещено\n[DocumentExtractionService] Failed to extract document text from 'https://non-existent-domain-123456789.invalid/spec.pdf': fetch failed\n"
+  },
+  {
+    "file": "export-reports.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.91",
+    "stdout": "🧪 [Test Suite] Testing Excel & PDF Report Exports (Task / ТЗ Excel & PDF Exports)...\n\n▶ 1. Verifying Cyrillic TTF Font File Availability...\n  ✅ Cyrillic TTF fonts (noto-sans.ttf, noto-sans-bold.ttf) verified successfully!\n\n▶ 2. Testing Subscription Guard Access Control (FREE/PRO vs TEAM/ENTERPRISE)...\n  ✅ FREE subscription plan correctly denied access (HTTP 403 Forbidden)!\n  ✅ PRO subscription plan correctly denied access (HTTP 403 Forbidden)!\n  ✅ TEAM subscription plan correctly authorized!\n  ✅ ENTERPRISE subscription plan correctly authorized!\n\n▶ 3. Testing Excel (.xlsx) Catalog Export Generation...\n  ✅ Excel catalog export generated successfully (6 rows parsed via SheetJS)!\n\n▶ 4. Testing Kanban Excel (.xlsx) Export Generation...\n  ✅ Kanban Excel export generated successfully with stage, priority, assignee & notes (4 cards)!\n\n▶ 5. Testing PDF Tender Report Generation...\n  ✅ PDF Tender Report generated successfully (25570 bytes)!\n\n🎉 Excel & PDF Report Exports Test Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "i18n.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.17",
+    "stdout": "🧪 Running i18n Dictionary & Component Localization Tests...\n\n✔ Key parity check passed (132 keys verified in both RU and KK)!\n✔ Translation quality check passed (127 strings verified as distinct Kazakh translations)!\n✔ useTranslation hook fallback behavior verified!\n▶ Checking for duplicate copy-paste ternaries in src/components & src/app...\n✔ Zero duplicate copy-paste ternaries found across entire src/ codebase!\n\n🎉 All i18n translation tests passed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "ingestion-bugs-v5.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.61",
+    "stdout": "🧪 [Test Suite] Testing Ingestion & Security Fixes (Bugs #17, #18, #19)...\n\n▶ Testing Bug #17: Session Cookie & Header User Isolation...\n  ✅ Bug #17: Session cookies and headers resolve to isolated user IDs & fake sessions rejected with 401\n\n▶ Testing Bug #18: IngestionProcessorService Atomic Persistence...\n  ✅ Bug #18: IngestionProcessorService processes tenders atomically via prisma.$transaction\n\n▶ Testing Bug #19: AIService.answerRAGQuestion Document RAG...\n  ✅ Bug #19: AIService.answerRAGQuestion executes asynchronously and returns grounded response\n\n▶ Testing Bug #20: Server API Route POST /api/tenders/ask...\n  ✅ Bug #20: POST /api/tenders/ask server API route handles RAG Q&A without client side Prisma/LLM imports\n\n🎉 Ingestion & Security Fixes Test Suite (v5/v6) completed successfully!\n",
+    "stderr": "[DocumentExtractionService] HTTP 404 error fetching document from 'https://example.com/files/tz.pdf'\n"
+  },
+  {
+    "file": "ingestion-bugs.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.40",
+    "stdout": "🧪 [Test Suite] Testing Ingestion Module Bug Fixes (Bugs #1, #2, #3)...\n  ✅ Bug #1: Scraper sourceType is dynamic and scoped per dataSourceId\n  ✅ Bug #2: diffTenderFields computes exact deltas and ignores unchanged fields\n  ✅ Bug #3: Fallback demo data sets usedFallbackData=true and status=WARN\n🎉 Ingestion Bug Fixes Test Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "ingestion-idempotency.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.08",
+    "stdout": "🧪 [Test Suite] Testing Ingestion Idempotency Schema Constraint...\n  ✅ Tender uniqueness constraint @@unique([source, externalId]) verified for upsert deduplication\n",
+    "stderr": ""
+  },
+  {
+    "file": "ingestion-unification.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.18",
+    "stdout": "🧪 [Test Suite] Testing Ingestion Unification & Real API Document Mapping (Tasks 2.1 & 2.6)...\n  ✅ GoszakupApiAdapter correctly maps document files to TenderDocument objects\n  ✅ SamrukApiAdapter correctly maps document files to TenderDocument objects\n  ✅ IngestionProcessorService unifies extraction & processing across manual and worker flows\n🎉 Ingestion Unification & Document Mapping Test Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "kanban-card-details.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.08",
+    "stdout": "🧪 [Test Suite] Testing Kanban Card Priority, Notes & Assignee Persistence...\n\n✔ Priority & Notes translation keys verified in RU and KK!\n✔ Priority update correctly updates state and generates correct API POST payload!\n✔ Notes update correctly updates state and generates correct API POST payload!\n✔ Assignee update correctly uses callback without mutating original prop object!\n✔ Priority sorting inside stage columns verified (HIGH > MEDIUM > LOW)!\n\n🎉 All Kanban Card Details & Persistence tests passed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "kanban-sync.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.07",
+    "stdout": "🧪 [Test Suite] Testing Kanban Sync Integrity, State Rollback & IDOR Ownership Protection (Bug #10, Task 0.4d)...\n  ✅ page.tsx rollback logic & error toast notifications verified\n  ✅ api/kanban/route.ts returns HTTP 500 status and success: false on failure\n  ✅ api/kanban/route.ts IDOR ownership verification (HTTP 403 on unauthorized update/delete) verified (Task 0.4d)\n🎉 Kanban Sync, Rollback & IDOR Test Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "kaspi-security.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.14",
+    "stdout": "🧪 [Test Suite] Testing Kaspi Pay Billing Security & Price Protection (Bug #8)...\n  ✅ Tariff plan pricing schema verified in Kaspi service\n  ✅ Client price tampering attempt (100 KZT for ENTERPRISE) overridden with official 199,000 ₸ price\n  ✅ Invalid tariff ID rejected with 400 Bad Request\n🎉 Kaspi Billing Security Test Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "kaspi-webhook.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.05",
+    "stdout": "🧪 [Test Suite] Testing Kaspi Pay Webhook HMAC-SHA256 Verification & Secret Hardening (Bug #11)...\n  ✅ Kaspi HMAC verification with valid secret passed\n  ✅ Kaspi HMAC verification with invalid secret rejected as expected\n  ✅ Legacy default secret from .env.example rejected securely\n",
+    "stderr": ""
+  },
+  {
+    "file": "legal-deadline-and-bin-filter.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.15",
+    "stdout": "🧪 [Test Suite] Testing Legal Working Days & Organization BIN Filter Fixes...\n\n▶ 1. Testing addWorkingDays Weekend-Skipping Calculation...\n  ✅ addWorkingDays correctly skips weekends (Aug 14 + 3 working days = Aug 19)\n  ✅ addWorkingDays correctly calculates consecutive weekday addition\n\n▶ 2. Testing autoCreateAppealDeadline (Default 3 Working Days)...\n  ✅ autoCreateAppealDeadline uses default 3 working days statutory calculation\n\n▶ 3. Testing CompetitionService.getUserCategoryDeals BIN Filter (Individual & Organization)...\n  ✅ getUserCategoryDeals handles empty input parameters gracefully\n\n🎉 Legal Working Days & Organization BIN Filter Test Suite completed successfully!\n\n",
+    "stderr": ""
+  },
+  {
+    "file": "pdf-export-font.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.50",
+    "stdout": "🧪 [Test Suite] Testing Open Font PDF Export (Noto Sans Cyrillic & Kazakh)...\n\n▶ 1. Verifying font files in public/fonts/...\n  ✅ Proprietary arial.ttf file deleted\n  ✅ public/fonts/noto-sans.ttf present\n  ✅ public/fonts/noto-sans-bold.ttf present\n\n▶ 2. Checking route.ts for hardcoded proprietary font paths...\n  ✅ No proprietary font or OS-specific font paths found in route.ts\n\n▶ 3. Testing PDF Generation API endpoint with Noto Sans Cyrillic & Kazakh text...\n  ✅ PDF generated successfully (26943 bytes, header: %PDF-)\n\n🎉 Open Font PDF Export Test Suite completed successfully!\n\n",
+    "stderr": ""
+  },
+  {
+    "file": "product-features.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.10",
+    "stdout": "🧪 [Test Suite] Testing Product Features (Features #1, #2, #3, #4)...\n\n▶ Testing Feature #1: Regional Akimat & Industry Data Sources...\n  ✅ Feature #1: Akimat & KazMunayGas data sources registered and HEALTHY\n\n▶ Testing Feature #2: Multilingual Language Detection & Kazakh RAG...\n  ✅ Feature #2: Kazakh language detection & Kazakh RAG fallback executed successfully\n\n▶ Testing Feature #3: Kanban Stage SLA & Deadline Overdue Calculations...\n  ✅ Feature #3: Kanban SLA overdue (30h > 24h) and urgent deadline (<24h) calculated correctly\n\n▶ Testing Feature #4: Public Demo Mode on Mock Data...\n  ✅ Feature #4: Public Demo Mode flag verified\n\n🎉 Product Features Test Suite (Features #1-#4) completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "public-api-keys.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.35",
+    "stdout": "🧪 [Test Suite] Testing Enterprise Public REST API v1 & API Key Management (Task / ТЗ Public API & API Keys)...\n\n▶ 1. Testing Random String Vulnerability Fix (Unissued x-api-key)...\n  ✅ Arbitrary/random x-api-key string correctly rejected with HTTP 401 Unauthorized!\n\n▶ 2. Testing API Key Generation & Public REST API v1 Endpoints...\nprisma:error \nInvalid `prisma.apiKey.create()` invocation in\nC:\\Users\\Nurbek Bereketuly\\Desktop\\Projects\\Tender\\src\\lib\\security\\public-api-guard.ts:41:42\n\n  38 let createdRecord: StoredApiKey;\n  39 \n  40 try {\n→ 41   const dbRecord = await prisma.apiKey.create(\nForeign key constraint violated: `ApiKey_userId_fkey (index)`\n  ✅ API key issued successfully (Prefix: tnd_ai_9bec2d1..., Raw length: 39)!\n  ✅ validatePublicApiKey correctly authorized issued key!\nprisma:error \nInvalid `prisma.apiKey.update()` invocation in\nC:\\Users\\Nurbek Bereketuly\\Desktop\\Projects\\Tender\\src\\lib\\security\\public-api-guard.ts:240:21\n\n  237 \n  238 if (prisma && prisma.apiKey) {\n  239   try {\n→ 240     prisma.apiKey.update(\nAn operation failed because it depends on one or more records that were required but not found. Record to update not found.\nprisma:error \nInvalid `prisma.apiKey.update()` invocation in\nC:\\Users\\Nurbek Bereketuly\\Desktop\\Projects\\Tender\\src\\lib\\security\\public-api-guard.ts:240:21\n\n  237 \n  238 if (prisma && prisma.apiKey) {\n  239   try {\n→ 240     prisma.apiKey.update(\nAn operation failed because it depends on one or more records that were required but not found. Record to update not found.\n  ✅ GET /api/public/v1/tenders responded HTTP 200 OK (5 tenders returned)!\nprisma:error \nInvalid `prisma.apiKey.update()` invocation in\nC:\\Users\\Nurbek Bereketuly\\Desktop\\Projects\\Tender\\src\\lib\\security\\public-api-guard.ts:240:21\n\n  237 \n  238 if (prisma && prisma.apiKey) {\n  239   try {\n→ 240     prisma.apiKey.update(\nAn operation failed because it depends on one or more records that were required but not found. Record to update not found.\n  ✅ GET /api/public/v1/tenders/t-101 responded HTTP 200 OK with tender details!\nprisma:error \nInvalid `prisma.apiKey.update()` invocation in\nC:\\Users\\Nurbek Bereketuly\\Desktop\\Projects\\Tender\\src\\lib\\security\\public-api-guard.ts:240:21\n\n  237 \n  238 if (prisma && prisma.apiKey) {\n  239   try {\n→ 240     prisma.apiKey.update(\nAn operation failed because it depends on one or more records that were required but not found. Record to update not found.\n  ✅ GET /api/public/v1/kanban responded HTTP 200 OK (3 cards)!\nprisma:error \nInvalid `prisma.apiKey.update()` invocation in\nC:\\Users\\Nurbek Bereketuly\\Desktop\\Projects\\Tender\\src\\lib\\security\\public-api-guard.ts:240:21\n\n  237 \n  238 if (prisma && prisma.apiKey) {\n  239   try {\n→ 240     prisma.apiKey.update(\nAn operation failed because it depends on one or more records that were required but not found. Record to update not found.\nprisma:error \nInvalid `prisma.kanbanCard.upsert()` invocation in\nC:\\Users\\Nurbek Bereketuly\\Desktop\\Projects\\Tender\\src\\app\\api\\public\\v1\\kanban\\route.ts:103:43\n\n  100     include: { tender: true }\n  101   });\n  102 } else {\n→ 103   savedCard = await prisma.kanbanCard.upsert(\nForeign key constraint violated: `KanbanCard_userId_fkey (index)`\n  ✅ POST /api/public/v1/kanban responded HTTP 200 OK (Card stage updated to SUBMITTED)!\n\n▶ 3. Testing Revoked Key Enforcement (revokedAt !== null)...\n  ✅ Revoked API key immediately returns HTTP 401 Unauthorized!\n\n▶ 4. Testing Downgrade Security Enforcement (Enterprise -> PRO)...\nprisma:error \nInvalid `prisma.apiKey.create()` invocation in\nC:\\Users\\Nurbek Bereketuly\\Desktop\\Projects\\Tender\\src\\lib\\security\\public-api-guard.ts:41:42\n\n  38 let createdRecord: StoredApiKey;\n  39 \n  40 try {\n→ 41   const dbRecord = await prisma.apiKey.create(\nForeign key constraint violated: `ApiKey_userId_fkey (index)`\n  ✅ Downgraded account (Enterprise -> PRO) key correctly rejected with HTTP 401 Unauthorized!\n\n🎉 Enterprise Public REST API v1 & API Key Management Test Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "rbac-security.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.15",
+    "stdout": "🧪 [Test Suite] Testing RBAC Security, Impersonation Prevention & Production Availability (Bugs #12, #13, #14, #15, #16)...\n  ✅ Non-admin token requesting ADMIN role rejected with HTTP 403 Forbidden (Bug #12)\n  ✅ Unverified client x-user-id header impersonation attempt blocked (Bug #13)\n  ✅ Fake admin- token prefix fallback bypass blocked when ADMIN_API_KEY is not set (Bug #15)\n  ✅ Production user routes without token/session return 401 when ALLOW_DEMO_AUTH is disabled\n  ✅ With ALLOW_DEMO_AUTH=true, demo-user-id fallback operates as expected\n  ✅ Production ADMIN routes strictly enforce HTTP 401 Unauthorized when token is missing (Bug #16)\n🎉 RBAC Security & Multi-Tenant Impersonation Test Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "reputation-check.test.js",
+    "status": "FAIL",
+    "exitCode": 1,
+    "signal": null,
+    "duration": "0.76",
+    "stdout": "🧪 [Test Suite] Testing Customer/Supplier Reputation Check & Goszakup RNU Integration (Phase 1)...\n\n▶ 1. Testing 12-digit BIN/IIN Format Validation...\n  ✅ BIN format validation works correctly!\n\n▶ 2. Testing Active vs Historical (Expired) Ban Evaluation (Criteria #2)...\n  ✅ Expired ban correctly ignored (isBlacklisted = false)!\n  ✅ Active & indefinite bans correctly detected (isBlacklisted = true)!\n\n▶ 3. Testing 24h Caching & Fallback Behavior (Criteria #3 & #4)...\n",
+    "stderr": "💥 Test failed: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ '2026-08-24T06:03:35.590Z'\n- '2026-08-24T06:03:35.556Z'\n                        ^\n\n    at runTests (C:\\Users\\Nurbek Bereketuly\\Desktop\\Projects\\Tender\\scripts\\tests\\reputation-check.test.js:52:10) {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: '2026-08-24T06:03:35.590Z',\n  expected: '2026-08-24T06:03:35.556Z',\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n"
+  },
+  {
+    "file": "review-defects-fixes.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.79",
+    "stdout": "🧪 [Test Suite] Testing Code Review Defect Fixes (Price-Benchmark Auth & Reputation Demo-Fallback)...\n\n▶ 1. Testing GET /api/tenders/[id]/price-benchmark Authorization Guard...\n  ✅ Unauthenticated request correctly rejected with HTTP 401 Unauthorized!\n  ✅ Authenticated request returned HTTP 200 OK with benchmark statistics!\n\n▶ 2. Testing Reputation Service Demo Fallback Flag (Unconfigured Token)...\n  ✅ Unconfigured GOSZAKUP_API_TOKEN correctly returns isFallback: true & source: DEMO_FALLBACK!\n\n▶ 3. Testing Reputation Service Network Error Fallback Flag...\n  ✅ Network error correctly sets isFallback: true, status: UNKNOWN, & source: NETWORK_ERROR_FALLBACK!\n\n🎉 All Code Review Defect Fix Tests Passed Successfully!\n",
+    "stderr": "[ReputationService] Ошибка сети при запросе OWS API (https://ows.goszakup.gov.kz/v3/rnu/bin/880101300888): Connection refused (ETIMEDOUT ows.goszakup.gov.kz)\n[ReputationService] Внешняя проверка РНУ завершилась ошибкой: Ошибка сети OWS API: Connection refused (ETIMEDOUT ows.goszakup.gov.kz)\n"
+  },
+  {
+    "file": "roadmap-phase-1.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.08",
+    "stdout": "🧪 Running Roadmap Phase 1 (Organization Data Model & Gemini API Cost Control) Tests...\n\n  1. Testing AIService.computeContentHash...\n     ✅ Content hash deduplication verified: 4b5f8c3bc2cacad6...\n  2. Testing AIService.isWithinDailyCostLimit...\n     ✅ Daily spending limit logic ($5.0/day) correctly triggers circuit breaker when threshold is reached\n  3. Testing Organization Member Role Hierarchy...\n     ✅ OrganizationMember roles (OWNER, ADMIN, MEMBER) verified\n  4. Testing AIService.generateLLMSummary content hash deduplication...\n     ✅ Content hash deduplication correctly returns cached summary when content was previously analyzed\n\n🎉 All Roadmap Phase 1 Tests passed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "roadmap-phase-2.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.13",
+    "stdout": "🧪 Running Roadmap Phase 2 (Ingestion Failure Alerting & DataSource Health) Tests...\n\n  1. Testing DataSource Health Status Transitions...\n     ✅ Health status transitions (HEALTHY -> WARNING -> FAILED) verified\n  2. Testing Scraper Silent Hours Heartbeat Check...\n  3. Testing IngestionHealthService methods existence...\n     ✅ IngestionHealthService recordSuccess, recordError, checkHeartbeats, getHealthSummary verified\n\n🎉 All Roadmap Phase 2 Tests passed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "roadmap-phase-3-audit-fixes.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.34",
+    "stdout": "🧪 Starting Roadmap Phase 3 Audit Findings Verification Tests...\n\n  1️⃣ Testing Finding 1 (IDOR via companyProfile resolution)...\n     ✅ GET /api/security-instruments returned 404 for profile-less user (no IDOR leak)\n     ✅ POST /api/security-instruments returned 404 for profile-less user\n     ✅ POST /api/tenders/[id]/documents/generate returned 404 for profile-less user\n\n  2️⃣ Testing Finding 2 (Management Report RBAC bypass fix)...\n     ✅ Unauthenticated/demo request returned 403 Forbidden for management report\n     ✅ Regular MEMBER request returned 403 Forbidden\n     ✅ Admin request returned 200 OK with report data\n\n  3️⃣ Testing Finding 3 (check-security-expiry cron secret protection)...\n     ✅ Cron request without X-Cron-Secret returned 401 Unauthorized\n     ✅ Cron request with valid X-Cron-Secret returned 200 OK\n\n  4️⃣ Testing Finding 4 (Centralized penalty rate constant)...\n     ✅ DEFAULT_PENALTY_RATE_PER_DAY verified as 0.001\n\n  5️⃣ Testing Finding 5 (Document download auth & ownership guard)...\n     ✅ Downloading document belonging to another user returned 403 Forbidden\n     ✅ Legitimate owner document download returned 200 OK\n\n🎉 Roadmap Phase 3 Audit Findings Verification Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "roadmap-phase-3-frontend-fixes.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.20",
+    "stdout": "🧪 Starting Roadmap Phase 3 Frontend Audit Findings Verification Tests...\n\n  1️⃣ Testing Finding 1 (Kanban Checklist Progress Confirmation)...\n     ✅ KanbanBoard.tsx implements soft confirmation guard for SUBMITTED stage\n\n  2️⃣ Testing Finding 2 (PriceBenchmarkWidget isReliable Guard)...\n     ✅ PriceBenchmarkWidget hides median discount line when sample size is small (!isReliable)\n\n  3️⃣ Testing Finding 3 (SecurityRegistryModal Error State & Banner)...\n     ✅ SecurityRegistryModal correctly sets error state and renders error banner\n\n  4️⃣ Testing Finding 4 (Kanban API Batch Requirements Stats - N+1 Fix)...\n     ✅ GET /api/kanban returns batch requirementsStats (total: 2, completed: 1) in a single DB query\n\n🎉 Roadmap Phase 3 Frontend Audit Findings Verification Suite completed successfully!\n\n",
+    "stderr": ""
+  },
+  {
+    "file": "roadmap-phase-3.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.20",
+    "stdout": "🧪 Starting Phase 3 Operational Modules Unit & Integration Tests...\n  1️⃣ Testing Document Generator Placeholder Resolver...\n  ✅ Module 1 Placeholder Resolver Passed!\n  1️⃣.2 Testing DOCX Binary Buffer Generation...\n  ✅ Module 1 DOCX Binary Generation Passed!\n  2️⃣ Testing Requirements Checklist Progress Calculation...\n  ✅ Module 2 Checklist Progress & Deletion Constraints Passed!\n  3️⃣ Testing Security Instruments Summary Metrics...\n  ✅ Module 3 Security Instruments Metrics Passed!\n  4️⃣ Testing Post-Contract Execution Delay Penalty...\n  ✅ Module 4 Delay Penalty Calculation Passed!\n  5️⃣ Testing Price Benchmark Statistics & Sample Size Warning...\n  ✅ Module 5 Price Benchmark Statistics Passed!\n  6️⃣ Testing Management Executive Report Aggregation...\n  ✅ Module 6 Executive Management Report Aggregation Passed!\n\n🎉 All Phase 3 Operational Modules Unit & Integration Tests Passed Successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "source-label.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.15",
+    "stdout": "🧪 [Test Suite] Testing UI Source Label Helper (Bug #4)...\n  ✅ getSourceLabel returns exact displayName for SCRAPER:<id> sources\n  ✅ getShortSourceBadge generates short badges dynamically for Kanban cards\n🎉 Source Label Test Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "ssrf.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.09",
+    "stdout": "🧪 [Test Suite] Testing SSRF Protection Filter...\n  ✅ Public HTTPS URL allowed\n  ✅ Cloud Metadata IP 169.254.169.254 blocked\n  ✅ Localhost URL blocked\n  ✅ Docker container host db:5432 blocked\n",
+    "stderr": ""
+  },
+  {
+    "file": "submitted-tender-results.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.29",
+    "stdout": "🧪 Starting Submitted Tender Results Tracking Test Suite...\n\n1️⃣ Testing GoszakupApiAdapter.fetchBuyResult...\n   ✅ fetchBuyResult returns finished status for WON tender\n   ✅ fetchBuyResult returns finished status for LOST tender\n   ✅ fetchBuyResult returns isFinished = false for PENDING tender\n\n2️⃣ Testing Cron Route Security & Execution (/api/cron/check-submitted-tender-results)...\n   ✅ Missing CRON_SECRET returns HTTP 500 Server misconfiguration\n   ✅ Invalid X-Cron-Secret header returns HTTP 401 Unauthorized\n   ✅ Valid X-Cron-Secret header returns HTTP 200 OK and executes cron job\n\n3️⃣ Testing vercel.json Registration...\n   ✅ vercel.json contains /api/cron/check-submitted-tender-results with schedule \"0 6,18 * * *\"\n\n4️⃣ Testing Unresolved Profile Skipping (No Fallback BIN)...\n   ✅ Card with unresolvable company profile is safely skipped as pending\n\n🎉 Submitted Tender Results Tracking Test Suite completed successfully!\n",
+    "stderr": "[Cron] CRON_SECRET is not configured\n[Cron check-submitted-tender-results] Cannot resolve company profile for card test-card-no-profile, skipping\n"
+  },
+  {
+    "file": "subscription-header-bypass.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.19",
+    "stdout": "🧪 [Security Test Suite] Testing X-User-Plan Header Bypass Vulnerability (Hotfix)...\n\n▶ 1. Testing Production Mode (NODE_ENV = \"production\")...\n  ✅ Export access correctly blocked (403 Forbidden) despite X-User-Plan: ENTERPRISE header in production!\n  ✅ Reputation check access correctly blocked (403 Forbidden) despite X-User-Plan: ENTERPRISE header in production!\n\n▶ 2. Testing Non-Production with ALLOW_DEMO_AUTH disabled...\n  ✅ X-User-Plan header ignored when ALLOW_DEMO_AUTH is disabled!\n\n▶ 3. Testing Non-Production with ALLOW_DEMO_AUTH = \"true\" (Demo/Dev mode)...\n  ✅ X-User-Plan header override works in demo mode when explicitly enabled!\n  ✅ Reputation check header override works in demo mode when explicitly enabled!\n\n▶ 4. Testing Admin & Database Role Validation in Production...\n  ✅ Admin user successfully authorized for export in production!\n  ✅ Admin user successfully authorized for reputation check in production!\n\n🎉 Security Test Suite for Subscription Header Bypass Completed Successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "telegram-privacy.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.13",
+    "stdout": "🧪 [Test Suite] Testing Telegram Bot Multi-Tenant Privacy & Singleton Connection Pool (Bugs #5 & #6)...\n  ✅ Bug #6: bot.service.ts uses singleton prisma import instead of new PrismaClient()\n  ✅ Bug #5: Unlinked chat receives warning prompt and zero leaked company profile data\n  ✅ Bug #5: Multi-tenant profiles are strictly isolated per chatId\n🎉 Telegram Privacy & Connection Pool Test Suite completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "tender-calculation-v1-1.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.13",
+    "stdout": "🧪 Running Tender Calculation v1.1 Audit Findings Tests...\n\n  1. Testing RiskScoringStatus (NOT_SCORED / DEFAULT_ADAPTER vs AI_SCORED)...\n     ✅ DEFAULT_ADAPTER status correctly yields riskAdjustedMarginPct = null (UI shows \"Не рассчитано\")\n     ✅ AI_SCORED status correctly computes riskAdjustedMarginPct = 14.64%\n     ✅ NOT_SCORED status correctly yields riskAdjustedMarginPct = null\n  2. Testing TenderAuditTrail Payload Structure...\n     ✅ TenderAuditTrail payload structure verified with real user email\n  3. Testing Tariff Calculation Limit Check Logic...\n     ✅ Subscription tariff limit logic correctly enforces FREE (3) and PRO (50) boundaries\n\n🎉 All Tender Calculation v1.1 Audit Findings Tests passed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "tender-calculation.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.13",
+    "stdout": "🧪 Running Tender Calculation Unit & Logic Tests...\n  1. Testing Money Rounding Precision...\n  2. Testing Calculation Engine Formulas...\n     Computed Risk-Adjusted Margin: 14.69% (Target: 15%)\n  3. Testing Loss-Making Scenario (biddingRoomAmount < 0)...\n  4. Testing Null Risk State Handling when riskScoringStatus is NOT_SCORED...\n✅ All Tender Calculation unit & logic tests passed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "tender-change-notifications.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.16",
+    "stdout": "🧪 Starting Tender Change Notifications Integration Test Suite...\n\n1️⃣ Setting up mock records for tender changes test...\n2️⃣ Testing ChangeNotificationService.notifyInterestedCompanies...\n   ✅ Service executed cleanly (notificationsSent: 0, deadlineUpdated: true)\n\n3️⃣ Verifying Organization profile notificationSetting resolution code...\n   ✅ change-notification.service.ts includes notificationSetting resolution for organization profiles\n\n🎉 All Tender Change Notifications tests completed successfully!\n",
+    "stderr": ""
+  },
+  {
+    "file": "transforms.test.js",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "duration": "0.08",
+    "stdout": "🧪 [Test Suite] Testing TransformRegistry...\n  ✅ trim: extra whitespace removed\n  ✅ stripHtml: tags stripped\n  ✅ parseAmountKzt: 12 400 000 ₸ -> 12400000\n  ✅ parseAmountKzt: 12,4 млн -> 12400000\n  ✅ parseAmountKzt: 1.5 млрд -> 1500000000\n  ✅ parseDateRu: 25 июля 2026 -> ISO format\n  ✅ regexExtract: extracts pattern\n  ✅ regexExtract: ReDoS dangerous pattern blocked safely\n",
+    "stderr": "[ReDoS Guard] Заблокировано регулярное выражение с риском бэктрекинга: (a+)+$\n"
+  }
+]
