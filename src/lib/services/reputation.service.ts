@@ -59,7 +59,11 @@ export class ReputationService {
       });
     } catch {
       // Fallback to memory cache if DB transiently unavailable
-      cachedRecord = memoryReputationCache.get(cacheKey);
+    }
+
+    const memCached = memoryReputationCache.get(cacheKey);
+    if (!cachedRecord || (new Date(cachedRecord.expiresAt) <= now && memCached && new Date(memCached.expiresAt) > now)) {
+      cachedRecord = memCached;
     }
 
     // Return fresh cache if not expired
@@ -251,7 +255,7 @@ export class ReputationService {
       };
     }
 
-    const url = `https://ows.goszakup.gov.kz/v3/rnu/bin/${encodeURIComponent(bin)}`;
+    const url = `https://ows.goszakup.gov.kz/v3/rnu/${encodeURIComponent(bin)}`;
     
     let response: Response;
     try {
@@ -264,6 +268,16 @@ export class ReputationService {
     } catch (netErr: any) {
       console.error(`[ReputationService] Ошибка сети при запросе OWS API (${url}):`, netErr?.message || netErr);
       throw new Error(`Ошибка сети OWS API: ${netErr?.message || 'Network failure'}`);
+    }
+
+    // According to Goszakup OWS API docs, HTTP 404 indicates supplier is not found in the RNU registry
+    if (response.status === 404) {
+      return {
+        isBlacklisted: false,
+        status: 'CLEAN',
+        source: 'Goszakup RNU (РНУ ГЗ)',
+        raw: null
+      };
     }
 
     if (!response.ok) {
@@ -279,7 +293,15 @@ export class ReputationService {
       throw new Error(`Некорректный JSON от OWS API: ${parseErr?.message}`);
     }
 
-    const items = Array.isArray(json) ? json : json?.items || json?.data || [];
+    const items = Array.isArray(json)
+      ? json
+      : Array.isArray(json?.items)
+      ? json.items
+      : Array.isArray(json?.data)
+      ? json.data
+      : (json && typeof json === 'object' && (json.id || json.rnu_id || json.bin || json.nameRu || json.name_ru))
+      ? [json]
+      : [];
 
     if (items.length > 0) {
       const activeRecord = items.find((rec: any) => {
@@ -294,10 +316,11 @@ export class ReputationService {
         return {
           isBlacklisted: true,
           registryRecordId: String(activeRecord.id || activeRecord.rnu_id || `RNU-${bin}`),
-          reason: activeRecord.reason || activeRecord.description || 'Включен в Реестр недобросовестных участников Госзакупок РК',
+          reason: activeRecord.reason || activeRecord.description || activeRecord.nameRu || 'Включен в Реестр недобросовестных участников Госзакупок РК',
           banStartDate: startDateStr ? new Date(startDateStr) : undefined,
           banEndDate: endDateStr ? new Date(endDateStr) : undefined,
           status: 'BLACKLISTED',
+          source: 'Goszakup RNU (РНУ ГЗ)',
           raw: json
         };
       }
@@ -306,6 +329,7 @@ export class ReputationService {
     return {
       isBlacklisted: false,
       status: 'CLEAN',
+      source: 'Goszakup RNU (РНУ ГЗ)',
       raw: json
     };
   }

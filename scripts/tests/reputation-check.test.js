@@ -128,22 +128,80 @@ async function runTests() {
   console.log('  ✅ README.md explicitly documents Phase 1 РНУ ГЗ coverage and Phase 2 backlog!');
 
   // Test 7: External API Error Handling (Defect #2 Fix)
-  console.log('\n▶ 7. Testing External API Error Handling (Defect #2 Fix)...');
+  console.log('\n▶ 7. Testing External API Error Handling (HTTP 500 / Network Failure)...');
   const errorBin = '888888888888';
   const originalFetchRnu = ReputationService['fetchGoszakupRnuApi'];
   ReputationService['fetchGoszakupRnuApi'] = async () => {
-    throw new Error('OWS API HTTP 404: Not Found');
+    throw new Error('OWS API HTTP 500: Internal Server Error');
   };
 
   const errResult = await ReputationService.checkBin(errorBin, 'SUPPLIER');
-  assert.strictEqual(errResult.status, 'UNKNOWN', 'API error must return status = UNKNOWN');
+  assert.strictEqual(errResult.status, 'UNKNOWN', 'API 500 error must return status = UNKNOWN');
   assert.strictEqual(errResult.isBlacklisted, false);
   assert.strictEqual(errResult.stale, true);
-  assert.notStrictEqual(errResult.status, 'CLEAN', 'API error MUST NOT return status = CLEAN');
-  console.log('  ✅ External API HTTP 404/500 errors correctly return status = UNKNOWN/stale (never CLEAN)!');
+  assert.notStrictEqual(errResult.status, 'CLEAN', 'API 500 error MUST NOT return status = CLEAN');
+  console.log('  ✅ External API HTTP 500 errors correctly return status = UNKNOWN/stale (never CLEAN)!');
 
   // Restore original fetch method
   ReputationService['fetchGoszakupRnuApi'] = originalFetchRnu;
+
+  // Test 8: Verify RNU 404 Response Handling & URL format
+  console.log('\n▶ 8. Testing Goszakup RNU API URL & 404 Not Found Handling...');
+  const origFetch = global.fetch;
+  let interceptedUrl = '';
+  let interceptedHeaders = {};
+
+  try {
+    process.env.GOSZAKUP_API_TOKEN = 'test-token-valid-123';
+    
+    // 8a. Test 404 Not Found returns status CLEAN (not in RNU)
+    global.fetch = async (url, opts) => {
+      interceptedUrl = String(url);
+      interceptedHeaders = opts?.headers || {};
+      return {
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+        json: async () => ({ message: 'Запись не найдена' })
+      };
+    };
+
+    const rnu404Result = await ReputationService['fetchGoszakupRnuApi']('123456789012');
+    assert.strictEqual(interceptedUrl, 'https://ows.goszakup.gov.kz/v3/rnu/123456789012', 'RNU URL must NOT have /bin/ segment');
+    assert.strictEqual(rnu404Result.status, 'CLEAN', 'HTTP 404 from RNU endpoint must result in CLEAN status');
+    assert.strictEqual(rnu404Result.isBlacklisted, false, 'HTTP 404 from RNU endpoint must mean not blacklisted');
+    assert.strictEqual(rnu404Result.isFallback, undefined);
+    console.log('  ✅ Goszakup RNU URL format and 404 Not Found (CLEAN) handling verified successfully!');
+
+    // 8b. Test 200 OK with active blacklist record
+    global.fetch = async (url, opts) => {
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ([
+          {
+            id: 9991,
+            bin: '123456789012',
+            nameRu: 'ТОО Недобросовестный Поставщик',
+            reason: 'Уклонение от заключения договора',
+            startDate: '2026-01-01',
+            endDate: '2027-01-01'
+          }
+        ])
+      };
+    };
+
+    const rnuBlacklistResult = await ReputationService['fetchGoszakupRnuApi']('123456789012');
+    assert.strictEqual(rnuBlacklistResult.status, 'BLACKLISTED');
+    assert.strictEqual(rnuBlacklistResult.isBlacklisted, true);
+    assert.strictEqual(rnuBlacklistResult.registryRecordId, '9991');
+    console.log('  ✅ Goszakup RNU 200 OK blacklisted record verified successfully!');
+
+  } finally {
+    global.fetch = origFetch;
+    delete process.env.GOSZAKUP_API_TOKEN;
+  }
 
   console.log('\n🎉 Customer/Supplier Reputation Check & Goszakup RNU Test Suite completed successfully!');
 }

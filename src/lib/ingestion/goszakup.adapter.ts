@@ -32,7 +32,7 @@ export class GoszakupApiAdapter extends BaseTenderAdapter {
           }
         `;
 
-        const res = await fetch('https://graphql.goszakup.gov.kz/v3/graphql', {
+        const res = await fetch('https://ows.goszakup.gov.kz/v3/graphql', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -185,7 +185,7 @@ export class GoszakupApiAdapter extends BaseTenderAdapter {
           }
         `;
 
-        const res = await fetch('https://graphql.goszakup.gov.kz/v3/graphql', {
+        const res = await fetch('https://ows.goszakup.gov.kz/v3/graphql', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
