@@ -10,6 +10,30 @@ jobs:
   ci-guard-and-tests:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tender_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -23,8 +47,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Apply Database Schema
+        run: npx prisma db push --accept-data-loss
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tender_db?schema=public
+
       - name: Check Client Component Secrets & Prisma Isolation
         run: npm run check:client-secrets
 
       - name: Run Automated Test Suite
         run: npm test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tender_db?schema=public
+          REDIS_URL: redis://localhost:6379
+          ALLOW_DEMO_AUTH: 'true'
+          CRON_SECRET: 'ci-test-cron-secret-123'
+          JWT_SECRET: 'ci-test-jwt-secret-123'

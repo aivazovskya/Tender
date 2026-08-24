@@ -167,22 +167,32 @@ async function runTests() {
   // 4️⃣ Test Cron Endpoint & Telegram Notifications Security
   // -------------------------------------------------------------
   console.log('\n  4️⃣ Testing Cron Endpoint & Telegram Notifications Security...');
+  const origCronSecret = process.env.CRON_SECRET;
+  process.env.CRON_SECRET = 'test-cron-secret-key-123';
 
-  // Unauthenticated cron call -> 401
-  const unauthCronReq = createMockReq('http://localhost/api/cron/check-upcoming-deadlines');
-  const unauthCronRes = await cronCheckDeadlines(unauthCronReq);
-  assert.strictEqual(unauthCronRes.status, 401, 'Cron without X-Cron-Secret must return 401');
-  console.log('     ✅ Cron endpoint returns 401 without X-Cron-Secret');
+  try {
+    // Unauthenticated cron call -> 401
+    const unauthCronReq = createMockReq('http://localhost/api/cron/check-upcoming-deadlines');
+    const unauthCronRes = await cronCheckDeadlines(unauthCronReq);
+    assert.strictEqual(unauthCronRes.status, 401, 'Cron without X-Cron-Secret must return 401');
+    console.log('     ✅ Cron endpoint returns 401 without X-Cron-Secret');
 
-  // Authorized cron call -> 200
-  const authCronReq = createMockReq('http://localhost/api/cron/check-upcoming-deadlines', {
-    headers: { 'x-cron-secret': process.env.CRON_SECRET || 'tender-cron-secret-key' }
-  });
-  const authCronRes = await cronCheckDeadlines(authCronReq);
-  assert.strictEqual(authCronRes.status, 200);
-  const cronData = await authCronRes.json();
-  assert.strictEqual(cronData.success, true);
-  console.log('     ✅ Cron endpoint with valid X-Cron-Secret returned 200 OK');
+    // Authorized cron call -> 200
+    const authCronReq = createMockReq('http://localhost/api/cron/check-upcoming-deadlines', {
+      headers: { 'x-cron-secret': 'test-cron-secret-key-123' }
+    });
+    const authCronRes = await cronCheckDeadlines(authCronReq);
+    assert.strictEqual(authCronRes.status, 200);
+    const cronData = await authCronRes.json();
+    assert.strictEqual(cronData.success, true);
+    console.log('     ✅ Cron endpoint with valid X-Cron-Secret returned 200 OK');
+  } finally {
+    if (origCronSecret !== undefined) {
+      process.env.CRON_SECRET = origCronSecret;
+    } else {
+      delete process.env.CRON_SECRET;
+    }
+  }
 
   console.log('\n🎉 ALL DEADLINE TRACKER TESTS PASSED PERFECTLY!\n');
 }

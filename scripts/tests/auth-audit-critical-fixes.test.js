@@ -8,6 +8,7 @@ const { GET: getMetrics } = require('../../src/app/api/admin/metrics/route');
 const { POST: registerHandler } = require('../../src/app/api/auth/register/route');
 const { POST: loginHandler } = require('../../src/app/api/auth/login/route');
 const { validateApiAuth } = require('../../src/lib/security/auth');
+const { prisma } = require('../../src/lib/prisma');
 
 console.log('🧪 Starting Auth Audit Critical Fixes Test Suite...\n');
 
@@ -149,23 +150,34 @@ async function runTests() {
     // Disable AUTH_STORE_MODE memory override to test DB connection failure handling when Postgres is down
     delete process.env.AUTH_STORE_MODE;
 
-    const dbFailRegReq = createMockReq('http://localhost/api/auth/register', {
-      body: { email: `db_fail_${Date.now()}@tender.ai`, password: testPassword }
-    });
-    const dbFailRegRes = await registerHandler(dbFailRegReq);
-    assert.strictEqual(dbFailRegRes.status, 503, 'Register route must return 503 Service Unavailable when DB fails without memory mode');
-    const dbFailRegData = await dbFailRegRes.json();
-    assert.strictEqual(dbFailRegData.message, 'Сервис авторизации временно недоступен. Попробуйте позже.');
-    console.log('     ✅ POST /api/auth/register returned 503 Service Unavailable on DB error');
+    const origFindUnique = prisma.user.findUnique;
+    const origCreate = prisma.user.create;
 
-    const dbFailLoginReq = createMockReq('http://localhost/api/auth/login', {
-      body: { email: `db_fail_${Date.now()}@tender.ai`, password: testPassword }
-    });
-    const dbFailLoginRes = await loginHandler(dbFailLoginReq);
-    assert.strictEqual(dbFailLoginRes.status, 503, 'Login route must return 503 Service Unavailable when DB fails without memory mode');
-    const dbFailLoginData = await dbFailLoginRes.json();
-    assert.strictEqual(dbFailLoginData.message, 'Сервис авторизации временно недоступен. Попробуйте позже.');
-    console.log('     ✅ POST /api/auth/login returned 503 Service Unavailable on DB error');
+    try {
+      prisma.user.findUnique = async () => { throw new Error('Database connection refused'); };
+      prisma.user.create = async () => { throw new Error('Database connection refused'); };
+
+      const dbFailRegReq = createMockReq('http://localhost/api/auth/register', {
+        body: { email: `db_fail_${Date.now()}@tender.ai`, password: testPassword }
+      });
+      const dbFailRegRes = await registerHandler(dbFailRegReq);
+      assert.strictEqual(dbFailRegRes.status, 503, 'Register route must return 503 Service Unavailable when DB fails without memory mode');
+      const dbFailRegData = await dbFailRegRes.json();
+      assert.strictEqual(dbFailRegData.message, 'Сервис авторизации временно недоступен. Попробуйте позже.');
+      console.log('     ✅ POST /api/auth/register returned 503 Service Unavailable on DB error');
+
+      const dbFailLoginReq = createMockReq('http://localhost/api/auth/login', {
+        body: { email: `db_fail_${Date.now()}@tender.ai`, password: testPassword }
+      });
+      const dbFailLoginRes = await loginHandler(dbFailLoginReq);
+      assert.strictEqual(dbFailLoginRes.status, 503, 'Login route must return 503 Service Unavailable when DB fails without memory mode');
+      const dbFailLoginData = await dbFailLoginRes.json();
+      assert.strictEqual(dbFailLoginData.message, 'Сервис авторизации временно недоступен. Попробуйте позже.');
+      console.log('     ✅ POST /api/auth/login returned 503 Service Unavailable on DB error');
+    } finally {
+      prisma.user.findUnique = origFindUnique;
+      prisma.user.create = origCreate;
+    }
 
     console.log('\n🎉 ALL AUTH AUDIT CRITICAL FIXES TESTS PASSED SUCCESSFULLY!\n');
   } finally {

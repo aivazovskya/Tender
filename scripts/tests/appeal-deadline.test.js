@@ -1,6 +1,7 @@
 require('tsx/cjs');
 const assert = require('assert');
-const { DeadlineService } = require('../../src/lib/services/deadline.service');
+const { DeadlineService, addWorkingDays } = require('../../src/lib/services/deadline.service');
+const { prisma } = require('../../src/lib/prisma');
 const { GET: checkSubmittedResultsGET } = require('../../src/app/api/cron/check-submitted-tender-results/route');
 process.env.AUTH_STORE_MODE = 'memory';
 
@@ -21,8 +22,8 @@ async function testAutoCreateAppealDeadlineUnit() {
   assert.strictEqual(deadline.type, 'APPEAL_DEADLINE');
   assert.strictEqual(deadline.title, 'Срок подачи жалобы на результаты закупки');
 
-  const expectedDueAtMs = resultDate.getTime() + 10 * 24 * 3600 * 1000;
-  assert.strictEqual(Math.floor(new Date(deadline.dueAt).getTime() / 1000), Math.floor(expectedDueAtMs / 1000));
+  const expectedDueAt = addWorkingDays(resultDate, 10);
+  assert.strictEqual(Math.floor(new Date(deadline.dueAt).getTime() / 1000), Math.floor(expectedDueAt.getTime() / 1000));
   console.log('   ✅ autoCreateAppealDeadline correctly computes dueAt with configured APPEAL_WINDOW_DAYS');
 
   // 2. Idempotency test -> returns existing deadline

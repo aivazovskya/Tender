@@ -1,50 +1,18 @@
-const { execSync } = require('child_process');
+const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
-const tests = [
-  'scripts/tests/transforms.test.js',
-  'scripts/tests/kaspi-webhook.test.js',
-  'scripts/tests/ssrf.test.js',
-  'scripts/tests/ingestion-idempotency.test.js',
-  'scripts/tests/ingestion-bugs.test.js',
-  'scripts/tests/source-label.test.js',
-  'scripts/tests/telegram-privacy.test.js',
-  'scripts/tests/kaspi-security.test.js',
-  'scripts/tests/bot-payload.test.js',
-  'scripts/tests/kanban-sync.test.js',
-  'scripts/tests/rbac-security.test.js',
-  'scripts/tests/bot-spec-command.test.js',
-  'scripts/tests/document-extraction.test.js',
-  'scripts/tests/ingestion-unification.test.js',
-  'scripts/tests/ingestion-bugs-v5.test.js',
-  'scripts/tests/product-features.test.js',
-  'scripts/tests/client-secrets-guard.test.js',
-  'scripts/tests/i18n.test.js',
-  'scripts/tests/kanban-card-details.test.js',
-  'scripts/tests/adapter-registry.test.js',
-  'scripts/tests/check-matches.test.js',
-  'scripts/tests/export-reports.test.js',
-  'scripts/tests/public-api-keys.test.js',
-  'scripts/tests/reputation-check.test.js',
-  'scripts/tests/competition-estimate.test.js',
-  'scripts/tests/tender-calculation.test.js',
-  'scripts/tests/tender-calculation-v1-1.test.js',
-  'scripts/tests/roadmap-phase-1.test.js',
-  'scripts/tests/roadmap-phase-2.test.js',
-  'scripts/tests/roadmap-phase-3.test.js',
-  'scripts/tests/roadmap-phase-3-audit-fixes.test.js',
-  'scripts/tests/roadmap-phase-3-frontend-fixes.test.js',
-  'scripts/tests/auth-model.test.js',
-  'scripts/tests/subscription-header-bypass.test.js',
-  'scripts/tests/review-defects-fixes.test.js',
-  'scripts/tests/pdf-export-font.test.js',
-  'scripts/tests/legal-deadline-and-bin-filter.test.js',
-  'scripts/tests/goszakup-api-urls.test.js'
-];
+const testsDir = path.join(process.cwd(), 'scripts/tests');
+const tests = fs.readdirSync(testsDir)
+  .filter(f => f.endsWith('.test.js'))
+  .sort()
+  .map(f => `scripts/tests/${f}`);
 
-console.log('🚀 Running TenderAI Automated Test Suite (npm test)...\n');
+console.log(`🚀 Running TenderAI Automated Test Suite (npm test) across ${tests.length} suites...\n`);
 
 let passedCount = 0;
+const failed = [];
+
 for (const testFile of tests) {
   try {
     const fullPath = path.join(process.cwd(), testFile);
@@ -53,9 +21,21 @@ for (const testFile of tests) {
     passedCount++;
     console.log('');
   } catch (err) {
-    console.error(`💥 Test failed in ${testFile}`);
-    process.exit(1);
+    console.error(`💥 Test failed in ${testFile}\n`);
+    failed.push(testFile);
   }
 }
 
-console.log(`🎉 All ${passedCount}/${tests.length} test suites executed successfully!`);
+console.log(`==================================================`);
+console.log(`📊 Test Execution Summary:`);
+console.log(`   ✅ Passed: ${passedCount}/${tests.length}`);
+if (failed.length > 0) {
+  console.log(`   ❌ Failed: ${failed.length}/${tests.length}`);
+  console.log(`   🚨 Failing suites:`);
+  failed.forEach(f => console.log(`      - ${f}`));
+  console.log(`==================================================\n`);
+  process.exit(1);
+} else {
+  console.log(`   🎉 All ${passedCount}/${tests.length} test suites executed successfully!`);
+  console.log(`==================================================\n`);
+}
