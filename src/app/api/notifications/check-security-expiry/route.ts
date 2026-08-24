@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { telegramService } from '@/lib/services/telegram.service';
+import { TelegramBotService } from '@/lib/services/telegram.service';
 import { validateApiAuth } from '@/lib/security/auth';
 
 export async function GET(request: NextRequest) {
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
       const chatId = inst.companyProfile?.telegramChatId || process.env.TELEGRAM_CHAT_ID;
       if (chatId) {
         try {
-          await telegramService.sendMessage(chatId, message);
+          await TelegramBotService.sendNotification(inst.tender as any, chatId, message);
           notificationsSent++;
         } catch (tgErr) {
           console.error(`[Security Expiry Cron] Failed to send Telegram alert to chatId ${chatId}:`, tgErr);

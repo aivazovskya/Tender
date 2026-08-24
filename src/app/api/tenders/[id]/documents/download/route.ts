@@ -58,7 +58,7 @@ export async function GET(
 
     const safeFilename = encodeURIComponent(`${genDoc.template.name}_${genDoc.tender.externalId}.docx`);
 
-    return new NextResponse(docxBuffer, {
+    return new NextResponse(new Uint8Array(docxBuffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

@@ -11,6 +11,7 @@ import {
   Layers,
   Key,
   BarChart3,
+  ShieldAlert,
   User as UserIcon,
   LogOut
 } from 'lucide-react';
