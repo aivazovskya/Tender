@@ -6,8 +6,6 @@ import {
   Trash2, 
   Copy, 
   Check, 
-  ShieldAlert, 
-  Lock, 
   Clock, 
   ExternalLink,
   Code2
@@ -30,11 +28,8 @@ interface ApiKeyModalProps {
 
 export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
   onClose,
-  userPlan = 'ENTERPRISE',
   language = 'RU'
 }) => {
-  const isEnterprise = userPlan.toUpperCase() === 'ENTERPRISE';
-
   const [keys, setKeys] = useState<StoredApiKeyData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [newLabel, setNewLabel] = useState<string>('');
@@ -119,12 +114,9 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
             <div>
               <h2 className="text-base font-extrabold text-ink tracking-tight flex items-center space-x-2">
                 <span>Управление API-ключами REST API</span>
-                <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">
-                  Enterprise
-                </span>
               </h2>
               <p className="text-xs text-mid-gray mt-0.5">
-                Ключи доступа для внешней синхронизации с 1С, CRM и ERP системами
+                Ключи доступа для внешней интеграции с 1С, CRM и корпоративными ERP системами
               </p>
             </div>
           </div>
@@ -139,19 +131,6 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
 
         {/* Content Body */}
         <div className="p-6 space-y-6 overflow-y-auto flex-1">
-
-          {/* Enterprise Upgrade Banner if non-Enterprise user */}
-          {!isEnterprise && (
-            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 text-xs space-y-2">
-              <div className="flex items-center space-x-2 font-bold">
-                <Lock className="w-4 h-4 text-amber-600" />
-                <span>Доступ к REST API ограничен тарифом Enterprise</span>
-              </div>
-              <p className="text-amber-800 leading-relaxed">
-                Доступ к публичному REST API (`/api/public/v1/...`) доступен исключительно подписчикам тарифа Enterprise (199 000 ₸/мес). Перейдите в раздел тарифов для повышения подписки.
-              </p>
-            </div>
-          )}
 
           {/* Newly Created Secret Key Alert */}
           {createdRawKey && (
@@ -188,21 +167,19 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
             </div>
           )}
 
-          {/* Create Key Button / Inline Form */}
-          {isEnterprise && (
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-mid-gray">Ваши API-ключи</h3>
-              {!isCreating && (
-                <button
-                  onClick={() => setIsCreating(true)}
-                  className="px-3.5 py-2 rounded-xl bg-ink hover:bg-ink-soft text-paper font-semibold text-xs flex items-center space-x-1.5 transition-all shadow-subtle"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Создать новый API-ключ</span>
-                </button>
-              )}
-            </div>
-          )}
+          {/* Create Key Button / Header */}
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-mid-gray">Ваши API-ключи</h3>
+            {!isCreating && (
+              <button
+                onClick={() => setIsCreating(true)}
+                className="px-3.5 py-2 rounded-xl bg-ink hover:bg-ink-soft text-paper font-semibold text-xs flex items-center space-x-1.5 transition-all shadow-subtle"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Создать новый API-ключ</span>
+              </button>
+            )}
+          </div>
 
           {/* Inline Create Form */}
           {isCreating && (
@@ -268,7 +245,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                     </div>
                   </div>
 
-                  {!k.revokedAt && isEnterprise && (
+                  {!k.revokedAt && (
                     <button
                       onClick={() => handleRevokeKey(k.id)}
                       className="p-2 rounded-xl text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all text-xs font-semibold flex items-center space-x-1"

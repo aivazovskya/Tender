@@ -35,7 +35,15 @@ export function middleware(request: NextRequest) {
   const apiKeyHeader = request.headers.get('x-api-key') || request.headers.get('X-Api-Key');
   const cronSecretHeader = request.headers.get('x-cron-secret') || request.headers.get('X-Cron-Secret');
 
-  const hasAuth = !!(sessionCookie || authHeader || apiKeyHeader || cronSecretHeader);
+  // Validate session cookie structure (must start with sess_ and have valid token length)
+  const isValidSessionCookie = !!sessionCookie && /^sess_[a-zA-Z0-9_-]{10,128}$/.test(sessionCookie);
+
+  const hasAuth = !!(
+    isValidSessionCookie ||
+    (authHeader && authHeader.trim().length > 7) ||
+    (apiKeyHeader && apiKeyHeader.trim().length > 7) ||
+    cronSecretHeader
+  );
 
   // 5. Handle unauthenticated requests
   if (!hasAuth) {

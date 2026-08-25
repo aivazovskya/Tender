@@ -40,6 +40,10 @@ export default function TenderDetailPage() {
     try {
       // 1. Fetch Tender Details
       const res = await fetch(`/api/tenders/${id}`);
+      if (res.status === 401 || res.status === 403) {
+        window.location.href = `/login?redirect=${encodeURIComponent('/tenders/' + id)}`;
+        return;
+      }
       const json = await res.json();
 
       if (json.success && json.data) {

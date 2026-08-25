@@ -38,18 +38,29 @@ export default function HomePage() {
 
   useEffect(() => {
     fetch('/api/auth/me')
-      .then(res => res.json())
+      .then(res => {
+        if (res.status === 401 || res.status === 403) {
+          window.location.href = '/login';
+          return null;
+        }
+        return res.json();
+      })
       .then(data => {
-        if (data.success && data.user) {
+        if (data && data.success && data.user) {
           setCurrentUser(data.user);
+        } else if (data) {
+          window.location.href = '/login';
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        window.location.href = '/login';
+      });
   }, []);
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     setCurrentUser(null);
+    window.location.href = '/login';
   };
   const [language, setLanguageState] = useState<'RU' | 'KK'>('RU');
 

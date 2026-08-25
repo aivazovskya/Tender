@@ -99,19 +99,18 @@ console.log('🧪 [Test Suite] Testing Enterprise Public REST API v1 & API Key M
   assert.strictEqual(revokedTendersRes.status, 401, 'Revoked key request to tenders endpoint must return 401');
   console.log('  ✅ Revoked API key immediately returns HTTP 401 Unauthorized!');
 
-  // 4. Acceptance Criteria #3: Key issued on Enterprise account that is downgraded to PRO/FREE stops working
-  console.log('\n▶ 4. Testing Downgrade Security Enforcement (Enterprise -> PRO)...');
-  const { rawKey: downgradeKey, record: downgradeRecord } = await createApiKeyForUser('user-downgraded-user', 'CRM key');
+  // 4. Testing Universal Plan Access (No Enterprise gate: PRO and FREE keys are allowed)
+  console.log('\n▶ 4. Testing Universal Plan Access (PRO and FREE keys authorized)...');
+  const { rawKey: anyPlanKey } = await createApiKeyForUser('user-standard-plan-user', 'CRM key');
 
-  // Mock downgrade check
+  // Mock profile with PRO plan
   const { prisma } = require('../../src/lib/prisma');
   const origFind = prisma.companyProfile.findFirst;
   prisma.companyProfile.findFirst = async () => ({ subscriptionPlan: 'PRO' });
 
-  const downgradedValRes = await validatePublicApiKey(mockReq(downgradeKey));
-  assert.strictEqual(downgradedValRes.authorized, false, 'Downgraded user key must be rejected');
-  assert.strictEqual(downgradedValRes.response.status, 401, 'Downgraded user key must return HTTP 401');
-  console.log('  ✅ Downgraded account (Enterprise -> PRO) key correctly rejected with HTTP 401 Unauthorized!');
+  const proPlanValRes = await validatePublicApiKey(mockReq(anyPlanKey));
+  assert.strictEqual(proPlanValRes.authorized, true, 'PRO user key must be authorized under internal access policy');
+  console.log('  ✅ PRO account API key correctly authorized without Enterprise gate!');
 
   // Restore prisma mock
   prisma.companyProfile.findFirst = origFind;

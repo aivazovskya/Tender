@@ -32,14 +32,6 @@ export async function POST(request: NextRequest) {
   }
 
   const userId = auth.userId || 'user-enterprise-default';
-  const plan = await getUserSubscriptionPlan(userId);
-
-  if (plan !== 'ENTERPRISE' && userId !== 'admin-system-user') {
-    return NextResponse.json({
-      success: false,
-      error: 'Выпуск API-ключей доступен только для пользователей на тарифе Enterprise'
-    }, { status: 403 });
-  }
 
   let body: any = {};
   try {
@@ -54,6 +46,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     rawKey: result.rawKey,
+    key: result.record,
     apiKey: result.record
   });
 }

@@ -164,7 +164,7 @@ export async function validatePublicApiKey(request: NextRequest): Promise<Public
   const genericUnauthorizedRes = {
     authorized: false,
     response: NextResponse.json(
-      { success: false, error: 'Unauthorized: Недействительный или отозванный API-ключ. Требуется подписка Enterprise.' },
+      { success: false, error: 'Unauthorized: Недействительный или отозванный API-ключ.' },
       { status: 401 }
     )
   };
@@ -226,10 +226,7 @@ export async function validatePublicApiKey(request: NextRequest): Promise<Public
     return genericUnauthorizedRes;
   }
 
-  // 4. Enforce Enterprise Tariff Plan Requirement (Downgrade Security Guard)
-  if (userPlan !== 'ENTERPRISE' && matchedKey.userId !== 'admin-system-user') {
-    return genericUnauthorizedRes;
-  }
+  // 4. API key is valid and active (Access available to all authorized users)
 
   // 5. Asynchronously update lastUsedAt (non-blocking)
   const nowIso = new Date().toISOString();

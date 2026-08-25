@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { prisma } from '../prisma';
 
 export class AuthStoreUnavailableError extends Error {
@@ -112,7 +113,7 @@ export async function createUser(data: {
 }
 
 export async function createSession(userId: string, userAgent?: string): Promise<SessionRecord> {
-  const sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const sessionId = `sess_${crypto.randomBytes(32).toString('hex')}`;
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   const record: SessionRecord = { id: sessionId, userId, expiresAt, userAgent: userAgent || null };
 
