@@ -14,11 +14,11 @@ function getColLetter(colIdx: number): string {
 
 export class SupplierComparisonExcelService {
   /**
-   * Generates a fully styled .xlsx buffer matching the corporate template
+   * Generates a fully styled .xlsx buffer matching the corporate template (кл_антифриз__1_.xlsx)
    */
   static async generateExcelWorkbook(comparisonData: TenderSupplierComparisonData): Promise<Buffer> {
     const { totalBudgetKzt0, totalBudgetKzt12, summaries } = SupplierComparisonService.computeSummaries(comparisonData);
-    const exchangeRate = Number(comparisonData.exchangeRate) || 5.20;
+    const exchangeRate = Number(comparisonData.exchangeRate) || 5.65;
 
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'TenderAI Platform';
@@ -28,163 +28,259 @@ export class SupplierComparisonExcelService {
       views: [{ showGridLines: true }]
     });
 
-    // 1. Column layout calculation
-    // Base cols: 1:№, 2:Код МПЗ, 3:Наименование, 4:Ед.изм, 5:Кол-во
-    // Budget cols: 6:Цена0, 7:Сумма0, 8:Цена12, 9:Сумма12
-    // Supplier k cols: 7 cols per supplier (Предл. наим, Цена KZT 0, Сумма KZT 0, Цена KZT 12, Сумма KZT 12, Цена RUB 0, Сумма RUB 0)
-    const baseColCount = 5;
-    const budgetColCount = 4;
-    const colsPerSupplier = 7;
     const suppliers = comparisonData.suppliers && comparisonData.suppliers.length > 0
       ? comparisonData.suppliers
       : [{ id: 'supp-1', name: 'Поставщик 1', order: 0 }];
 
-    const totalCols = baseColCount + budgetColCount + (suppliers.length * colsPerSupplier);
+    const lineItems = comparisonData.lineItems && comparisonData.lineItems.length > 0
+      ? comparisonData.lineItems
+      : [];
 
-    // Border definitions
+    // Column structure:
+    // Base cols:
+    // Col 1 (A): №
+    // Col 2 (B): Код МПЗ из "Ellipse"
+    // Col 3 (C): Наименование товара, работ, услуг
+    // Col 4 (D): ед.изм.
+    // Col 5 (E): кол-во
+    // Budget cols:
+    // Col 6 (F): Цена за ед. в тенге, с НДС 0 %
+    // Col 7 (G): Сумма в тенге, с НДС 0 %
+    // Col 8 (H): Цена за ед. в тенге, с НДС 12 %
+    // Col 9 (I): Сумма в тенге, с НДС 12 %
+    // Each Supplier (7 columns):
+    // 1. Предлагаемое наименование
+    // 2. Цена за ед. в рублях, с НДС 0 %
+    // 3. Сумма в рублях, с НДС 0 %
+    // 4. Цена за ед. в тенге, с НДС 0 %
+    // 5. Сумма в тенге, с НДС 0 %
+    // 6. Цена за ед. в тенге, с НДС 12 %
+    // 7. Сумма в тенге, с НДС 12 %
+    // Profit & Margin columns (5 columns):
+    // 1. Доход (KZT)
+    // 2. Доход БЕЗ кредита (KZT)
+    // 3. Доход с вычетом кредита (KZT)
+    // 4. НДС 12% (KZT)
+    // 5. Рентабельность (%)
+
+    const baseColCount = 5;
+    const budgetColCount = 4;
+    const colsPerSupplier = 7;
+    const profitColCount = 5;
+
+    const totalCols = baseColCount + budgetColCount + (suppliers.length * colsPerSupplier) + profitColCount;
+
+    // Set Column Widths
+    sheet.getColumn(1).width = 6;    // A: №
+    sheet.getColumn(2).width = 16;   // B: Код МПЗ
+    sheet.getColumn(3).width = 40;   // C: Наименование
+    sheet.getColumn(4).width = 10;   // D: Ед. изм.
+    sheet.getColumn(5).width = 12;   // E: Кол-во
+    sheet.getColumn(6).width = 16;   // F: Цена 0%
+    sheet.getColumn(7).width = 18;   // G: Сумма 0%
+    sheet.getColumn(8).width = 16;   // H: Цена 12%
+    sheet.getColumn(9).width = 18;   // I: Сумма 12%
+
+    suppliers.forEach((_, idx) => {
+      const sCol = baseColCount + budgetColCount + (idx * colsPerSupplier) + 1;
+      sheet.getColumn(sCol).width = 30;     // Предлагаемое наименование
+      sheet.getColumn(sCol + 1).width = 15; // Цена RUB 0%
+      sheet.getColumn(sCol + 2).width = 16; // Сумма RUB 0%
+      sheet.getColumn(sCol + 3).width = 15; // Цена KZT 0%
+      sheet.getColumn(sCol + 4).width = 16; // Сумма KZT 0%
+      sheet.getColumn(sCol + 5).width = 15; // Цена KZT 12%
+      sheet.getColumn(sCol + 6).width = 16; // Сумма KZT 12%
+    });
+
+    const profitStartCol = baseColCount + budgetColCount + (suppliers.length * colsPerSupplier) + 1;
+    sheet.getColumn(profitStartCol).width = 18;     // Доход
+    sheet.getColumn(profitStartCol + 1).width = 18; // Доход БЕЗ кредита
+    sheet.getColumn(profitStartCol + 2).width = 20; // Доход с вычетом кредита
+    sheet.getColumn(profitStartCol + 3).width = 14; // НДС 12%
+    sheet.getColumn(profitStartCol + 4).width = 16; // Рентабельность
+
+    // Common Borders
     const thinBorder: Partial<ExcelJS.Borders> = {
-      top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
-      left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
-      bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } },
-      right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
+      top: { style: 'thin', color: { argb: 'FF000000' } },
+      left: { style: 'thin', color: { argb: 'FF000000' } },
+      bottom: { style: 'thin', color: { argb: 'FF000000' } },
+      right: { style: 'thin', color: { argb: 'FF000000' } }
     };
 
-    const headerBorder: Partial<ExcelJS.Borders> = {
-      top: { style: 'medium', color: { argb: 'FF1E293B' } },
-      left: { style: 'thin', color: { argb: 'FF94A3B8' } },
-      bottom: { style: 'medium', color: { argb: 'FF1E293B' } },
-      right: { style: 'thin', color: { argb: 'FF94A3B8' } }
+    const mediumBorder: Partial<ExcelJS.Borders> = {
+      top: { style: 'medium', color: { argb: 'FF000000' } },
+      left: { style: 'medium', color: { argb: 'FF000000' } },
+      bottom: { style: 'medium', color: { argb: 'FF000000' } },
+      right: { style: 'medium', color: { argb: 'FF000000' } }
     };
 
-    const doubleBottomBorder: Partial<ExcelJS.Borders> = {
-      top: { style: 'thin', color: { argb: 'FF1E293B' } },
-      left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
-      bottom: { style: 'double', color: { argb: 'FF1E293B' } },
-      right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
-    };
-
-    // 2. HEADER TITLE (Row 2)
-    const titleRow = sheet.getRow(2);
-    titleRow.height = 30;
+    // 1. HEADER SECTION (Rows 2–9)
+    // Row 2: "Конкурентный лист"
     sheet.mergeCells(2, 1, 2, totalCols);
-    const titleCell = sheet.getCell('A2');
-    titleCell.value = 'КОНКУРЕНТНЫЙ ЛИСТ ПО ВЫБОРУ ПОСТАВЩИКА';
-    titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FF0F172A' } };
-    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    titleCell.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFF1F5F9' }
-    };
+    const r2Cell = sheet.getCell('A2');
+    r2Cell.value = 'Конкурентный лист';
+    r2Cell.font = { name: 'Times New Roman', size: 14, bold: true };
+    r2Cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    sheet.getRow(2).height = 20;
 
-    // 3. METADATA SECTION (Rows 4–8)
-    const metaStartRow = 4;
-    const addMetaRow = (r: number, label1: string, val1: string, label2?: string, val2?: string) => {
-      const row = sheet.getRow(r);
-      row.height = 20;
+    // Row 3: "по выбору поставщика"
+    sheet.mergeCells(3, 1, 3, totalCols);
+    const r3Cell = sheet.getCell('A3');
+    r3Cell.value = 'по выбору поставщика';
+    r3Cell.font = { name: 'Times New Roman', size: 14, bold: true };
+    r3Cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    sheet.getRow(3).height = 20;
 
-      // Col 1 & 2
-      const c1 = sheet.getCell(r, 1);
-      c1.value = label1;
-      c1.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF475569' } };
+    // Row 4: "ТЕНДЕР НОМЕР ..."
+    sheet.mergeCells(4, 3, 4, 10);
+    const r4Cell = sheet.getCell('C4');
+    r4Cell.value = `ТЕНДЕР НОМЕР ${comparisonData.tenderNumber || ''}`;
+    r4Cell.font = { name: 'Times New Roman', size: 12, bold: true };
+    sheet.getRow(4).height = 18;
 
-      sheet.mergeCells(r, 2, r, 5);
-      const c2 = sheet.getCell(r, 2);
-      c2.value = val1;
-      c2.font = { name: 'Calibri', size: 10, bold: false, color: { argb: 'FF0F172A' } };
+    // Row 5: "Торговая площадка: "
+    sheet.mergeCells(5, 1, 5, 10);
+    const r5Cell = sheet.getCell('A5');
+    r5Cell.value = `Торговая площадка:  ${comparisonData.tradingPlatform || 'goszakup.gov.kz'}`;
+    r5Cell.font = { name: 'Times New Roman', size: 12, bold: true };
+    sheet.getRow(5).height = 18;
 
-      if (label2 && val2) {
-        const c3 = sheet.getCell(r, 6);
-        c3.value = label2;
-        c3.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF475569' } };
+    // Row 6: "Заказчик: "
+    sheet.mergeCells(6, 1, 6, 15);
+    const r6Cell = sheet.getCell('A6');
+    r6Cell.value = `Заказчик:  ${comparisonData.customerName || ''}${comparisonData.customerBin ? ` (БИН: ${comparisonData.customerBin})` : ''}`;
+    r6Cell.font = { name: 'Times New Roman', size: 12, bold: true };
+    sheet.getRow(6).height = 18;
 
-        sheet.mergeCells(r, 7, r, 9);
-        const c4 = sheet.getCell(r, 7);
-        c4.value = val2;
-        c4.font = { name: 'Calibri', size: 10, bold: false, color: { argb: 'FF0F172A' } };
+    // Row 7: "Начало: "
+    sheet.mergeCells(7, 1, 7, 10);
+    const r7Cell = sheet.getCell('A7');
+    const pubDateStr = comparisonData.publishDate ? new Date(comparisonData.publishDate).toLocaleDateString('ru-RU') : '';
+    r7Cell.value = `Начало:  ${pubDateStr ? pubDateStr + 'г.' : ''}`;
+    r7Cell.font = { name: 'Times New Roman', size: 12, bold: true };
+    sheet.getRow(7).height = 18;
+
+    // Row 8: "Вскрытие: "
+    sheet.mergeCells(8, 1, 8, 10);
+    const r8Cell = sheet.getCell('A8');
+    const deadDateStr = comparisonData.deadlineDate ? new Date(comparisonData.deadlineDate).toLocaleDateString('ru-RU') : '';
+    r8Cell.value = `Вскрытие:  ${deadDateStr ? deadDateStr + 'г.' : ''}`;
+    r8Cell.font = { name: 'Times New Roman', size: 12, bold: true };
+    sheet.getRow(8).height = 18;
+
+    // Row 9: "Курс валют Нац.Банка РК: 1 рос. рубль = X,XX тенге"
+    sheet.mergeCells(9, 1, 9, 10);
+    const r9Cell = sheet.getCell('A9');
+    r9Cell.value = `Курс валют Нац.Банка РК: 1 рос. рубль = ${exchangeRate.toFixed(2).replace('.', ',')} тенге`;
+    r9Cell.font = { name: 'Times New Roman', size: 12, bold: true };
+
+    const lastColLetter = getColLetter(totalCols);
+    const r9DateCell = sheet.getCell(`${lastColLetter}9`);
+    r9DateCell.value = new Date().toLocaleDateString('ru-RU') + 'г.';
+    r9DateCell.font = { name: 'Times New Roman', size: 12, bold: true };
+    r9DateCell.alignment = { horizontal: 'right' };
+    sheet.getRow(9).height = 18;
+
+    // 2. SUPPLIERS REQUISITES & TABLE HEADERS (Rows 10–15)
+    // Row 10: Top Headers
+    sheet.getRow(10).height = 24;
+    const a10 = sheet.getCell('A10');
+    a10.value = '№';
+    a10.font = { name: 'Times New Roman', size: 14, bold: true };
+    a10.alignment = { horizontal: 'center', vertical: 'middle' };
+    a10.border = thinBorder;
+
+    // Merge B10:E10: "Наименование"
+    sheet.mergeCells('B10:E10');
+    const b10 = sheet.getCell('B10');
+    b10.value = 'Наименование';
+    b10.font = { name: 'Times New Roman', size: 14, bold: true };
+    b10.alignment = { horizontal: 'center', vertical: 'middle' };
+    for (let c = 2; c <= 5; c++) sheet.getCell(10, c).border = thinBorder;
+
+    // Merge F10:I13 (or F10:I14): "Данные по бюджету (Перечень закупок/ Инвест.программа)"
+    sheet.mergeCells('F10:I13');
+    const f10 = sheet.getCell('F10');
+    f10.value = 'Данные по бюджету (Перечень закупок/ Инвест.программа)';
+    f10.font = { name: 'Times New Roman', size: 12, bold: true };
+    f10.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    f10.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCCCCFF' } }; // Light purple
+    for (let r = 10; r <= 13; r++) {
+      for (let c = 6; c <= 9; c++) {
+        sheet.getCell(r, c).border = thinBorder;
+        sheet.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCCCCFF' } };
       }
-    };
+    }
 
-    addMetaRow(
-      4,
-      'Номер тендера:',
-      comparisonData.tenderNumber || '—',
-      'Торговая площадка:',
-      comparisonData.tradingPlatform || 'goszakup.gov.kz'
-    );
-    addMetaRow(
-      5,
-      'Заказчик:',
-      `${comparisonData.customerName || '—'}${comparisonData.customerBin ? ` (БИН: ${comparisonData.customerBin})` : ''}`,
-      'Курс НБ РК (RUB → KZT):',
-      `${exchangeRate.toFixed(2)} ₸`
-    );
-    addMetaRow(
-      6,
-      'Дата начала приема:',
-      comparisonData.publishDate ? new Date(comparisonData.publishDate).toLocaleDateString('ru-RU') : '—',
-      'Дата вскрытия (дедлайн):',
-      comparisonData.deadlineDate ? new Date(comparisonData.deadlineDate).toLocaleDateString('ru-RU') : '—'
-    );
-    addMetaRow(
-      7,
-      'Наименование закупки:',
-      comparisonData.tenderTitle || '—',
-      'Бюджет тендера (с НДС):',
-      `${totalBudgetKzt12.toLocaleString('ru-RU')} ₸`
-    );
+    // Rows 11-14: Labels in B11..B14
+    const reqLabels = [
+      { num: '1', row: 11, label: 'Наименование поставщика: ' },
+      { num: '2', row: 12, label: 'Адрес:' },
+      { num: '3', row: 13, label: 'Е-mail:' },
+      { num: '4', row: 14, label: 'Телефон:' }
+    ];
 
-    // 4. SUPPLIERS REQUISITES BLOCK (Rows 10–14)
-    const suppReqStartRow = 10;
-    sheet.getRow(suppReqStartRow).height = 22;
-    sheet.mergeCells(suppReqStartRow, 1, suppReqStartRow, 9);
-    const reqHeader = sheet.getCell(suppReqStartRow, 1);
-    reqHeader.value = 'СВЕДЕНИЯ О ПОСТАВЩИКАХ (КОНТРАГЕНТАХ)';
-    reqHeader.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF334155' } };
-    reqHeader.alignment = { horizontal: 'left', vertical: 'middle' };
-    reqHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+    reqLabels.forEach(item => {
+      const aCell = sheet.getCell(`A${item.row}`);
+      aCell.value = item.num;
+      aCell.font = { name: 'Times New Roman', size: 14, bold: true };
+      aCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      aCell.border = thinBorder;
 
-    // Set supplier headers in rows 10-14
+      sheet.mergeCells(`B${item.row}:E${item.row}`);
+      const bCell = sheet.getCell(`B${item.row}`);
+      bCell.value = item.label;
+      bCell.font = { name: 'Times New Roman', size: 12, bold: true };
+      bCell.alignment = { horizontal: 'left', vertical: 'middle' };
+      for (let c = 2; c <= 5; c++) sheet.getCell(item.row, c).border = thinBorder;
+    });
+
+    // Per-Supplier Columns (Rows 10–14)
     suppliers.forEach((s, idx) => {
       const startCol = baseColCount + budgetColCount + (idx * colsPerSupplier) + 1;
       const endCol = startCol + colsPerSupplier - 1;
+      const isWinner = s.isSelected || (!comparisonData.selectedSupplierId && summaries[idx]?.isBestPrice);
+      const suppBgColor = isWinner ? 'FFCCFFCC' : 'FFFFCC99'; // Winner: light green, others: light beige/orange
 
-      // Row 10: Supplier Name
+      // Row 10: "Поставщик № X"
       sheet.mergeCells(10, startCol, 10, endCol);
-      const sNameCell = sheet.getCell(10, startCol);
-      const isWinner = s.isSelected || comparisonData.selectedSupplierId === s.id;
-      sNameCell.value = `${s.name}${isWinner ? '  ★ [ВЫБРАННЫЙ ПОБЕДИТЕЛЬ]' : ''}`;
-      sNameCell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: isWinner ? 'FF065F46' : 'FF0F172A' } };
-      sNameCell.alignment = { horizontal: 'center', vertical: 'middle' };
-      sNameCell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: isWinner ? 'FFD1FAE5' : 'FFF8FAFC' }
-      };
+      const s10Cell = sheet.getCell(10, startCol);
+      s10Cell.value = `Поставщик № ${idx + 1}${isWinner ? '  ★ [ВЫБРАННЫЙ ПОБЕДИТЕЛЬ]' : ''}`;
+      s10Cell.font = { name: 'Times New Roman', size: 14, bold: true };
+      s10Cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      s10Cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: suppBgColor } };
 
-      // Row 11: Address
+      // Row 11: Supplier Name
       sheet.mergeCells(11, startCol, 11, endCol);
-      const sAddrCell = sheet.getCell(11, startCol);
-      sAddrCell.value = `Адрес: ${s.address || '—'}`;
-      sAddrCell.font = { name: 'Calibri', size: 9, color: { argb: 'FF475569' } };
+      const s11Cell = sheet.getCell(11, startCol);
+      s11Cell.value = s.name;
+      s11Cell.font = { name: 'Times New Roman', size: 12, bold: true };
+      s11Cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      s11Cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: suppBgColor } };
 
-      // Row 12: Contacts
+      // Row 12: Address
       sheet.mergeCells(12, startCol, 12, endCol);
-      const sContCell = sheet.getCell(12, startCol);
-      sContCell.value = `Контакты: ${s.email || '—'} / ${s.phone || '—'}`;
-      sContCell.font = { name: 'Calibri', size: 9, color: { argb: 'FF475569' } };
+      const s12Cell = sheet.getCell(12, startCol);
+      s12Cell.value = s.address || '—';
+      s12Cell.font = { name: 'Times New Roman', size: 11 };
+      s12Cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      s12Cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: suppBgColor } };
 
-      // Row 13: Payment Terms
+      // Row 13: Email
       sheet.mergeCells(13, startCol, 13, endCol);
-      const sPayCell = sheet.getCell(13, startCol);
-      sPayCell.value = `Оплата: ${s.paymentTerms || '—'} (${s.paymentForm || 'Безнал'})`;
-      sPayCell.font = { name: 'Calibri', size: 9, color: { argb: 'FF475569' } };
+      const s13Cell = sheet.getCell(13, startCol);
+      s13Cell.value = s.email || '—';
+      s13Cell.font = { name: 'Times New Roman', size: 11 };
+      s13Cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      s13Cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: suppBgColor } };
 
-      // Row 14: Bid Security
+      // Row 14: Phone
       sheet.mergeCells(14, startCol, 14, endCol);
-      const sSecCell = sheet.getCell(14, startCol);
-      sSecCell.value = `Обеспечение: ${s.bidSecurity ? `${Number(s.bidSecurity).toLocaleString('ru-RU')} ₸` : 'Не требуется'}`;
-      sSecCell.font = { name: 'Calibri', size: 9, color: { argb: 'FF475569' } };
+      const s14Cell = sheet.getCell(14, startCol);
+      s14Cell.value = s.phone || '—';
+      s14Cell.font = { name: 'Times New Roman', size: 11 };
+      s14Cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      s14Cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: suppBgColor } };
 
       for (let r = 10; r <= 14; r++) {
         for (let c = startCol; c <= endCol; c++) {
@@ -193,534 +289,547 @@ export class SupplierComparisonExcelService {
       }
     });
 
-    for (let r = 11; r <= 14; r++) {
-      sheet.mergeCells(r, 1, r, 9);
-      const leftNote = sheet.getCell(r, 1);
-      leftNote.border = thinBorder;
-      if (r === 11) leftNote.value = 'Реквизиты и условия контрагентов';
-      if (r === 12) leftNote.value = 'Форма взаиморасчетов и предоплата';
-      if (r === 13) leftNote.value = 'Обеспечение заявки и договора';
-      if (r === 14) leftNote.value = 'Скидки и специальные предложения';
-      leftNote.font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF64748B' } };
-    }
-
-    // 5. MAIN TABLE HEADERS (Rows 15 and 16)
-    sheet.getRow(15).height = 25;
-    sheet.getRow(16).height = 28;
-
-    // Base header cells (merge rows 15-16 for cols 1..5)
-    const baseHeaders = [
-      { col: 1, text: '№' },
-      { col: 2, text: 'Код МПЗ' },
-      { col: 3, text: 'Наименование ТРУ (по техспецификации)' },
-      { col: 4, text: 'Ед. изм.' },
-      { col: 5, text: 'Кол-во' }
+    // Profit & Margin Header Columns (Rows 10–14)
+    const p1Col = profitStartCol;
+    const profitHeaders = [
+      { col: p1Col, title: 'Доход\n(Маржа)', width: 18 },
+      { col: p1Col + 1, title: 'Доход\nБЕЗ кредита', width: 18 },
+      { col: p1Col + 2, title: `Доход\nс вычетом кредита\n(${comparisonData.creditDays || 75} дн.)`, width: 20 },
+      { col: p1Col + 3, title: 'НДС 12%\n(тенге)', width: 14 },
+      { col: p1Col + 4, title: 'Рентабельность\n(%)', width: 16 }
     ];
 
-    baseHeaders.forEach(bh => {
-      sheet.mergeCells(15, bh.col, 16, bh.col);
-      const cell = sheet.getCell(15, bh.col);
-      cell.value = bh.text;
-      cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0F172A' } };
-      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
-      sheet.getCell(15, bh.col).border = headerBorder;
-      sheet.getCell(16, bh.col).border = headerBorder;
+    profitHeaders.forEach(ph => {
+      sheet.mergeCells(10, ph.col, 14, ph.col);
+      const pCell = sheet.getCell(10, ph.col);
+      pCell.value = ph.title;
+      pCell.font = { name: 'Times New Roman', size: 12, bold: true };
+      pCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      pCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF99CCFF' } }; // Light blue
+
+      for (let r = 10; r <= 14; r++) {
+        sheet.getCell(r, ph.col).border = thinBorder;
+        sheet.getCell(r, ph.col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF99CCFF' } };
+      }
     });
 
-    // Budget Header (merge cols 6..9 in row 15, then 4 sub-headers in row 16)
-    sheet.mergeCells(15, 6, 15, 9);
-    const budgetHeader = sheet.getCell(15, 6);
-    budgetHeader.value = 'БЮДЖЕТ ЗАКАЗЧИКА';
-    budgetHeader.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF1E3A8A' } };
-    budgetHeader.alignment = { horizontal: 'center', vertical: 'middle' };
-    budgetHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } };
+    // Row 15: Table Columns Header (Section 5)
+    sheet.getRow(15).height = 65;
+    const a15 = sheet.getCell('A15');
+    a15.value = '5';
+    a15.font = { name: 'Times New Roman', size: 14, bold: true };
+    a15.alignment = { horizontal: 'center', vertical: 'middle' };
+    a15.border = thinBorder;
 
-    const budgetSubHeaders = [
-      { col: 6, text: 'Цена за ед. KZT (0%)' },
-      { col: 7, text: 'Сумма KZT (0%)' },
-      { col: 8, text: 'Цена за ед. KZT (12%)' },
-      { col: 9, text: 'Сумма KZT (12%)' }
+    const colHeaders: { col: number; text: string; bg?: string }[] = [
+      { col: 2, text: 'Код МПЗ из "Ellipse"' },
+      { col: 3, text: 'Наименование товара, работ, услуг' },
+      { col: 4, text: 'ед.изм.' },
+      { col: 5, text: 'кол-во ' },
+      { col: 6, text: 'Цена за ед.\nв тенге,\nс НДС 0 %', bg: 'FFCCCCFF' },
+      { col: 7, text: 'Сумма\nв тенге,\nс НДС 0 %', bg: 'FFCCCCFF' },
+      { col: 8, text: 'Цена за ед.\nв тенге,\nс НДС 12 %', bg: 'FFCCCCFF' },
+      { col: 9, text: 'Сумма\nв тенге,\nс НДС 12 %', bg: 'FFCCCCFF' }
     ];
-    budgetSubHeaders.forEach(bsh => {
-      const cell = sheet.getCell(16, bsh.col);
-      cell.value = bsh.text;
-      cell.font = { name: 'Calibri', size: 9, bold: true, color: { argb: 'FF1E3A8A' } };
-      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E7FF' } };
-      cell.border = headerBorder;
-      sheet.getCell(15, bsh.col).border = headerBorder;
-    });
 
-    // Supplier Table Headers
     suppliers.forEach((s, idx) => {
-      const startCol = baseColCount + budgetColCount + (idx * colsPerSupplier) + 1;
-      const endCol = startCol + colsPerSupplier - 1;
-      const isWinner = s.isSelected || comparisonData.selectedSupplierId === s.id;
+      const sCol = baseColCount + budgetColCount + (idx * colsPerSupplier) + 1;
+      const isWinner = s.isSelected || (!comparisonData.selectedSupplierId && summaries[idx]?.isBestPrice);
+      const bg = isWinner ? 'FFCCFFCC' : 'FFFFCC99';
 
-      // Row 15: Supplier Name Box
-      sheet.mergeCells(15, startCol, 15, endCol);
-      const sBox = sheet.getCell(15, startCol);
-      sBox.value = `КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ: ${s.name}`;
-      sBox.font = { name: 'Calibri', size: 10, bold: true, color: { argb: isWinner ? 'FF065F46' : 'FF0F172A' } };
-      sBox.alignment = { horizontal: 'center', vertical: 'middle' };
-      sBox.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: isWinner ? 'FFD1FAE5' : 'FFF1F5F9' }
-      };
-
-      const sSubHeaders = [
-        { offset: 0, text: 'Предлагаемое наименование' },
-        { offset: 1, text: 'Цена KZT (0%)' },
-        { offset: 2, text: 'Сумма KZT (0%)' },
-        { offset: 3, text: 'Цена KZT (12%)' },
-        { offset: 4, text: 'Сумма KZT (12%)' },
-        { offset: 5, text: 'Цена RUB (0%)' },
-        { offset: 6, text: 'Сумма RUB (0%)' }
-      ];
-
-      sSubHeaders.forEach(ssh => {
-        const cIdx = startCol + ssh.offset;
-        const cell = sheet.getCell(16, cIdx);
-        cell.value = ssh.text;
-        cell.font = { name: 'Calibri', size: 9, bold: true, color: { argb: 'FF334155' } };
-        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-        cell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: isWinner ? 'FFA7F3D0' : 'FFE2E8F0' }
-        };
-        cell.border = headerBorder;
-        sheet.getCell(15, cIdx).border = headerBorder;
-      });
+      colHeaders.push(
+        { col: sCol, text: 'Предлагаемое наименование', bg },
+        { col: sCol + 1, text: 'Цена за ед.\nв рублях,\nс НДС 0 %', bg },
+        { col: sCol + 2, text: 'Сумма\nв рублях,\nс НДС 0 %', bg },
+        { col: sCol + 3, text: 'Цена за ед.\nв тенге,\nс НДС 0 %', bg },
+        { col: sCol + 4, text: 'Сумма\nв тенге,\nс НДС 0 %', bg },
+        { col: sCol + 5, text: 'Цена за ед.\nв тенге,\nс НДС 12 %', bg },
+        { col: sCol + 6, text: 'Сумма\nв тенге,\nс НДС 12 %', bg }
+      );
     });
 
-    // 6. LINE ITEMS DATA (Rows 17 onwards)
-    const dataStartRow = 17;
-    const lineItems = comparisonData.lineItems && comparisonData.lineItems.length > 0
-      ? comparisonData.lineItems
-      : [{ order: 1, name: comparisonData.tenderTitle || 'Товар', quantity: 1, prices: {} } as any];
+    // Profit headers row 15
+    colHeaders.push(
+      { col: p1Col, text: 'Сумма\nв тенге,\nс НДС 0 %', bg: 'FF99CCFF' },
+      { col: p1Col + 1, text: 'Сумма\nв тенге,\nс НДС 12 %', bg: 'FF99CCFF' },
+      { col: p1Col + 2, text: 'Сумма\nв тенге,\nс НДС 12 %', bg: 'FF99CCFF' },
+      { col: p1Col + 3, text: 'тенге', bg: 'FF99CCFF' },
+      { col: p1Col + 4, text: '%', bg: 'FF99CCFF' }
+    );
 
-    let currentRow = dataStartRow;
+    colHeaders.forEach(ch => {
+      const cell = sheet.getCell(15, ch.col);
+      cell.value = ch.text;
+      cell.font = { name: 'Times New Roman', size: 11, bold: true };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cell.border = thinBorder;
+      if (ch.bg) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ch.bg } };
+      }
+    });
 
-    lineItems.forEach((item, rIdx) => {
-      const row = sheet.getRow(currentRow);
+    // 3. TABLE BODY (Rows 16 .. 15 + N)
+    const itemsStartRow = 16;
+    const rowCount = Math.max(lineItems.length, 1);
+
+    for (let i = 0; i < rowCount; i++) {
+      const curRow = itemsStartRow + i;
+      const item = lineItems[i];
+      const row = sheet.getRow(curRow);
       row.height = 24;
 
-      const qty = Number(item.quantity) || 1;
-      const bPrice0 = Number(item.budgetPriceKzt0) || 0;
-      const bPrice12 = Number(item.budgetPriceKzt12) || (bPrice0 * 1.12);
+      // Col A: Sequence
+      const aCell = sheet.getCell(curRow, 1);
+      aCell.value = curRow === itemsStartRow ? 1 : { formula: `A${curRow - 1}+1`, result: i + 1 };
+      aCell.font = { name: 'Times New Roman', size: 12 };
+      aCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      aCell.border = thinBorder;
 
-      // Col A (1): №
-      const cNum = sheet.getCell(currentRow, 1);
-      cNum.value = rIdx + 1;
-      cNum.alignment = { horizontal: 'center', vertical: 'middle' };
-      cNum.border = thinBorder;
+      // Col B: MPZ Code
+      const bCell = sheet.getCell(curRow, 2);
+      bCell.value = item?.mpzCode || '';
+      bCell.font = { name: 'Times New Roman', size: 12 };
+      bCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      bCell.border = thinBorder;
 
-      // Col B (2): Код МПЗ
-      const cMpz = sheet.getCell(currentRow, 2);
-      cMpz.value = item.mpzCode || '—';
-      cMpz.alignment = { horizontal: 'center', vertical: 'middle' };
-      cMpz.border = thinBorder;
+      // Col C: Name
+      const cCell = sheet.getCell(curRow, 3);
+      cCell.value = item?.name || '';
+      cCell.font = { name: 'Times New Roman', size: 12 };
+      cCell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+      cCell.border = thinBorder;
 
-      // Col C (3): Наименование ТРУ
-      const cName = sheet.getCell(currentRow, 3);
-      cName.value = item.name;
-      cName.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
-      cName.border = thinBorder;
+      // Col D: Unit
+      const dCell = sheet.getCell(curRow, 4);
+      dCell.value = item?.unit || 'шт';
+      dCell.font = { name: 'Times New Roman', size: 12 };
+      dCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      dCell.border = thinBorder;
 
-      // Col D (4): Ед. изм.
-      const cUnit = sheet.getCell(currentRow, 4);
-      cUnit.value = item.unit || 'шт';
-      cUnit.alignment = { horizontal: 'center', vertical: 'middle' };
-      cUnit.border = thinBorder;
+      // Col E: Quantity
+      const eCell = sheet.getCell(curRow, 5);
+      eCell.value = item ? Number(item.quantity) : 0;
+      eCell.font = { name: 'Times New Roman', size: 12 };
+      eCell.alignment = { horizontal: 'right', vertical: 'middle' };
+      eCell.numFmt = '#,##0.00';
+      eCell.border = thinBorder;
 
-      // Col E (5): Кол-во
-      const cQty = sheet.getCell(currentRow, 5);
-      cQty.value = qty;
-      cQty.numFmt = '#,##0.00';
-      cQty.alignment = { horizontal: 'right', vertical: 'middle' };
-      cQty.border = thinBorder;
+      // Col F: Budget Price KZT 0%
+      const fCell = sheet.getCell(curRow, 6);
+      fCell.value = item ? Number(item.budgetPriceKzt0) : 0;
+      fCell.font = { name: 'Times New Roman', size: 12 };
+      fCell.alignment = { horizontal: 'right', vertical: 'middle' };
+      fCell.numFmt = '#,##0.00';
+      fCell.border = thinBorder;
 
-      const qtyCol = getColLetter(5); // "E"
-
-      // Col F (6): Бюджет Цена 0%
-      const cB0 = sheet.getCell(currentRow, 6);
-      cB0.value = bPrice0;
-      cB0.numFmt = '#,##0.00';
-      cB0.alignment = { horizontal: 'right', vertical: 'middle' };
-      cB0.border = thinBorder;
-
-      // Col G (7): Бюджет Сумма 0% (Formula = E{r} * F{r})
-      const cBSum0 = sheet.getCell(currentRow, 7);
-      cBSum0.value = {
-        formula: `${qtyCol}${currentRow}*${getColLetter(6)}${currentRow}`,
-        result: qty * bPrice0
+      // Col G: Budget Sum KZT 0% (=E{r}*F{r})
+      const gCell = sheet.getCell(curRow, 7);
+      gCell.value = {
+        formula: `E${curRow}*F${curRow}`,
+        result: item ? Number(item.quantity) * Number(item.budgetPriceKzt0) : 0
       };
-      cBSum0.numFmt = '#,##0.00';
-      cBSum0.alignment = { horizontal: 'right', vertical: 'middle' };
-      cBSum0.border = thinBorder;
-      cBSum0.font = { bold: true };
+      gCell.font = { name: 'Times New Roman', size: 12 };
+      gCell.alignment = { horizontal: 'right', vertical: 'middle' };
+      gCell.numFmt = '#,##0.00';
+      gCell.border = thinBorder;
 
-      // Col H (8): Бюджет Цена 12%
-      const cB12 = sheet.getCell(currentRow, 8);
-      cB12.value = bPrice12;
-      cB12.numFmt = '#,##0.00';
-      cB12.alignment = { horizontal: 'right', vertical: 'middle' };
-      cB12.border = thinBorder;
+      // Col H: Budget Price KZT 12%
+      const hCell = sheet.getCell(curRow, 8);
+      hCell.value = item ? Number(item.budgetPriceKzt12) : 0;
+      hCell.font = { name: 'Times New Roman', size: 12 };
+      hCell.alignment = { horizontal: 'right', vertical: 'middle' };
+      hCell.numFmt = '#,##0.00';
+      hCell.border = thinBorder;
 
-      // Col I (9): Бюджет Сумма 12% (Formula = E{r} * H{r})
-      const cBSum12 = sheet.getCell(currentRow, 9);
-      cBSum12.value = {
-        formula: `${qtyCol}${currentRow}*${getColLetter(8)}${currentRow}`,
-        result: qty * bPrice12
+      // Col I: Budget Sum KZT 12% (=E{r}*H{r})
+      const iCell = sheet.getCell(curRow, 9);
+      iCell.value = {
+        formula: `E${curRow}*H${curRow}`,
+        result: item ? Number(item.quantity) * Number(item.budgetPriceKzt12) : 0
       };
-      cBSum12.numFmt = '#,##0.00';
-      cBSum12.alignment = { horizontal: 'right', vertical: 'middle' };
-      cBSum12.border = thinBorder;
-      cBSum12.font = { bold: true };
+      iCell.font = { name: 'Times New Roman', size: 12 };
+      iCell.alignment = { horizontal: 'right', vertical: 'middle' };
+      iCell.numFmt = '#,##0.00';
+      iCell.border = thinBorder;
 
-      // Supplier columns for this row
+      // Supplier Columns
       suppliers.forEach((s, sIdx) => {
-        const startCol = baseColCount + budgetColCount + (sIdx * colsPerSupplier) + 1;
-        const suppKey = s.id || s.name;
-        const pObj = item.prices ? (item.prices[suppKey] || item.prices[s.id || ''] || item.prices[s.name]) : null;
+        const sCol = baseColCount + budgetColCount + (sIdx * colsPerSupplier) + 1;
+        const sp = item?.prices?.[s.id];
 
-        let p0 = 0;
-        let p12 = 0;
-        let pRub = 0;
+        const propName = sp?.proposedName || item?.name || '';
+        const priceRub0 = sp ? Number(sp.priceRub0) || 0 : 0;
+        const priceKzt0 = sp ? Number(sp.priceKzt0) || 0 : 0;
+        const priceKzt12 = sp ? Number(sp.priceKzt12) || 0 : 0;
+        const qty = item ? Number(item.quantity) : 0;
 
-        if (pObj) {
-          pRub = Number(pObj.priceRub0) || 0;
-          if (pObj.currency === 'RUB' && pRub > 0) {
-            p0 = pRub * exchangeRate;
-            p12 = p0 * 1.12;
-          } else {
-            p0 = Number(pObj.priceKzt0) || 0;
-            p12 = Number(pObj.priceKzt12) || (p0 * 1.12);
-            if (pRub === 0 && p0 > 0 && exchangeRate > 0) {
-              pRub = Math.round((p0 / exchangeRate) * 100) / 100;
-            }
-          }
-        }
+        // 1. Proposed Name
+        const pnCell = sheet.getCell(curRow, sCol);
+        pnCell.value = propName;
+        pnCell.font = { name: 'Times New Roman', size: 12 };
+        pnCell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+        pnCell.border = thinBorder;
 
-        // Col S+0: Proposed Name
-        const cPName = sheet.getCell(currentRow, startCol);
-        cPName.value = pObj?.proposedName || item.name;
-        cPName.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
-        cPName.border = thinBorder;
+        // 2. Price RUB 0%
+        const prCell = sheet.getCell(curRow, sCol + 1);
+        prCell.value = priceRub0;
+        prCell.font = { name: 'Times New Roman', size: 12 };
+        prCell.alignment = { horizontal: 'right', vertical: 'middle' };
+        prCell.numFmt = '#,##0.00';
+        prCell.border = thinBorder;
 
-        // Col S+1: Цена KZT 0%
-        const cP0 = sheet.getCell(currentRow, startCol + 1);
-        cP0.value = p0;
-        cP0.numFmt = '#,##0.00';
-        cP0.alignment = { horizontal: 'right', vertical: 'middle' };
-        cP0.border = thinBorder;
-
-        // Col S+2: Сумма KZT 0% (Formula = E{r} * {col(S+1)}{r})
-        const cSum0 = sheet.getCell(currentRow, startCol + 2);
-        const p0Col = getColLetter(startCol + 1);
-        cSum0.value = {
-          formula: `${qtyCol}${currentRow}*${p0Col}${currentRow}`,
-          result: qty * p0
+        // 3. Sum RUB 0% (=E{r}*col{sCol+1}{r})
+        const prLetter = getColLetter(sCol + 1);
+        const srCell = sheet.getCell(curRow, sCol + 2);
+        srCell.value = {
+          formula: `E${curRow}*${prLetter}${curRow}`,
+          result: qty * priceRub0
         };
-        cSum0.numFmt = '#,##0.00';
-        cSum0.alignment = { horizontal: 'right', vertical: 'middle' };
-        cSum0.border = thinBorder;
+        srCell.font = { name: 'Times New Roman', size: 12 };
+        srCell.alignment = { horizontal: 'right', vertical: 'middle' };
+        srCell.numFmt = '#,##0.00';
+        srCell.border = thinBorder;
 
-        // Col S+3: Цена KZT 12%
-        const cP12 = sheet.getCell(currentRow, startCol + 3);
-        cP12.value = p12;
-        cP12.numFmt = '#,##0.00';
-        cP12.alignment = { horizontal: 'right', vertical: 'middle' };
-        cP12.border = thinBorder;
+        // 4. Price KZT 0%
+        const pk0Cell = sheet.getCell(curRow, sCol + 3);
+        pk0Cell.value = priceKzt0;
+        pk0Cell.font = { name: 'Times New Roman', size: 12 };
+        pk0Cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        pk0Cell.numFmt = '#,##0.00';
+        pk0Cell.border = thinBorder;
 
-        // Col S+4: Сумма KZT 12% (Formula = E{r} * {col(S+3)}{r})
-        const cSum12 = sheet.getCell(currentRow, startCol + 4);
-        const p12Col = getColLetter(startCol + 3);
-        cSum12.value = {
-          formula: `${qtyCol}${currentRow}*${p12Col}${currentRow}`,
-          result: qty * p12
+        // 5. Sum KZT 0% (=E{r}*col{sCol+3}{r})
+        const pk0Letter = getColLetter(sCol + 3);
+        const sk0Cell = sheet.getCell(curRow, sCol + 4);
+        sk0Cell.value = {
+          formula: `E${curRow}*${pk0Letter}${curRow}`,
+          result: qty * priceKzt0
         };
-        cSum12.numFmt = '#,##0.00';
-        cSum12.alignment = { horizontal: 'right', vertical: 'middle' };
-        cSum12.border = thinBorder;
-        cSum12.font = { bold: true };
+        sk0Cell.font = { name: 'Times New Roman', size: 12 };
+        sk0Cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        sk0Cell.numFmt = '#,##0.00';
+        sk0Cell.border = thinBorder;
 
-        // Col S+5: Цена RUB 0%
-        const cPRub = sheet.getCell(currentRow, startCol + 5);
-        cPRub.value = pRub;
-        cPRub.numFmt = '#,##0.00';
-        cPRub.alignment = { horizontal: 'right', vertical: 'middle' };
-        cPRub.border = thinBorder;
+        // 6. Price KZT 12%
+        const pk12Cell = sheet.getCell(curRow, sCol + 5);
+        pk12Cell.value = priceKzt12;
+        pk12Cell.font = { name: 'Times New Roman', size: 12 };
+        pk12Cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        pk12Cell.numFmt = '#,##0.00';
+        pk12Cell.border = thinBorder;
 
-        // Col S+6: Сумма RUB 0% (Formula = E{r} * {col(S+5)}{r})
-        const cSumRub = sheet.getCell(currentRow, startCol + 6);
-        const pRubCol = getColLetter(startCol + 5);
-        cSumRub.value = {
-          formula: `${qtyCol}${currentRow}*${pRubCol}${currentRow}`,
-          result: qty * pRub
+        // 7. Sum KZT 12% (=E{r}*col{sCol+5}{r})
+        const pk12Letter = getColLetter(sCol + 5);
+        const sk12Cell = sheet.getCell(curRow, sCol + 6);
+        sk12Cell.value = {
+          formula: `E${curRow}*${pk12Letter}${curRow}`,
+          result: qty * priceKzt12
         };
-        cSumRub.numFmt = '#,##0.00';
-        cSumRub.alignment = { horizontal: 'right', vertical: 'middle' };
-        cSumRub.border = thinBorder;
+        sk12Cell.font = { name: 'Times New Roman', size: 12 };
+        sk12Cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        sk12Cell.numFmt = '#,##0.00';
+        sk12Cell.border = thinBorder;
       });
 
-      currentRow++;
-    });
+      // Profit Columns for line item (comparing with chosen/best supplier, e.g. supplier 1)
+      const bestSuppKzt0SumCol = getColLetter(baseColCount + budgetColCount + 5);  // Col KZT 0% sum of supp 1
+      const bestSuppKzt12SumCol = getColLetter(baseColCount + budgetColCount + 7); // Col KZT 12% sum of supp 1
 
-    const dataEndRow = currentRow - 1;
+      // 1. Доход KZT 0% (=G{r}-SuppKzt0Sum{r})
+      const p1Cell = sheet.getCell(curRow, p1Col);
+      p1Cell.value = { formula: `G${curRow}-${bestSuppKzt0SumCol}${curRow}` };
+      p1Cell.font = { name: 'Times New Roman', size: 12 };
+      p1Cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      p1Cell.numFmt = '#,##0.00';
+      p1Cell.border = thinBorder;
 
-    // 7. SUMMARY & TOTALS FOOTER ROWS
-    // Row 1: ИТОГО СУММА (Formula =SUM(col17:colN))
-    const totalRowIdx = currentRow;
-    const totalRow = sheet.getRow(totalRowIdx);
-    totalRow.height = 26;
+      // 2. Доход KZT 12% (=I{r}-SuppKzt12Sum{r})
+      const p2Cell = sheet.getCell(curRow, p1Col + 1);
+      p2Cell.value = { formula: `I${curRow}-${bestSuppKzt12SumCol}${curRow}` };
+      p2Cell.font = { name: 'Times New Roman', size: 12 };
+      p2Cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      p2Cell.numFmt = '#,##0.00';
+      p2Cell.border = thinBorder;
 
-    sheet.mergeCells(totalRowIdx, 1, totalRowIdx, 5);
-    const totalLabel = sheet.getCell(totalRowIdx, 1);
-    totalLabel.value = 'ИТОГО СУММА:';
-    totalLabel.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF0F172A' } };
-    totalLabel.alignment = { horizontal: 'right', vertical: 'middle' };
-    totalLabel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
-    for (let c = 1; c <= 5; c++) sheet.getCell(totalRowIdx, c).border = headerBorder;
+      // 3. Доход с вычетом кредита
+      const p3Cell = sheet.getCell(curRow, p1Col + 2);
+      p3Cell.value = '';
+      p3Cell.font = { name: 'Times New Roman', size: 12 };
+      p3Cell.border = thinBorder;
 
-    // Budget totals
-    const gCol = getColLetter(7); // Сумма 0%
-    const iCol = getColLetter(9); // Сумма 12%
-    sheet.getCell(totalRowIdx, 6).border = headerBorder;
-    sheet.getCell(totalRowIdx, 8).border = headerBorder;
+      // 4. НДС 12%
+      const p4Cell = sheet.getCell(curRow, p1Col + 3);
+      p4Cell.value = '';
+      p4Cell.font = { name: 'Times New Roman', size: 12 };
+      p4Cell.border = thinBorder;
 
-    const bSum0Total = sheet.getCell(totalRowIdx, 7);
-    bSum0Total.value = {
-      formula: `SUM(${gCol}${dataStartRow}:${gCol}${dataEndRow})`,
-      result: totalBudgetKzt0
-    };
-    bSum0Total.numFmt = '#,##0.00';
-    bSum0Total.font = { bold: true };
-    bSum0Total.alignment = { horizontal: 'right', vertical: 'middle' };
-    bSum0Total.border = headerBorder;
-    bSum0Total.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } };
+      // 5. Рентабельность
+      const p5Cell = sheet.getCell(curRow, p1Col + 4);
+      p5Cell.value = '';
+      p5Cell.font = { name: 'Times New Roman', size: 12 };
+      p5Cell.border = thinBorder;
+    }
 
-    const bSum12Total = sheet.getCell(totalRowIdx, 9);
-    bSum12Total.value = {
-      formula: `SUM(${iCol}${dataStartRow}:${iCol}${dataEndRow})`,
-      result: totalBudgetKzt12
-    };
-    bSum12Total.numFmt = '#,##0.00';
-    bSum12Total.font = { bold: true };
-    bSum12Total.alignment = { horizontal: 'right', vertical: 'middle' };
-    bSum12Total.border = headerBorder;
-    bSum12Total.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } };
+    // 4. SUMMARY & FOOTER ROWS (Section 6 .. 18)
+    const itemsEndRow = itemsStartRow + rowCount - 1;
+    let nextRow = itemsEndRow + 1;
+
+    // Row 6: "Итого сумма "
+    sheet.getRow(nextRow).height = 26;
+    const aSum = sheet.getCell(nextRow, 1);
+    aSum.value = '6';
+    aSum.font = { name: 'Times New Roman', size: 14, bold: true };
+    aSum.alignment = { horizontal: 'center', vertical: 'middle' };
+    aSum.border = thinBorder;
+
+    sheet.mergeCells(nextRow, 2, nextRow, 4);
+    const bSum = sheet.getCell(nextRow, 2);
+    bSum.value = 'Итого сумма ';
+    bSum.font = { name: 'Times New Roman', size: 14, bold: true };
+    bSum.alignment = { horizontal: 'left', vertical: 'middle' };
+    for (let c = 2; c <= 4; c++) sheet.getCell(nextRow, c).border = thinBorder;
+
+    // Col E: Total Quantity (=SUM(E16:E{end}))
+    const eSum = sheet.getCell(nextRow, 5);
+    eSum.value = { formula: `SUM(E${itemsStartRow}:E${itemsEndRow})` };
+    eSum.font = { name: 'Times New Roman', size: 12, bold: true };
+    eSum.alignment = { horizontal: 'right', vertical: 'middle' };
+    eSum.numFmt = '#,##0.00';
+    eSum.border = thinBorder;
+
+    // Budget Totals (Cols F, G, H, I)
+    sheet.getCell(nextRow, 6).border = thinBorder;
+    const gSum = sheet.getCell(nextRow, 7);
+    gSum.value = { formula: `SUM(G${itemsStartRow}:G${itemsEndRow})`, result: totalBudgetKzt0 };
+    gSum.font = { name: 'Times New Roman', size: 12, bold: true };
+    gSum.alignment = { horizontal: 'right', vertical: 'middle' };
+    gSum.numFmt = '#,##0.00';
+    gSum.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCCCCFF' } };
+    gSum.border = thinBorder;
+
+    sheet.getCell(nextRow, 8).border = thinBorder;
+    const iSum = sheet.getCell(nextRow, 9);
+    iSum.value = { formula: `SUM(I${itemsStartRow}:I${itemsEndRow})`, result: totalBudgetKzt12 };
+    iSum.font = { name: 'Times New Roman', size: 12, bold: true };
+    iSum.alignment = { horizontal: 'right', vertical: 'middle' };
+    iSum.numFmt = '#,##0.00';
+    iSum.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCCCCFF' } };
+    iSum.border = thinBorder;
 
     // Supplier Totals
-    suppliers.forEach((s, sIdx) => {
-      const startCol = baseColCount + budgetColCount + (sIdx * colsPerSupplier) + 1;
-      const sSum0Col = getColLetter(startCol + 2);
-      const sSum12Col = getColLetter(startCol + 4);
-      const sSumRubCol = getColLetter(startCol + 6);
-      const sumObj = summaries.find(sm => sm.supplierId === (s.id || s.name));
+    suppliers.forEach((s, idx) => {
+      const sCol = baseColCount + budgetColCount + (idx * colsPerSupplier) + 1;
+      const isWinner = s.isSelected || (!comparisonData.selectedSupplierId && summaries[idx]?.isBestPrice);
+      const bg = isWinner ? 'FFCCFFCC' : 'FFFFCC99';
 
-      for (let c = startCol; c <= startCol + colsPerSupplier - 1; c++) {
-        sheet.getCell(totalRowIdx, c).border = headerBorder;
-      }
+      // Blank for prop name & unit prices
+      sheet.getCell(nextRow, sCol).border = thinBorder;
+      sheet.getCell(nextRow, sCol + 1).border = thinBorder;
+      sheet.getCell(nextRow, sCol + 3).border = thinBorder;
+      sheet.getCell(nextRow, sCol + 5).border = thinBorder;
 
-      const cSum0 = sheet.getCell(totalRowIdx, startCol + 2);
-      cSum0.value = {
-        formula: `SUM(${sSum0Col}${dataStartRow}:${sSum0Col}${dataEndRow})`,
-        result: sumObj?.totalKzt0 || 0
-      };
-      cSum0.numFmt = '#,##0.00';
-      cSum0.font = { bold: true };
-      cSum0.alignment = { horizontal: 'right', vertical: 'middle' };
+      // Sum RUB 0%
+      const srLetter = getColLetter(sCol + 2);
+      const srSum = sheet.getCell(nextRow, sCol + 2);
+      srSum.value = { formula: `SUM(${srLetter}${itemsStartRow}:${srLetter}${itemsEndRow})` };
+      srSum.font = { name: 'Times New Roman', size: 12, bold: true };
+      srSum.alignment = { horizontal: 'right', vertical: 'middle' };
+      srSum.numFmt = '#,##0.00';
+      srSum.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      srSum.border = thinBorder;
 
-      const cSum12 = sheet.getCell(totalRowIdx, startCol + 4);
-      cSum12.value = {
-        formula: `SUM(${sSum12Col}${dataStartRow}:${sSum12Col}${dataEndRow})`,
-        result: sumObj?.totalKzt12 || 0
-      };
-      cSum12.numFmt = '#,##0.00';
-      cSum12.font = { bold: true, color: { argb: sumObj?.isBestPrice ? 'FF065F46' : 'FF0F172A' } };
-      cSum12.alignment = { horizontal: 'right', vertical: 'middle' };
-      if (sumObj?.isBestPrice) {
-        cSum12.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
-      }
+      // Sum KZT 0%
+      const sk0Letter = getColLetter(sCol + 4);
+      const sk0Sum = sheet.getCell(nextRow, sCol + 4);
+      sk0Sum.value = { formula: `SUM(${sk0Letter}${itemsStartRow}:${sk0Letter}${itemsEndRow})` };
+      sk0Sum.font = { name: 'Times New Roman', size: 12, bold: true };
+      sk0Sum.alignment = { horizontal: 'right', vertical: 'middle' };
+      sk0Sum.numFmt = '#,##0.00';
+      sk0Sum.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      sk0Sum.border = thinBorder;
 
-      const cSumRub = sheet.getCell(totalRowIdx, startCol + 6);
-      cSumRub.value = {
-        formula: `SUM(${sSumRubCol}${dataStartRow}:${sSumRubCol}${dataEndRow})`,
-        result: sumObj?.totalRub0 || 0
-      };
-      cSumRub.numFmt = '#,##0.00';
-      cSumRub.font = { bold: true };
-      cSumRub.alignment = { horizontal: 'right', vertical: 'middle' };
+      // Sum KZT 12%
+      const sk12Letter = getColLetter(sCol + 6);
+      const sk12Sum = sheet.getCell(nextRow, sCol + 6);
+      sk12Sum.value = { formula: `SUM(${sk12Letter}${itemsStartRow}:${sk12Letter}${itemsEndRow})` };
+      sk12Sum.font = { name: 'Times New Roman', size: 12, bold: true };
+      sk12Sum.alignment = { horizontal: 'right', vertical: 'middle' };
+      sk12Sum.numFmt = '#,##0.00';
+      sk12Sum.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      sk12Sum.border = thinBorder;
     });
 
-    currentRow++;
+    // Profit Totals in Row 6
+    const p1Letter = getColLetter(p1Col);
+    const p1Sum = sheet.getCell(nextRow, p1Col);
+    p1Sum.value = { formula: `SUM(${p1Letter}${itemsStartRow}:${p1Letter}${itemsEndRow})` };
+    p1Sum.font = { name: 'Times New Roman', size: 12, bold: true };
+    p1Sum.alignment = { horizontal: 'right', vertical: 'middle' };
+    p1Sum.numFmt = '#,##0.00';
+    p1Sum.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF99CCFF' } };
+    p1Sum.border = thinBorder;
 
-    // Row 2: СКИДКА ПОСТАВЩИКА (%)
-    const discountRowIdx = currentRow;
-    sheet.mergeCells(discountRowIdx, 1, discountRowIdx, 9);
-    const discLabel = sheet.getCell(discountRowIdx, 1);
-    discLabel.value = 'Скидка поставщика (%):';
-    discLabel.font = { name: 'Calibri', size: 10, bold: true };
-    discLabel.alignment = { horizontal: 'right', vertical: 'middle' };
-    for (let c = 1; c <= 9; c++) sheet.getCell(discountRowIdx, c).border = thinBorder;
+    const p2Letter = getColLetter(p1Col + 1);
+    const p2Sum = sheet.getCell(nextRow, p1Col + 1);
+    p2Sum.value = { formula: `SUM(${p2Letter}${itemsStartRow}:${p2Letter}${itemsEndRow})` };
+    p2Sum.font = { name: 'Times New Roman', size: 12, bold: true };
+    p2Sum.alignment = { horizontal: 'right', vertical: 'middle' };
+    p2Sum.numFmt = '#,##0.00';
+    p2Sum.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF99CCFF' } };
+    p2Sum.border = thinBorder;
 
-    suppliers.forEach((s, sIdx) => {
-      const startCol = baseColCount + budgetColCount + (sIdx * colsPerSupplier) + 1;
-      const endCol = startCol + colsPerSupplier - 1;
-      sheet.mergeCells(discountRowIdx, startCol, discountRowIdx, endCol);
-      const cell = sheet.getCell(discountRowIdx, startCol);
-      cell.value = `${s.discountPercent || 0}%`;
-      cell.font = { name: 'Calibri', size: 10, bold: true };
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      for (let c = startCol; c <= endCol; c++) sheet.getCell(discountRowIdx, c).border = thinBorder;
-    });
+    // Profit with credit deduction: =p2Sum - creditCost
+    const p3Sum = sheet.getCell(nextRow, p1Col + 2);
+    const creditCostNum = Number(comparisonData.creditCost) || 0;
+    p3Sum.value = { formula: `${p2Letter}${nextRow}-${creditCostNum}` };
+    p3Sum.font = { name: 'Times New Roman', size: 12, bold: true };
+    p3Sum.alignment = { horizontal: 'right', vertical: 'middle' };
+    p3Sum.numFmt = '#,##0.00';
+    p3Sum.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF99CCFF' } };
+    p3Sum.border = thinBorder;
 
-    currentRow++;
+    // NDS
+    const p4Letter = getColLetter(p1Col + 3);
+    const p4Sum = sheet.getCell(nextRow, p1Col + 3);
+    p4Sum.value = { formula: `${p2Letter}${nextRow}-${p1Letter}${nextRow}` };
+    p4Sum.font = { name: 'Times New Roman', size: 12, bold: true };
+    p4Sum.alignment = { horizontal: 'right', vertical: 'middle' };
+    p4Sum.numFmt = '#,##0.00';
+    p4Sum.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF99CCFF' } };
+    p4Sum.border = thinBorder;
 
-    // Row 3: ИТОГО С УЧЕТОМ СКИДОК
-    const discTotalRowIdx = currentRow;
-    sheet.mergeCells(discTotalRowIdx, 1, discTotalRowIdx, 9);
-    const discTotalLabel = sheet.getCell(discTotalRowIdx, 1);
-    discTotalLabel.value = 'ИТОГО С УЧЕТОМ СКИДКИ (KZT, с НДС 12%):';
-    discTotalLabel.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0F172A' } };
-    discTotalLabel.alignment = { horizontal: 'right', vertical: 'middle' };
-    for (let c = 1; c <= 9; c++) sheet.getCell(discTotalRowIdx, c).border = doubleBottomBorder;
+    // Rentability (%): = Profit / TotalBudget * 100
+    const p5Letter = getColLetter(p1Col + 4);
+    const p5Sum = sheet.getCell(nextRow, p1Col + 4);
+    p5Sum.value = { formula: `${p3Letter(p1Col + 2)}${nextRow}/I${nextRow}` };
+    p5Sum.font = { name: 'Times New Roman', size: 12, bold: true };
+    p5Sum.alignment = { horizontal: 'right', vertical: 'middle' };
+    p5Sum.numFmt = '0.00%';
+    p5Sum.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF99CCFF' } };
+    p5Sum.border = thinBorder;
 
-    suppliers.forEach((s, sIdx) => {
-      const startCol = baseColCount + budgetColCount + (sIdx * colsPerSupplier) + 1;
-      const endCol = startCol + colsPerSupplier - 1;
-      const sumObj = summaries.find(sm => sm.supplierId === (s.id || s.name));
-      const sSum12Col = getColLetter(startCol + 4);
+    function p3Letter(col: number) {
+      return getColLetter(col);
+    }
 
-      sheet.mergeCells(discTotalRowIdx, startCol, discTotalRowIdx, endCol);
-      const cell = sheet.getCell(discTotalRowIdx, startCol);
-      const disc = Number(s.discountPercent) || 0;
-      cell.value = {
-        formula: `${sSum12Col}${totalRowIdx}*(1-${disc}/100)`,
-        result: sumObj?.totalWithDiscountKzt12 || 0
-      };
-      cell.numFmt = '#,##0.00 "₸"';
-      cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: sumObj?.isBestPrice ? 'FF065F46' : 'FF0F172A' } };
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      if (sumObj?.isBestPrice) {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
-      }
-      for (let c = startCol; c <= endCol; c++) sheet.getCell(discTotalRowIdx, c).border = doubleBottomBorder;
-    });
+    const sumRowIdx = nextRow;
+    nextRow++;
 
-    currentRow += 2;
+    // Row 7: "Итого сумма закупа (с учетом скидок) по каждому Поставщику"
+    sheet.getRow(nextRow).height = 36;
+    const a7 = sheet.getCell(nextRow, 1);
+    a7.value = '7';
+    a7.font = { name: 'Times New Roman', size: 14, bold: true };
+    a7.alignment = { horizontal: 'center', vertical: 'middle' };
+    a7.border = thinBorder;
 
-    // 8. PROFITABILITY & CREDIT CALCULATION SECTION (Rows 22+)
-    const profHeaderRowIdx = currentRow;
-    sheet.mergeCells(profHeaderRowIdx, 1, profHeaderRowIdx, totalCols);
-    const profHeader = sheet.getCell(profHeaderRowIdx, 1);
-    profHeader.value = 'РАСЧЕТ ДОХОДНОСТИ, КРЕДИТОВАНИЯ И РЕНТАБЕЛЬНОСТИ СДЕЛКИ';
-    profHeader.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF1E293B' } };
-    profHeader.alignment = { horizontal: 'left', vertical: 'middle' };
-    profHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+    sheet.mergeCells(nextRow, 2, nextRow, 5);
+    const b7 = sheet.getCell(nextRow, 2);
+    b7.value = 'Итого сумма закупа (с учетом скидок) по каждому Поставщику';
+    b7.font = { name: 'Times New Roman', size: 13, bold: true };
+    b7.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+    for (let c = 2; c <= 5; c++) sheet.getCell(nextRow, c).border = thinBorder;
 
-    currentRow++;
-
-    // Table of profitability per supplier
-    const winnerSummary = summaries.find(s => s.isSelected) || summaries.find(s => s.isBestPrice) || summaries[0];
-    const creditAmt = Number(comparisonData.creditAmount) || 0;
-    const creditDays = Number(comparisonData.creditDays) || 0;
-    const creditCost = Number(comparisonData.creditCost) || 0;
-
-    const profRows = [
-      {
-        label: 'Выручка по договору (Бюджет тендера)',
-        val: `${totalBudgetKzt12.toLocaleString('ru-RU')} ₸`,
-        note: 'Сумма контракта с заказчиком (с НДС 12%)'
-      },
-      {
-        label: `Сумма закупки у поставщика (${winnerSummary?.name || 'Выбранный контрагент'})`,
-        val: `${(winnerSummary?.totalWithDiscountKzt12 || 0).toLocaleString('ru-RU')} ₸`,
-        note: `С учетом скидки ${winnerSummary?.discountPercent || 0}%`
-      },
-      {
-        label: 'Валовый доход (Маржа без учета кредита)',
-        val: `${(winnerSummary?.grossMarginKzt || 0).toLocaleString('ru-RU')} ₸ (${winnerSummary?.grossMarginPct || 0}%)`,
-        note: '= Выручка - Закупка'
-      },
-      {
-        label: 'Расходы на привлечение кредита',
-        val: `${creditCost.toLocaleString('ru-RU')} ₸`,
-        note: creditAmt > 0 ? `${creditAmt.toLocaleString('ru-RU')} ₸ на ${creditDays} дней` : 'Кредитные средства не привлекаются'
-      },
-      {
-        label: 'Чистый доход с вычетом кредита',
-        val: `${(winnerSummary?.netMarginWithCreditKzt || 0).toLocaleString('ru-RU')} ₸`,
-        note: '= Валовый доход - Стоимость кредита'
-      },
-      {
-        label: 'Итоговая чистая рентабельность сделки',
-        val: `${winnerSummary?.netMarginWithCreditPct || 0}%`,
-        note: '= Чистый доход / Выручка * 100'
-      }
-    ];
-
-    profRows.forEach((pr, prIdx) => {
-      const rIdx = currentRow;
-      sheet.getRow(rIdx).height = 20;
-
-      sheet.mergeCells(rIdx, 1, rIdx, 4);
-      const lCell = sheet.getCell(rIdx, 1);
-      lCell.value = pr.label;
-      lCell.font = { name: 'Calibri', size: 10, bold: prIdx >= 4 };
-      lCell.alignment = { horizontal: 'left', vertical: 'middle' };
-
-      sheet.mergeCells(rIdx, 5, rIdx, 7);
-      const vCell = sheet.getCell(rIdx, 5);
-      vCell.value = pr.val;
-      vCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: prIdx === 5 ? 'FF065F46' : 'FF0F172A' } };
-      vCell.alignment = { horizontal: 'right', vertical: 'middle' };
-
-      sheet.mergeCells(rIdx, 8, rIdx, totalCols);
-      const nCell = sheet.getCell(rIdx, 8);
-      nCell.value = pr.note;
-      nCell.font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF64748B' } };
-      nCell.alignment = { horizontal: 'left', vertical: 'middle' };
-
-      for (let c = 1; c <= totalCols; c++) {
-        sheet.getCell(rIdx, c).border = thinBorder;
-      }
-      if (prIdx === 5) {
-        for (let c = 1; c <= totalCols; c++) {
-          sheet.getCell(rIdx, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
-        }
-      }
-
-      currentRow++;
-    });
-
-    // 9. COLUMN WIDTHS
-    sheet.getColumn(1).width = 6;   // №
-    sheet.getColumn(2).width = 14;  // Код МПЗ
-    sheet.getColumn(3).width = 42;  // Наименование ТРУ
-    sheet.getColumn(4).width = 10;  // Ед. изм.
-    sheet.getColumn(5).width = 12;  // Кол-во
-    sheet.getColumn(6).width = 16;  // Бюджет Цена 0%
-    sheet.getColumn(7).width = 18;  // Бюджет Сумма 0%
-    sheet.getColumn(8).width = 16;  // Бюджет Цена 12%
-    sheet.getColumn(9).width = 18;  // Бюджет Сумма 12%
+    // Budget empty cells
+    for (let c = 6; c <= 9; c++) sheet.getCell(nextRow, c).border = thinBorder;
 
     suppliers.forEach((s, idx) => {
-      const startCol = baseColCount + budgetColCount + (idx * colsPerSupplier) + 1;
-      sheet.getColumn(startCol).width = 30;     // Предлагаемое наименование
-      sheet.getColumn(startCol + 1).width = 16; // Цена KZT 0%
-      sheet.getColumn(startCol + 2).width = 18; // Сумма KZT 0%
-      sheet.getColumn(startCol + 3).width = 16; // Цена KZT 12%
-      sheet.getColumn(startCol + 4).width = 18; // Сумма KZT 12%
-      sheet.getColumn(startCol + 5).width = 16; // Цена RUB 0%
-      sheet.getColumn(startCol + 6).width = 18; // Сумма RUB 0%
+      const sCol = baseColCount + budgetColCount + (idx * colsPerSupplier) + 1;
+      const endCol = sCol + colsPerSupplier - 1;
+      const discount = Number(s.discountPercent) || 0;
+      const sk12Letter = getColLetter(sCol + 6);
+      const isWinner = s.isSelected || (!comparisonData.selectedSupplierId && summaries[idx]?.isBestPrice);
+      const bg = isWinner ? 'FFCCFFCC' : 'FFFFCC99';
+
+      sheet.mergeCells(nextRow, sCol, nextRow, endCol);
+      const cell = sheet.getCell(nextRow, sCol);
+      if (discount > 0) {
+        cell.value = { formula: `${sk12Letter}${sumRowIdx}*(1-${discount}/100)` };
+      } else {
+        cell.value = { formula: `${sk12Letter}${sumRowIdx}` };
+      }
+      cell.font = { name: 'Times New Roman', size: 14, bold: true };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.numFmt = '#,##0.00 ₸';
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+
+      for (let c = sCol; c <= endCol; c++) sheet.getCell(nextRow, c).border = thinBorder;
     });
 
-    const buffer = await workbook.xlsx.writeBuffer();
-    return Buffer.from(buffer);
+    for (let c = profitStartCol; c <= totalCols; c++) sheet.getCell(nextRow, c).border = thinBorder;
+
+    nextRow++;
+
+    // Helper to add footer requisite rows (8 to 18)
+    const addFooterRequisiteRow = (secNum: string, title: string, height: number, getVal: (s: any) => string) => {
+      sheet.getRow(nextRow).height = height;
+
+      // Col A: Sec Number
+      const aCell = sheet.getCell(nextRow, 1);
+      aCell.value = secNum;
+      aCell.font = { name: 'Times New Roman', size: 14 };
+      aCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      aCell.border = thinBorder;
+
+      // Col B:E: Title
+      sheet.mergeCells(nextRow, 2, nextRow, 5);
+      const bCell = sheet.getCell(nextRow, 2);
+      bCell.value = title;
+      bCell.font = { name: 'Times New Roman', size: 12 };
+      bCell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+      for (let c = 2; c <= 5; c++) sheet.getCell(nextRow, c).border = thinBorder;
+
+      // Budget empty cells
+      for (let c = 6; c <= 9; c++) sheet.getCell(nextRow, c).border = thinBorder;
+
+      // Suppliers
+      suppliers.forEach((s, idx) => {
+        const sCol = baseColCount + budgetColCount + (idx * colsPerSupplier) + 1;
+        const endCol = sCol + colsPerSupplier - 1;
+        const isWinner = s.isSelected || (!comparisonData.selectedSupplierId && summaries[idx]?.isBestPrice);
+        const bg = isWinner ? 'FFCCFFCC' : 'FFFFCC99';
+
+        sheet.mergeCells(nextRow, sCol, nextRow, endCol);
+        const cell = sheet.getCell(nextRow, sCol);
+        cell.value = getVal(s);
+        cell.font = { name: 'Times New Roman', size: 11, bold: isWinner };
+        cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+
+        for (let c = sCol; c <= endCol; c++) sheet.getCell(nextRow, c).border = thinBorder;
+      });
+
+      for (let c = profitStartCol; c <= totalCols; c++) sheet.getCell(nextRow, c).border = thinBorder;
+
+      nextRow++;
+    };
+
+    // Rows 8 .. 18
+    addFooterRequisiteRow('8', 'Условия оплаты ', 45, s => s.paymentTerms || '—');
+    addFooterRequisiteRow('9', 'Форма оплаты', 20, s => s.paymentForm || 'Безналичный расчет в KZT');
+    addFooterRequisiteRow('10', 'Размер обеспечения тендерной заявки', 20, s => s.bidSecurity ? `${Number(s.bidSecurity).toLocaleString('ru-RU')} ₸` : 'Не требуется');
+    addFooterRequisiteRow('11', 'Срок поставки/выполнения работ  ', 30, s => s.deliveryPeriod || '—');
+    addFooterRequisiteRow('12', 'Гарантийный срок ', 20, s => s.warrantyPeriod || '—');
+    addFooterRequisiteRow('13', 'Базис поставки (согласно Инкотермс-2010)', 30, s => s.incotermsBasis || '—');
+    addFooterRequisiteRow('14', 'Способ доставки (ж/д, авиа, авто)', 20, s => s.deliveryMethod || '—');
+    addFooterRequisiteRow('15', 'Толеранс', 20, s => s.tolerance || '0%');
+    addFooterRequisiteRow('16', 'Номер и дата ценового предложения', 20, s => s.commercialOfferNumberDate || '—');
+    addFooterRequisiteRow('17', 'Поставщик по ПСД', 20, s => s.supplierPsd || 'Нет');
+    addFooterRequisiteRow('18', 'Дополнительная информация', 30, s => s.additionalInfo || '—');
+
+    // 5. CREDIT CALCULATION BANNER (Underneath)
+    nextRow++;
+    sheet.getRow(nextRow).height = 24;
+    sheet.mergeCells(nextRow, 2, nextRow, 12);
+    const crBanner = sheet.getCell(nextRow, 2);
+    const creditAmt = Number(comparisonData.creditAmount) || 0;
+    const creditDays = Number(comparisonData.creditDays) || 75;
+    const creditCost = Number(comparisonData.creditCost) || 0;
+    crBanner.value = `КРЕДИТ: ${creditAmt.toLocaleString('ru-RU')} тг на ${creditDays} дней = ${creditCost.toLocaleString('ru-RU')} тг расходов`;
+    crBanner.font = { name: 'Times New Roman', size: 12, bold: true, color: { argb: 'FF1E293B' } };
+    crBanner.alignment = { horizontal: 'left', vertical: 'middle' };
+    crBanner.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+
+    return Buffer.from(await workbook.xlsx.writeBuffer());
   }
 }

@@ -167,8 +167,8 @@ async function runTests() {
     await readWb.xlsx.load(excelBuf);
     const readSheet = readWb.getWorksheet('Конкурентный лист');
     assert(readSheet !== undefined, 'Вкладка "Конкурентный лист" успешно прочитана из экспортированного файла');
-    const titleVal = readSheet.getCell('A2').value;
-    assert(titleVal === 'КОНКУРЕНТНЫЙ ЛИСТ ПО ВЫБОРУ ПОСТАВЩИКА', `Заголовок шапки совпадает: "${titleVal}"`);
+    const titleVal = String(readSheet.getCell('A2').value || '');
+    assert(titleVal.toLowerCase().includes('конкурентный лист'), `Заголовок шапки содержит "Конкурентный лист": "${titleVal}"`);
   } catch (err) {
     assert(false, `Сбой экспорта Excel: ${err.message}`);
   }
