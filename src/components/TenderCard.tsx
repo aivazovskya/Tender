@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { Tender } from '../lib/types/tender';
 import { getSourceLabel, DataSourceMeta } from '../lib/utils/sourceLabel';
 import { 
@@ -83,11 +84,20 @@ export const TenderCard: React.FC<TenderCardProps> = ({
         </div>
 
         {/* Title */}
-        <h3 
-          onClick={() => onOpenDetails(tender)}
-          className="text-base font-semibold text-ink hover:text-ember cursor-pointer transition-colors line-clamp-2 mb-3 leading-snug tracking-tight"
-        >
-          {tender.title}
+        <h3 className="text-base font-semibold text-ink hover:text-ember transition-colors line-clamp-2 mb-3 leading-snug tracking-tight">
+          <Link
+            href={`/tenders/${tender.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => {
+              if (onOpenDetails) {
+                // If onOpenDetails is provided, also trigger it if not default
+              }
+            }}
+            className="hover:underline cursor-pointer"
+          >
+            {tender.title}
+          </Link>
         </h3>
 
         {/* Customer & Region info */}

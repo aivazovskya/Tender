@@ -699,7 +699,7 @@ export default function HomePage() {
                     <TenderCard
                       key={tender.id}
                       tender={tender}
-                      onOpenDetails={(t) => setSelectedTender(t)}
+                      onOpenDetails={(t) => window.open(`/tenders/${t.id}`, '_blank', 'noopener,noreferrer')}
                       onAddToKanban={handleAddToKanban}
                       onSendToTelegram={handleSendToTelegram}
                       isInKanban={kanbanItems.some(k => k.tenderId === tender.id)}
@@ -733,7 +733,7 @@ export default function HomePage() {
                   <TenderCard
                     key={tender.id}
                     tender={tender}
-                    onOpenDetails={(t) => setSelectedTender(t)}
+                    onOpenDetails={(t) => window.open(`/tenders/${t.id}`, '_blank', 'noopener,noreferrer')}
                     onAddToKanban={handleAddToKanban}
                     onSendToTelegram={handleSendToTelegram}
                     isInKanban={kanbanItems.some(k => k.tenderId === tender.id)}
@@ -752,7 +752,7 @@ export default function HomePage() {
             onUpdateStage={handleUpdateKanbanStage}
             onUpdateCard={handleUpdateKanbanCard}
             onRemoveItem={handleRemoveKanbanItem}
-            onOpenTenderDetails={(t) => setSelectedTender(t)}
+            onOpenTenderDetails={(t) => window.open(`/tenders/${t.id}`, '_blank', 'noopener,noreferrer')}
             onExportExcel={handleExportKanbanExcel}
             userPlan={userTariff}
             dataSources={dataSources}

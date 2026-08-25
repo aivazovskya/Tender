@@ -223,5 +223,91 @@ export interface ManagementReport {
   byCategory: CategoryBreakdown[];
 }
 
+// ==========================================
+// Supplier Comparison Sheet (Конкурентный лист)
+// ==========================================
+
+export interface ComparisonSupplierPriceData {
+  id?: string;
+  lineItemId: string;
+  supplierId: string;
+  proposedName?: string;
+  priceKzt0?: number;
+  priceKzt12?: number;
+  priceRub0?: number;
+  currency?: string;
+}
+
+export interface ComparisonLineItemData {
+  id?: string;
+  order: number;
+  mpzCode?: string;
+  name: string;
+  unit?: string;
+  quantity: number;
+  budgetPriceKzt0?: number;
+  budgetPriceKzt12?: number;
+  prices: Record<string, ComparisonSupplierPriceData>; // supplierId => priceData
+}
+
+export interface ComparisonSupplierData {
+  id?: string;
+  name: string;
+  address?: string;
+  email?: string;
+  phone?: string;
+  paymentTerms?: string;
+  paymentForm?: string;
+  bidSecurity?: number;
+  discountPercent?: number;
+  order: number;
+  isSelected?: boolean;
+}
+
+export interface ComparisonSupplierSummary {
+  supplierId: string;
+  name: string;
+  totalKzt0: number;
+  totalKzt12: number;
+  totalRub0: number;
+  discountPercent: number;
+  totalWithDiscountKzt0: number;
+  totalWithDiscountKzt12: number;
+  revenueKzt: number;
+  grossMarginKzt: number;
+  grossMarginPct: number;
+  netMarginWithCreditKzt: number;
+  netMarginWithCreditPct: number;
+  isSelected: boolean;
+  isBestPrice: boolean;
+}
+
+export interface TenderSupplierComparisonData {
+  id?: string;
+  tenderId: string;
+  companyId?: string;
+  tenderTitle?: string;
+  tenderNumber?: string;
+  tradingPlatform?: string;
+  customerName?: string;
+  customerBin?: string;
+  publishDate?: string;
+  deadlineDate?: string;
+  totalBudgetKzt0?: number;
+  totalBudgetKzt12?: number;
+  exchangeRate: number; // RUB to KZT
+  notes?: string;
+  selectedSupplierId?: string | null;
+  creditAmount?: number;
+  creditDays?: number;
+  creditCost?: number;
+  suppliers: ComparisonSupplierData[];
+  lineItems: ComparisonLineItemData[];
+  summaries?: ComparisonSupplierSummary[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+
 
 
