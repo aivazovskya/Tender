@@ -8,6 +8,29 @@ import { CompanyProfile } from '@prisma/client';
  */
 export async function resolveOwnCompanyProfile(userId: string): Promise<CompanyProfile | null> {
   if (!userId) return null;
+
+  // Offline memory test mode fallback
+  if (process.env.AUTH_STORE_MODE === 'memory') {
+    return {
+      id: userId === 'demo-user-id' ? 'demo-company-profile-id' : `cp_${userId}`,
+      userId,
+      organizationId: null,
+      companyName: 'Тестовая Компания',
+      bin: '123456789012',
+      activities: 'Тендерные поставки',
+      keywords: [],
+      regions: [],
+      minAmount: 0,
+      maxAmount: null,
+      contactEmail: 'demo@tender.ai',
+      telegramChatId: null,
+      subscriptionPlan: 'FREE',
+      subscriptionExpiresAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    } as any;
+  }
+
   try {
     const profile = await prisma.companyProfile.findFirst({
       where: { userId }
@@ -17,11 +40,34 @@ export async function resolveOwnCompanyProfile(userId: string): Promise<CompanyP
     // DB error fallback in memory/demo mode
   }
 
-  // Demo user or offline memory test mode fallback
-  if (userId === 'demo-user-id' || process.env.AUTH_STORE_MODE === 'memory') {
+  // Demo user: upsert demo profile in database to satisfy foreign keys
+  if (userId === 'demo-user-id') {
+    try {
+      const demoProfile = await prisma.companyProfile.upsert({
+        where: { bin: '123456789012' },
+        update: {},
+        create: {
+          id: 'demo-company-profile-id',
+          userId: 'demo-user-id',
+          companyName: 'Тестовая Компания',
+          bin: '123456789012',
+          activities: 'Тендерные поставки',
+          keywords: [],
+          regions: [],
+          minAmount: 0,
+          maxAmount: null,
+          contactEmail: 'demo@tender.ai',
+          telegramChatId: null,
+          subscriptionPlan: 'FREE'
+        }
+      });
+      return demoProfile;
+    } catch (dbErr) {
+      // Fallback below if DB is unreachable
+    }
     return {
-      id: userId === 'demo-user-id' ? 'demo-company-profile-id' : `cp_${userId}`,
-      userId,
+      id: 'demo-company-profile-id',
+      userId: 'demo-user-id',
       organizationId: null,
       companyName: 'Тестовая Компания',
       bin: '123456789012',

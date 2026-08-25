@@ -17,7 +17,23 @@ export async function POST(request: NextRequest) {
 
   try {
     // 2. Resolve Caller's Own Company Profile
-    const companyProfile = await resolveOwnCompanyProfile(auth.userId);
+    let companyProfile = await resolveOwnCompanyProfile(auth.userId);
+    if (!companyProfile) {
+      try {
+        companyProfile = await prisma.companyProfile.create({
+          data: {
+            userId: auth.userId,
+            companyName: 'Моя Компания',
+            bin: `12345${Math.floor(1000000 + Math.random() * 9000000)}`,
+            activities: 'Тендерные поставки',
+            subscriptionPlan: 'FREE'
+          }
+        });
+      } catch {
+        companyProfile = await prisma.companyProfile.findFirst({ where: { userId: auth.userId } });
+      }
+    }
+
     if (!companyProfile) {
       return NextResponse.json(
         { success: false, message: 'Профиль компании не найден. Сначала заполните профиль компании.' },
