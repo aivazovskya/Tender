@@ -11,7 +11,14 @@ import {
   Plus,
   Sliders,
   AlertTriangle,
-  Cpu
+  Cpu,
+  Users,
+  UserCheck,
+  UserX,
+  CheckCircle2,
+  XCircle,
+  ShieldAlert,
+  Loader2
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -25,6 +32,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onTriggerSync,
   onAddNewTenders
 }) => {
+  const [adminTab, setAdminTab] = useState<'sources' | 'users'>('sources');
   const [logs, setLogs] = useState<Array<{ id: string; time: string; source: string; status: string; msg: string }>>([]);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [isFallback, setIsFallback] = useState<boolean>(false);
@@ -33,6 +41,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isApiModalOpen, setIsApiModalOpen] = useState<boolean>(false);
   const [selectedScraperConfig, setSelectedScraperConfig] = useState<any>(null);
   const [registeredApiSources, setRegisteredApiSources] = useState<string[]>(['GOSZAKUP', 'SAMRUK_KAZYNA']);
+
+  // Pending Users State
+  const [pendingUsers, setPendingUsers] = useState<Array<{ id: string; email: string; name?: string; createdAt: string }>>([]);
+  const [loadingUsers, setLoadingUsers] = useState<boolean>(false);
+  const [processingUserId, setProcessingUserId] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
   const [metrics, setMetrics] = useState<{ totalTendersCount: number; aiTokens24h: number; maxAiTokensQuota: number }>({
     totalTendersCount: 24900,
@@ -73,6 +87,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       .catch(() => {});
   };
 
+  const loadPendingUsers = () => {
+    setLoadingUsers(true);
+    fetch('/api/admin/users/pending')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.users)) {
+          setPendingUsers(data.users);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingUsers(false));
+  };
+
   useEffect(() => {
     fetch('/api/admin/metrics')
       .then(res => res.json())
@@ -98,7 +125,47 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       .catch(() => {});
 
     loadSources();
+    loadPendingUsers();
   }, []);
+
+  const handleApproveUser = async (userId: string, email: string) => {
+    setProcessingUserId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/approve`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setPendingUsers(prev => prev.filter(u => u.id !== userId));
+        setActionFeedback({ msg: `Пользователь ${email} успешно одобрен!`, type: 'success' });
+      } else {
+        setActionFeedback({ msg: data.message || 'Ошибка одобрения пользователя', type: 'error' });
+      }
+    } catch (err: any) {
+      setActionFeedback({ msg: 'Сетевая ошибка при одобрении', type: 'error' });
+    } finally {
+      setProcessingUserId(null);
+      setTimeout(() => setActionFeedback(null), 4000);
+    }
+  };
+
+  const handleRejectUser = async (userId: string, email: string) => {
+    if (!confirm(`Отклонить заявку пользователя ${email}?`)) return;
+    setProcessingUserId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/reject`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setPendingUsers(prev => prev.filter(u => u.id !== userId));
+        setActionFeedback({ msg: `Заявка ${email} отклонена`, type: 'success' });
+      } else {
+        setActionFeedback({ msg: data.message || 'Ошибка отклонения заявки', type: 'error' });
+      }
+    } catch (err: any) {
+      setActionFeedback({ msg: 'Сетевая ошибка при отклонении', type: 'error' });
+    } finally {
+      setProcessingUserId(null);
+      setTimeout(() => setActionFeedback(null), 4000);
+    }
+  };
 
   const handleManualSync = async (source: any) => {
     setSyncingId(source.id);
@@ -165,7 +232,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         <div>
           <h2 className="text-lg font-bold text-ink flex items-center space-x-2 flex-wrap gap-2 tracking-tight">
             <Activity className="w-5 h-5 text-ink" />
-            <span>Административная панель (Ingestion Monitoring)</span>
+            <span>Панель управления администратора</span>
             {isFallback && (
               <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-semibold">
                 Демо-данные
@@ -173,26 +240,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             )}
           </h2>
           <p className="text-xs text-mid-gray mt-1">
-            Мониторинг фоновых задач парсинга, веб-сервисов ЕГСЗ РК и расхода ИИ-токенов.
+            Управление пользователями, премодерация регистрации, мониторинг скраперов и расхода токенов.
           </p>
         </div>
 
         <div className="flex items-center space-x-3 flex-wrap gap-y-2">
-          <button
-            onClick={() => setIsApiModalOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-surface-alt hover:bg-paper border border-hairline text-ink font-semibold text-xs flex items-center space-x-1.5 shadow-subtle transition-all"
-          >
-            <Cpu className="w-4 h-4 text-ink" />
-            <span>+ API-источник</span>
-          </button>
+          {adminTab === 'sources' && (
+            <>
+              <button
+                onClick={() => setIsApiModalOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-surface-alt hover:bg-paper border border-hairline text-ink font-semibold text-xs flex items-center space-x-1.5 shadow-subtle transition-all"
+              >
+                <Cpu className="w-4 h-4 text-ink" />
+                <span>+ API-источник</span>
+              </button>
 
-          <button
-            onClick={handleOpenAddScraperModal}
-            className="px-3.5 py-2 rounded-xl bg-ink hover:bg-ink-soft text-paper font-semibold text-xs flex items-center space-x-1.5 shadow-subtle transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ Scraper-источник</span>
-          </button>
+              <button
+                onClick={handleOpenAddScraperModal}
+                className="px-3.5 py-2 rounded-xl bg-ink hover:bg-ink-soft text-paper font-semibold text-xs flex items-center space-x-1.5 shadow-subtle transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Scraper-источник</span>
+              </button>
+            </>
+          )}
 
           <div className="p-3 rounded-xl bg-surface-alt border border-hairline text-right">
             <span className="text-[10px] text-mid-gray block uppercase tracking-wider font-semibold">ИИ-Токены (24ч)</span>
@@ -210,145 +281,265 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       </div>
 
-      {/* Health & Heartbeat Status Banner */}
-      {healthMetrics.length > 0 && (
-        <div className="bg-paper border border-hairline rounded-2xl p-5 space-y-3 shadow-subtle">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-ink flex items-center space-x-2 tracking-tight">
-              <Activity className="w-4 h-4 text-emerald-600" />
-              <span>Здоровье коннекторов и Heartbeat скраперов</span>
-            </h3>
-            <span className="text-[11px] text-mid-gray">Мониторинг тишины (&gt;6ч) и ошибок воркера</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {healthMetrics.map((hm: any) => {
-              const statusColor = hm.status === 'HEALTHY' 
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
-                : hm.status === 'WARNING' 
-                  ? 'bg-amber-50 border-amber-200 text-amber-900' 
-                  : 'bg-rose-50 border-rose-200 text-rose-900';
-              const dotColor = hm.status === 'HEALTHY' ? 'bg-emerald-500' : hm.status === 'WARNING' ? 'bg-amber-500' : 'bg-rose-500';
-
-              return (
-                <div key={hm.sourceName || hm.id} className={`p-3.5 rounded-xl border ${statusColor} space-y-1.5`}>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs flex items-center space-x-1.5">
-                      <span className={`w-2 h-2 rounded-full ${dotColor}`} />
-                      <span>{hm.sourceName}</span>
-                    </span>
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-paper/60 border border-hairline uppercase">
-                      {hm.status}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-ink-soft space-y-0.5">
-                    <div className="flex justify-between">
-                      <span className="text-mid-gray">Успешно:</span>
-                      <span className="font-mono">{new Date(hm.lastSuccessAt).toLocaleTimeString('ru-RU')}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-mid-gray">Внесено (24ч):</span>
-                      <span className="font-mono">{hm.tendersIngested24h ?? 0}</span>
-                    </div>
-                    {hm.errorCount24h > 0 && (
-                      <div className="flex justify-between text-rose-700 font-semibold">
-                        <span>Ошибок (24ч):</span>
-                        <span className="font-mono">{hm.errorCount24h}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+      {/* Action Feedback Banner */}
+      {actionFeedback && (
+        <div className={`p-4 rounded-xl border text-xs font-semibold flex items-center space-x-2 animate-fadeIn ${
+          actionFeedback.type === 'success' 
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+            : 'bg-rose-50 border-rose-200 text-rose-800'
+        }`}>
+          {actionFeedback.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+          <span>{actionFeedback.msg}</span>
         </div>
       )}
 
-      {/* Sources Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {(liveSources.length > 0 ? liveSources : sources).map((src: any) => (
-          <div key={src.id} className="bg-paper rounded-2xl p-5 border border-hairline space-y-4 relative shadow-subtle hover:border-mid-gray/40 transition-all">
-            
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="flex items-center space-x-2">
-                  <span className={`w-2.5 h-2.5 rounded-full ${
-                    src.healthStatus === 'HEALTHY' ? 'bg-emerald-500' :
-                    src.healthStatus === 'DEGRADED' ? 'bg-amber-500' : 'bg-red-500'
-                  }`} />
-                  <h3 className="text-base font-bold text-ink tracking-tight">{src.displayName}</h3>
-                </div>
-                <p className="text-xs text-mid-gray mt-1">
-                  Тип адаптера: <span className="font-semibold text-ink-soft">{src.adapterType === 'API' ? 'Официальный API' : 'Scraper Adapter'}</span> &bull; Интервал: {src.checkIntervalMins} мин
-                </p>
-              </div>
+      {/* Tabs Navigation */}
+      <div className="flex items-center space-x-2 border-b border-hairline pb-2">
+        <button
+          onClick={() => setAdminTab('sources')}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center space-x-2 ${
+            adminTab === 'sources'
+              ? 'bg-ink text-paper shadow-subtle'
+              : 'bg-surface-alt hover:bg-paper text-ink border border-hairline'
+          }`}
+        >
+          <Activity className="w-3.5 h-3.5" />
+          <span>Источники данных & Скраперы</span>
+        </button>
 
-              <div className="flex items-center space-x-2">
-                {src.adapterType === 'SCRAPER' && (
-                  <button
-                    onClick={() => handleOpenEditScraperModal(src)}
-                    className="p-1.5 rounded-xl bg-surface-alt hover:bg-paper border border-hairline text-ink text-xs font-semibold transition-all shadow-subtle"
-                    title="Настроить конфигурацию скрапера"
-                  >
-                    <Sliders className="w-3.5 h-3.5" />
-                  </button>
-                )}
+        <button
+          onClick={() => { setAdminTab('users'); loadPendingUsers(); }}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center space-x-2 ${
+            adminTab === 'users'
+              ? 'bg-ink text-paper shadow-subtle'
+              : 'bg-surface-alt hover:bg-paper text-ink border border-hairline'
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" />
+          <span>Заявки на регистрацию</span>
+          {pendingUsers.length > 0 && (
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              adminTab === 'users' ? 'bg-amber-400 text-ink' : 'bg-amber-500 text-paper'
+            }`}>
+              {pendingUsers.length}
+            </span>
+          )}
+        </button>
+      </div>
 
-                <button
-                  onClick={() => handleManualSync(src)}
-                  disabled={syncingId === src.id}
-                  className="px-3 py-1.5 rounded-xl bg-surface-alt hover:bg-paper border border-hairline text-ink text-xs font-semibold flex items-center space-x-1.5 transition-all disabled:opacity-50 shadow-subtle"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${syncingId === src.id ? 'animate-spin' : ''}`} />
-                  <span>Синк</span>
-                </button>
-              </div>
+      {/* TAB 1: USERS MODERATION */}
+      {adminTab === 'users' && (
+        <div className="bg-paper border border-hairline rounded-2xl p-6 space-y-4 shadow-subtle">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-ink flex items-center space-x-2">
+                <Users className="w-4 h-4 text-ink" />
+                <span>Заявки пользователей на доступ (Премодерация)</span>
+              </h3>
+              <p className="text-xs text-mid-gray mt-0.5">
+                Новые пользователи не имеют доступа к системе, пока администратор не одобрит их заявку.
+              </p>
             </div>
 
-            {src.healthStatus === 'DEGRADED' && (
-              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] flex items-center space-x-2 font-medium">
-                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
-                <span>Предупреждение: возможна деградация верстки сайта</span>
-              </div>
-            )}
-
-            <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-surface-alt border border-hairline text-center text-xs">
-              <div>
-                <span className="text-mid-gray block text-[10px]">Аптайм 24ч</span>
-                <span className="font-bold text-ink font-mono">{src.successRate24h}%</span>
-              </div>
-              <div>
-                <span className="text-mid-gray block text-[10px]">Импортировано</span>
-                <span className="font-bold text-ink font-mono">{src.totalIngested?.toLocaleString('ru-RU')}</span>
-              </div>
-              <div>
-                <span className="text-mid-gray block text-[10px]">Статус</span>
-                <span className="font-bold text-ink">{src.healthStatus}</span>
-              </div>
-            </div>
-
+            <button
+              onClick={loadPendingUsers}
+              disabled={loadingUsers}
+              className="p-2 rounded-xl bg-surface-alt hover:bg-paper border border-hairline text-ink transition-colors shadow-subtle"
+              title="Обновить список заявок"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingUsers ? 'animate-spin' : ''}`} />
+            </button>
           </div>
-        ))}
-      </div>
 
-      {/* System Logs Stream */}
-      <div className="bg-paper rounded-2xl p-5 border border-hairline space-y-3 shadow-subtle">
-        <h3 className="text-xs font-bold text-ink uppercase tracking-wider flex items-center space-x-2">
-          <Clock className="w-4 h-4 text-mid-gray" />
-          <span>Лог событий и алертов коннекторов</span>
-        </h3>
-
-        <div className="space-y-2 font-mono text-xs max-h-48 overflow-y-auto p-3 rounded-xl bg-surface-alt border border-hairline">
-          {logs.map((log) => (
-            <div key={log.id} className="flex items-center space-x-3 text-ink-soft border-b border-hairline pb-1.5">
-              <span className="text-mid-gray">[{log.time}]</span>
-              <span className="text-ink font-bold">[{log.source}]</span>
-              <span className={log.status === 'SUCCESS' ? 'text-emerald-700' : 'text-amber-700'}>[{log.status}]</span>
-              <span className="text-ink">{log.msg}</span>
+          {loadingUsers ? (
+            <div className="p-8 text-center text-xs text-mid-gray space-y-2 font-mono">
+              <Loader2 className="w-6 h-6 animate-spin mx-auto text-ink" />
+              <p>Загрузка списка заявок...</p>
             </div>
-          ))}
+          ) : pendingUsers.length === 0 ? (
+            <div className="p-8 text-center space-y-2 bg-surface-alt border border-hairline rounded-xl">
+              <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
+              <p className="text-xs font-semibold text-ink">Нет ожидающих заявок</p>
+              <p className="text-[11px] text-mid-gray">Все зарегистрированные пользователи уже обработаны.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-hairline bg-surface-alt text-mid-gray font-semibold">
+                    <th className="py-2.5 px-4">Email пользователя</th>
+                    <th className="py-2.5 px-4">Имя / Организация</th>
+                    <th className="py-2.5 px-4">Дата регистрации</th>
+                    <th className="py-2.5 px-4">Статус</th>
+                    <th className="py-2.5 px-4 text-right">Действия</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-hairline">
+                  {pendingUsers.map(u => (
+                    <tr key={u.id} className="hover:bg-surface-alt/50 transition-colors">
+                      <td className="py-3 px-4 font-mono font-semibold text-ink">{u.email}</td>
+                      <td className="py-3 px-4 text-ink-soft">{u.name || '—'}</td>
+                      <td className="py-3 px-4 text-mid-gray">
+                        {new Date(u.createdAt).toLocaleString('ru-RU')}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          PENDING
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right space-x-2">
+                        <button
+                          onClick={() => handleApproveUser(u.id, u.email)}
+                          disabled={processingUserId === u.id}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] inline-flex items-center space-x-1 transition-all shadow-subtle disabled:opacity-50"
+                        >
+                          <UserCheck className="w-3.5 h-3.5" />
+                          <span>Одобрить</span>
+                        </button>
+                        <button
+                          onClick={() => handleRejectUser(u.id, u.email)}
+                          disabled={processingUserId === u.id}
+                          className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-[11px] inline-flex items-center space-x-1 transition-all shadow-subtle disabled:opacity-50"
+                        >
+                          <UserX className="w-3.5 h-3.5" />
+                          <span>Отклонить</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-      </div>
+      )}
+
+      {/* TAB 2: DATA SOURCES & INGESTION (Original Tab Content) */}
+      {adminTab === 'sources' && (
+        <>
+          {/* Health & Heartbeat Status Banner */}
+          {healthMetrics.length > 0 && (
+            <div className="bg-paper border border-hairline rounded-2xl p-5 space-y-3 shadow-subtle">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-ink flex items-center space-x-2 tracking-tight">
+                  <Activity className="w-4 h-4 text-emerald-600" />
+                  <span>Здоровье коннекторов и Heartbeat скраперов</span>
+                </h3>
+                <span className="text-[11px] text-mid-gray">Мониторинг тишины (&gt;6ч) и ошибок воркера</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {healthMetrics.map((hm: any) => {
+                  const statusColor = hm.status === 'HEALTHY' 
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                    : hm.status === 'WARNING' 
+                      ? 'bg-amber-50 border-amber-200 text-amber-900' 
+                      : 'bg-rose-50 border-rose-200 text-rose-900';
+                  const dotColor = hm.status === 'HEALTHY' ? 'bg-emerald-500' : hm.status === 'WARNING' ? 'bg-amber-500' : 'bg-rose-500';
+
+                  return (
+                    <div key={hm.sourceName || hm.id} className={`p-3.5 rounded-xl border ${statusColor} space-y-1.5`}>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs flex items-center space-x-1.5">
+                          <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+                          <span>{hm.sourceName}</span>
+                        </span>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-paper/60 border border-hairline uppercase">
+                          {hm.status}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-ink-soft space-y-0.5">
+                        <div className="flex justify-between">
+                          <span className="text-mid-gray">Успешно:</span>
+                          <span className="font-mono">{new Date(hm.lastSuccessAt).toLocaleTimeString('ru-RU')}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-mid-gray">Внесено (24ч):</span>
+                          <span className="font-mono">{hm.ingestedCount24h} лотов</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Sources List */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {liveSources.map((source) => (
+              <div 
+                key={source.id}
+                className="bg-paper border border-hairline rounded-2xl p-5 flex flex-col justify-between space-y-4 hover:border-mid-gray/40 transition-all shadow-subtle"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="px-2.5 py-0.5 text-xs font-mono font-medium rounded-md bg-surface-alt text-ink border border-hairline">
+                      {source.adapterType || 'REST_API'}
+                    </span>
+                    <span className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border ${
+                      source.isActive 
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                        : 'bg-surface-alt text-mid-gray border-hairline'
+                    }`}>
+                      {source.isActive ? 'АКТИВЕН' : 'ОТКЛЮЧЕН'}
+                    </span>
+                  </div>
+
+                  <h3 className="text-sm font-bold text-ink leading-snug tracking-tight">
+                    {source.displayName || source.name}
+                  </h3>
+                </div>
+
+                <div className="pt-3 border-t border-hairline flex items-center justify-between">
+                  <span className="text-[11px] text-mid-gray">
+                    Интервал: {source.checkIntervalMins || 15} мин
+                  </span>
+
+                  <div className="flex items-center space-x-2">
+                    {source.scraperConfig && (
+                      <button
+                        onClick={() => handleOpenEditScraperModal(source)}
+                        className="p-1.5 rounded-lg bg-surface-alt hover:bg-paper border border-hairline text-ink transition-colors shadow-subtle"
+                        title="Настройки скрапера"
+                      >
+                        <Sliders className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleManualSync(source)}
+                      disabled={syncingId === source.id}
+                      className="px-3 py-1.5 rounded-lg bg-ink hover:bg-ink-soft text-paper text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-subtle disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${syncingId === source.id ? 'animate-spin' : ''}`} />
+                      <span>{syncingId === source.id ? 'Синк...' : 'Синхронизировать'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* System Logs Banner */}
+          <div className="bg-paper border border-hairline rounded-2xl p-5 space-y-3 shadow-subtle">
+            <h3 className="text-xs font-bold text-ink uppercase tracking-wider flex items-center space-x-2">
+              <Clock className="w-4 h-4 text-ink" />
+              <span>Системный журнал задач парсинга</span>
+            </h3>
+
+            <div className="space-y-2 font-mono text-xs max-h-48 overflow-y-auto p-3 rounded-xl bg-surface-alt border border-hairline">
+              {logs.map((log) => (
+                <div key={log.id} className="flex items-center space-x-3 text-ink-soft border-b border-hairline pb-1.5">
+                  <span className="text-mid-gray">[{log.time}]</span>
+                  <span className="text-ink font-bold">[{log.source}]</span>
+                  <span className={log.status === 'SUCCESS' ? 'text-emerald-700' : 'text-amber-700'}>[{log.status}]</span>
+                  <span className="text-ink">{log.msg}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Scraper Config Modal */}
       <ScraperConfigModal
@@ -369,4 +560,3 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     </div>
   );
 };
-

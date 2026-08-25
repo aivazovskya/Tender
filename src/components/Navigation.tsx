@@ -176,16 +176,6 @@ export const Navigation: React.FC<NavigationProps> = ({
               <span>Telegram Bot</span>
             </button>
 
-            {/* Billing Button */}
-            <button
-              onClick={() => setActiveTab('billing')}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-ink text-paper hover:bg-ink-soft text-xs font-medium transition-all shadow-subtle"
-            >
-              <CreditCard className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">Тариф: {userTariff}</span>
-              <span className="sm:hidden">{userTariff}</span>
-            </button>
-
             {/* Language Switcher */}
             <div className="flex items-center bg-surface-alt border border-hairline rounded-lg p-0.5">
               <button

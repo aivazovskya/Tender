@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { INITIAL_TENDERS } from '@/lib/mockData';
+import { validateApiAuth } from '@/lib/security/auth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await validateApiAuth(request);
+  if (!auth.authorized && auth.response) {
+    return auth.response;
+  }
+
   const tenderId = params.id;
 
   if (!tenderId) {

@@ -50,6 +50,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 3. Check moderation status
+    const status = user.status || 'APPROVED';
+
+    if (status === 'PENDING') {
+      return NextResponse.json(
+        { 
+          success: false, 
+          status: 'PENDING',
+          message: 'Ваша заявка на регистрацию ещё не одобрена администратором. Пожалуйста, дождитесь подтверждения.' 
+        },
+        { status: 403 }
+      );
+    }
+
+    if (status === 'REJECTED') {
+      return NextResponse.json(
+        { 
+          success: false, 
+          status: 'REJECTED',
+          message: 'Доступ к системе отклонён администратором.' 
+        },
+        { status: 403 }
+      );
+    }
+
+    // 4. Record successful login and create session
     await recordLoginAttempt(normalizedEmail, user.id, true);
 
     const userAgent = request.headers.get('user-agent') || undefined;
@@ -62,6 +88,7 @@ export async function POST(request: NextRequest) {
         email: user.email,
         name: user.name,
         role: user.role,
+        status: user.status,
         createdAt: user.createdAt
       }
     });

@@ -13,6 +13,7 @@ export interface UserRecord {
   passwordHash: string;
   name?: string | null;
   role: string;
+  status: string; // PENDING | APPROVED | REJECTED
   createdAt: Date;
 }
 
@@ -38,7 +39,12 @@ export async function findUserByEmail(email: string): Promise<UserRecord | null>
     return user || null;
   }
   try {
-    return await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return null;
+    return {
+      ...user,
+      status: user.status || 'APPROVED'
+    };
   } catch (err: any) {
     console.error('[auth-store] DB unavailable in findUserByEmail:', err?.message);
     throw new AuthStoreUnavailableError('AUTH_STORE_UNAVAILABLE');
@@ -51,21 +57,33 @@ export async function findUserById(id: string): Promise<UserRecord | null> {
     return user || null;
   }
   try {
-    return await prisma.user.findUnique({ where: { id } });
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) return null;
+    return {
+      ...user,
+      status: user.status || 'APPROVED'
+    };
   } catch (err: any) {
     console.error('[auth-store] DB unavailable in findUserById:', err?.message);
     throw new AuthStoreUnavailableError('AUTH_STORE_UNAVAILABLE');
   }
 }
 
-export async function createUser(data: { email: string; passwordHash: string; name?: string | null }): Promise<UserRecord> {
+export async function createUser(data: {
+  email: string;
+  passwordHash: string;
+  name?: string | null;
+  role?: string;
+  status?: string;
+}): Promise<UserRecord> {
   const userId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const record: UserRecord = {
     id: userId,
     email: data.email,
     passwordHash: data.passwordHash,
     name: data.name || null,
-    role: 'USER',
+    role: data.role || 'USER',
+    status: data.status || 'PENDING',
     createdAt: new Date()
   };
 
@@ -81,11 +99,12 @@ export async function createUser(data: { email: string; passwordHash: string; na
         email: data.email,
         passwordHash: data.passwordHash,
         name: data.name || null,
-        role: 'USER'
+        role: data.role || 'USER',
+        status: data.status || 'PENDING'
       }
     });
-    memoryUsers.set(data.email, dbUser);
-    return dbUser;
+    memoryUsers.set(data.email, dbUser as any);
+    return dbUser as any;
   } catch (err: any) {
     console.error('[auth-store] DB unavailable in createUser:', err?.message);
     throw new AuthStoreUnavailableError('AUTH_STORE_UNAVAILABLE');
@@ -136,7 +155,13 @@ export async function getSession(sessionId: string): Promise<{ session: SessionR
       include: { user: true }
     });
     if (dbSession && dbSession.user) {
-      return { session: dbSession, user: dbSession.user };
+      return {
+        session: dbSession,
+        user: {
+          ...dbSession.user,
+          status: dbSession.user.status || 'APPROVED'
+        } as any
+      };
     }
     return null;
   } catch (err: any) {
@@ -157,6 +182,45 @@ export async function deleteSession(sessionId: string): Promise<boolean> {
     throw new AuthStoreUnavailableError('AUTH_STORE_UNAVAILABLE');
   }
   return true;
+}
+
+export async function findPendingUsers(): Promise<UserRecord[]> {
+  if (isMemoryMode()) {
+    return Array.from(memoryUsers.values()).filter(u => u.status === 'PENDING');
+  }
+  try {
+    const users = await prisma.user.findMany({
+      where: { status: 'PENDING' },
+      orderBy: { createdAt: 'desc' }
+    });
+    return users as any;
+  } catch (err: any) {
+    console.error('[auth-store] DB unavailable in findPendingUsers:', err?.message);
+    throw new AuthStoreUnavailableError('AUTH_STORE_UNAVAILABLE');
+  }
+}
+
+export async function updateUserStatus(userId: string, status: 'APPROVED' | 'REJECTED' | 'PENDING'): Promise<UserRecord | null> {
+  if (isMemoryMode()) {
+    for (const [email, u] of memoryUsers.entries()) {
+      if (u.id === userId) {
+        u.status = status;
+        memoryUsers.set(email, u);
+        return u;
+      }
+    }
+    return null;
+  }
+  try {
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { status }
+    });
+    return user as any;
+  } catch (err: any) {
+    console.error('[auth-store] DB unavailable in updateUserStatus:', err?.message);
+    throw new AuthStoreUnavailableError('AUTH_STORE_UNAVAILABLE');
+  }
 }
 
 export async function getRecentFailedAttemptsCount(email: string): Promise<number> {
@@ -183,12 +247,6 @@ export async function getRecentFailedAttemptsCount(email: string): Promise<numbe
   }
 }
 
-/**
- * ASYMMETRY DESIGN DECISION:
- * If DB logging for a login attempt fails, we log the error via console.error,
- * but DO NOT throw AuthStoreUnavailableError so that an already-authenticated user
- * with valid credentials is not blocked from signing in due to an audit metric logging failure.
- */
 export async function recordLoginAttempt(email: string, userId: string | null, success: boolean): Promise<void> {
   if (isMemoryMode()) {
     if (!success) {

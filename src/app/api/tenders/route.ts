@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { INITIAL_TENDERS } from '@/lib/mockData';
-
+import { validateApiAuth } from '@/lib/security/auth';
 
 export async function GET(req: NextRequest) {
+  const auth = await validateApiAuth(req);
+  if (!auth.authorized && auth.response) {
+    return auth.response;
+  }
+
   const { searchParams } = new URL(req.url);
   const q = searchParams.get('q')?.trim();
   const region = searchParams.get('region');

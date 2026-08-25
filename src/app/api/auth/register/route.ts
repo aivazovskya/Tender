@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import { findUserByEmail, createUser, createSession } from '@/lib/security/auth-store';
+import { findUserByEmail, createUser } from '@/lib/security/auth-store';
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,35 +35,29 @@ export async function POST(request: NextRequest) {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
+    // Create user with status 'PENDING'
     const user = await createUser({
       email: normalizedEmail,
       passwordHash,
-      name: name ? String(name).trim() : null
+      name: name ? String(name).trim() : null,
+      role: 'USER',
+      status: 'PENDING'
     });
 
-    const userAgent = request.headers.get('user-agent') || undefined;
-    const session = await createSession(user.id, userAgent);
-
-    const response = NextResponse.json({
+    // DO NOT create session on registration — user must be approved by admin first
+    return NextResponse.json({
       success: true,
+      pending: true,
+      message: 'Заявка на регистрацию принята. Ожидайте одобрения администратором системы.',
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
         role: user.role,
+        status: user.status,
         createdAt: user.createdAt
       }
     });
-
-    response.cookies.set('tender_session_id', session.id, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60
-    });
-
-    return response;
   } catch (error: any) {
     if (error?.message === 'AUTH_STORE_UNAVAILABLE' || error?.name === 'AuthStoreUnavailableError') {
       return NextResponse.json(

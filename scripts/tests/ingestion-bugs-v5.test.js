@@ -14,10 +14,10 @@ async function runTests() {
   console.log('▶ Testing Bug #17: Session Cookie & Header User Isolation...');
 
   // Create real test users and sessions
-  const user1 = await createUser({ email: `v5_test1_${Date.now()}@test.kz`, passwordHash: 'hash1' });
+  const user1 = await createUser({ email: `v5_test1_${Date.now()}@test.kz`, passwordHash: 'hash1', status: 'APPROVED' });
   const sess1 = await createSession(user1.id);
 
-  const user2 = await createUser({ email: `v5_test2_${Date.now()}@test.kz`, passwordHash: 'hash2' });
+  const user2 = await createUser({ email: `v5_test2_${Date.now()}@test.kz`, passwordHash: 'hash2', status: 'APPROVED' });
   const sess2 = await createSession(user2.id);
 
   const mockReqSessionCookie = {

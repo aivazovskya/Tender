@@ -4,7 +4,7 @@ const { POST: registerHandler } = require('../../src/app/api/auth/register/route
 const { POST: loginHandler } = require('../../src/app/api/auth/login/route');
 const { POST: logoutHandler } = require('../../src/app/api/auth/logout/route');
 const { GET: meHandler } = require('../../src/app/api/auth/me/route');
-const { getSession } = require('../../src/lib/security/auth-store');
+const { getSession, updateUserStatus } = require('../../src/lib/security/auth-store');
 
 process.env.AUTH_STORE_MODE = 'memory';
 
@@ -40,7 +40,7 @@ async function runTests() {
   assert.strictEqual(badRes.status, 400, 'Registration must reject passwords under 8 characters');
   console.log('     ✅ Short password rejected with 400');
 
-  // Successful Registration
+  // Successful Registration (status PENDING, no session cookie)
   const regReq = createMockReq('http://localhost/api/auth/register', {
     body: { email: testEmail, password: testPassword, name: 'Тестовый Пользователь' }
   });
@@ -48,17 +48,19 @@ async function runTests() {
   assert.strictEqual(regRes.status, 200, 'Registration must return 200 on success');
   const regData = await regRes.json();
   assert.strictEqual(regData.success, true);
+  assert.strictEqual(regData.pending, true);
+  assert.strictEqual(regData.user.status, 'PENDING');
   assert.strictEqual(regData.user.email, testEmail);
   assert.strictEqual(regData.user.passwordHash, undefined, 'passwordHash must never be exposed in API responses!');
-  console.log('     ✅ User successfully registered with password hash in DB & no hash exposure in response');
+  console.log('     ✅ User successfully registered with PENDING status & no hash exposure in response');
 
   // Duplicate registration check
   const dupRes = await registerHandler(regReq);
   assert.strictEqual(dupRes.status, 400, 'Duplicate email registration must be rejected with 400');
   console.log('     ✅ Duplicate email registration rejected with 400');
 
-  // 2️⃣ Test Login & Rate Limiting
-  console.log('  2️⃣ Testing Login & Rate Limiting...');
+  // 2️⃣ Test Login with PENDING status (must be blocked with 403)
+  console.log('  2️⃣ Testing Login Moderation (PENDING blocked, APPROVED allowed)...');
 
   // Wrong password
   const wrongLoginReq = createMockReq('http://localhost/api/auth/login', {
@@ -68,17 +70,25 @@ async function runTests() {
   assert.strictEqual(wrongLoginRes.status, 401, 'Wrong password must return 401 Unauthorized');
   console.log('     ✅ Wrong password rejected with 401');
 
-  // Successful Login
-  const validLoginReq = createMockReq('http://localhost/api/auth/login', {
+  // Correct password but user is still PENDING -> 403
+  const pendingLoginReq = createMockReq('http://localhost/api/auth/login', {
     body: { email: testEmail, password: testPassword }
   });
-  const validLoginRes = await loginHandler(validLoginReq);
-  assert.strictEqual(validLoginRes.status, 200, 'Valid credentials must return 200 OK');
+  const pendingLoginRes = await loginHandler(pendingLoginReq);
+  assert.strictEqual(pendingLoginRes.status, 403, 'PENDING user login must return 403 Forbidden');
+  console.log('     ✅ PENDING user login correctly blocked with 403 until admin approval');
+
+  // Admin approves user
+  await updateUserStatus(regData.user.id, 'APPROVED');
+
+  // Login after approval -> 200
+  const validLoginRes = await loginHandler(pendingLoginReq);
+  assert.strictEqual(validLoginRes.status, 200, 'Approved user credentials must return 200 OK');
   
   const sessionCookie = validLoginRes.cookies.get('tender_session_id');
   const sessionId = sessionCookie?.value;
   assert.ok(sessionId, 'Session cookie must be set on login response');
-  console.log('     ✅ Login successful & session cookie issued:', sessionId);
+  console.log('     ✅ Approved user login successful & session cookie issued:', sessionId);
 
   // Rate limiting test: trigger 5 failed attempts
   console.log('  3️⃣ Testing Rate Limiting (5 failed attempts block)...');
