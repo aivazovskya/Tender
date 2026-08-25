@@ -29,10 +29,12 @@ import { useTranslation } from '../lib/i18n/useTranslation';
 import { ExecutiveReportDashboard } from '../components/ExecutiveReportDashboard';
 import { SecurityRegistryModal } from '../components/SecurityRegistryModal';
 import { AuthModal } from '../components/AuthModal';
+import { ComplianceCheckerModal } from '../components/ComplianceCheckerModal';
 
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'kanban' | 'matching' | 'reports' | 'security' | 'admin' | 'billing' | 'telegram'>('catalog');
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+  const [isComplianceModalOpen, setIsComplianceModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: string; email: string; name?: string | null; role: string } | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
@@ -531,6 +533,7 @@ export default function HomePage() {
         setLanguage={setLanguage}
         kanbanCount={kanbanItems.length}
         onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+        onOpenComplianceModal={() => setIsComplianceModalOpen(true)}
         userTariff={userTariff}
         currentUser={currentUser}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
@@ -831,6 +834,12 @@ export default function HomePage() {
           language={language}
         />
       )}
+
+      <ComplianceCheckerModal
+        isOpen={isComplianceModalOpen}
+        onClose={() => setIsComplianceModalOpen(false)}
+        language={language}
+      />
 
       <AuthModal
         isOpen={isAuthModalOpen}

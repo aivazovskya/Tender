@@ -102,6 +102,7 @@ model Tender {
   contractExecution          ContractExecution?
   deadlines                  TenderDeadline[]
   supplierComparisons        TenderSupplierComparison[]
+  complianceChecks           ComplianceCheck[]
 
   @@unique([source, externalId])
 }
@@ -264,6 +265,7 @@ model CompanyProfile {
   deadlines           TenderDeadline[]
   contractExecutions  ContractExecution[]
   supplierComparisons TenderSupplierComparison[]
+  complianceChecks    ComplianceCheck[]
 }
 
 model User {
@@ -796,6 +798,81 @@ model ComparisonSupplierPrice {
   @@index([lineItemId])
   @@index([supplierId])
 }
+
+// ===================================================
+// Compliance Checker (Проверка соответствия ТЗ) Schema
+// ===================================================
+
+enum ComplianceSourceType {
+  MANUAL_TEXT
+  URL
+  FILE
+}
+
+enum LlmTier {
+  FREE
+  PAID
+}
+
+enum ComplianceVerdict {
+  COMPLIANT
+  PARTIAL
+  NOT_COMPLIANT
+}
+
+enum ComplianceItemStatus {
+  MATCH
+  MISMATCH
+  MISSING
+  UNCLEAR
+}
+
+enum ComplianceCheckStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+model ComplianceCheck {
+  id                String                @id @default(cuid())
+  companyProfileId  String
+  companyProfile    CompanyProfile        @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+  tenderId          String?
+  tender            Tender?               @relation(fields: [tenderId], references: [id], onDelete: SetNull)
+  productName       String?
+  sourceType        ComplianceSourceType
+  sourceRaw         String?               @db.Text
+  sourceFileUrl     String?
+  tzText            String                @db.Text
+  llmTier           LlmTier
+  status            ComplianceCheckStatus @default(PENDING)
+  verdict           ComplianceVerdict?
+  compliancePercent Int?
+  contentHash       String
+  errorMessage      String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  items             ComplianceCheckItem[]
+
+  @@index([companyProfileId])
+  @@index([contentHash])
+}
+
+model ComplianceCheckItem {
+  id              String               @id @default(cuid())
+  checkId         String
+  check           ComplianceCheck      @relation(fields: [checkId], references: [id], onDelete: Cascade)
+  requirementText String               @db.Text
+  productValue    String?
+  status          ComplianceItemStatus
+  isCritical      Boolean              @default(false)
+  comment         String?
+
+  @@index([checkId])
+}
+
 
 
 

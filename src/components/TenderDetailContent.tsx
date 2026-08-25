@@ -32,6 +32,7 @@ import { SupplierComparisonSheet } from './SupplierComparisonSheet';
 import { RequirementsChecklistWidget } from './RequirementsChecklistWidget';
 import { DocumentGeneratorModal } from './DocumentGeneratorModal';
 import { PostContractWidget } from './PostContractWidget';
+import { ComplianceCheckerModal } from './ComplianceCheckerModal';
 
 export interface TenderDetailContentProps {
   tender: Tender;
@@ -59,6 +60,7 @@ export const TenderDetailContent: React.FC<TenderDetailContentProps> = ({
   const t = useTranslation(language);
   const [activeTab, setActiveTab] = useState<'overview' | 'calc' | 'comparison' | 'requirements' | 'documents' | 'execution' | 'ai' | 'rag' | 'audit'>('overview');
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
+  const [isComplianceModalOpen, setIsComplianceModalOpen] = useState(false);
   
   const [ragMessages, setRagMessages] = useState<Array<{ sender: 'user' | 'ai'; text: string }>>([
     {
@@ -629,6 +631,15 @@ export const TenderDetailContent: React.FC<TenderDetailContentProps> = ({
         </a>
 
         <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setIsComplianceModalOpen(true)}
+            className="px-4 py-2 rounded-xl text-xs font-semibold bg-paper border border-hairline text-ink hover:bg-surface-alt transition-colors shadow-subtle flex items-center space-x-1.5"
+            title="Проверить соответствие характеристик товара технической спецификации данного лота"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-ember" />
+            <span>Проверить товар на ТЗ</span>
+          </button>
+
           {onExportPDF && (
             <button
               onClick={() => onExportPDF(tender.id, tender.externalId)}
@@ -670,6 +681,15 @@ export const TenderDetailContent: React.FC<TenderDetailContentProps> = ({
           )}
         </div>
       </div>
+
+      <ComplianceCheckerModal
+        isOpen={isComplianceModalOpen}
+        onClose={() => setIsComplianceModalOpen(false)}
+        initialTenderId={tender.id}
+        initialTzText={tender.documents?.find(d => d.extractedText)?.extractedText || tender.description || tender.aiKeyRequirements?.join('\n') || tender.title}
+        tenderTitle={tender.title}
+        language={language}
+      />
 
     </div>
   );

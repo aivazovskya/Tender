@@ -26,6 +26,7 @@ interface NavigationProps {
   kanbanCount: number;
   onOpenApiKeyModal?: () => void;
   onOpenSecurityModal?: () => void;
+  onOpenComplianceModal?: () => void;
   userTariff?: string;
   currentUser?: { id: string; email: string; name?: string | null; role: string } | null;
   onOpenAuthModal?: () => void;
@@ -39,6 +40,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   setLanguage,
   kanbanCount,
   onOpenApiKeyModal,
+  onOpenComplianceModal,
   userTariff = 'PRO',
   currentUser,
   onOpenAuthModal,
@@ -155,6 +157,18 @@ export const Navigation: React.FC<NavigationProps> = ({
           {/* Right Action Bar */}
           <div className="flex items-center space-x-2.5">
             
+            {/* Compliance Checker Modal Launcher */}
+            {onOpenComplianceModal && (
+              <button
+                onClick={onOpenComplianceModal}
+                className="hidden lg:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-surface-alt border border-hairline text-ink hover:bg-paper text-xs font-medium transition-colors shadow-subtle"
+                title="Проверить соответствие товара требованиям ТЗ"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-ember" />
+                <span>Проверка ТЗ</span>
+              </button>
+            )}
+
             {/* API Keys Modal Launcher */}
             {onOpenApiKeyModal && (
               <button
