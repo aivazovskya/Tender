@@ -184,6 +184,150 @@ async function runComplianceCheckerTests() {
   assert.notStrictEqual(hash1, hashPaid, 'Different LLM tier must produce distinct hash');
   console.log('   ✅ computeContentHash generates deterministic and tier-isolated cache hashes');
 
+  // 5.2 Multi-Tenant Deduplication Isolation Test (Regression test for TZ-patch)
+  console.log('\n  5.2 Testing Multi-Tenant Deduplication Isolation (companyProfileId Scoping)...');
+  const { prisma } = require('../../src/lib/prisma');
+  
+  const sameContentHash = ComplianceProcessorService.computeContentHash({
+    tzText: 'Процессор не менее 8 ядер',
+    sourceType: 'MANUAL_TEXT',
+    sourceRaw: 'Процессор 8 ядер, 16 ГБ ОЗУ',
+    sourceFileUrl: null,
+    fileBuffer: null,
+    llmTier: 'FREE'
+  });
+
+  // Mock DB store for compliance checks
+  const mockChecks = new Map();
+  const mockItems = new Map();
+
+  // Setup Company-A existing completed check with cached items
+  mockChecks.set('check-A', {
+    id: 'check-A',
+    companyProfileId: 'company-A',
+    status: 'DONE',
+    contentHash: sameContentHash,
+    productName: 'Товар Компании А',
+    tzText: 'Процессор не менее 8 ядер',
+    sourceType: 'MANUAL_TEXT',
+    sourceRaw: 'Процессор 8 ядер, 16 ГБ ОЗУ',
+    llmTier: 'FREE',
+    verdict: 'COMPLIANT',
+    compliancePercent: 100,
+    items: [
+      { id: 'item-A1', requirementText: 'Процессор 8 ядер', productValue: '8 ядер', status: 'MATCH', isCritical: true, comment: 'Company A Note' }
+    ]
+  });
+
+  // Setup Company-B pending check with identical contentHash
+  mockChecks.set('check-B', {
+    id: 'check-B',
+    companyProfileId: 'company-B',
+    status: 'PENDING',
+    contentHash: sameContentHash,
+    productName: 'Товар Компании Б',
+    tzText: 'Процессор не менее 8 ядер',
+    sourceType: 'MANUAL_TEXT',
+    sourceRaw: 'Процессор 8 ядер, 16 ГБ ОЗУ',
+    llmTier: 'FREE',
+    items: []
+  });
+
+  // Setup Company-A2 pending check with identical contentHash (intra-tenant deduplication)
+  mockChecks.set('check-A2', {
+    id: 'check-A2',
+    companyProfileId: 'company-A',
+    status: 'PENDING',
+    contentHash: sameContentHash,
+    productName: 'Товар Компании А (Повтор)',
+    tzText: 'Процессор не менее 8 ядер',
+    sourceType: 'MANUAL_TEXT',
+    sourceRaw: 'Процессор 8 ядер, 16 ГБ ОЗУ',
+    llmTier: 'FREE',
+    items: []
+  });
+
+  const origFindUnique = prisma.complianceCheck.findUnique;
+  const origFindFirst = prisma.complianceCheck.findFirst;
+  const origUpdate = prisma.complianceCheck.update;
+  const origDeleteMany = prisma.complianceCheckItem?.deleteMany;
+  const origCreateMany = prisma.complianceCheckItem?.createMany;
+  const origCreate = prisma.complianceCheckItem?.create;
+
+  let llmCalls = 0;
+  const mockLlmProvider = {
+    async runComplianceCheck(params) {
+      llmCalls++;
+      return {
+        productName: 'Свежий анализ LLM',
+        verdict: 'COMPLIANT',
+        compliancePercent: 100,
+        items: [
+          { requirement: 'Процессор 8 ядер', productValue: '8 ядер', status: 'MATCH', isCritical: true, comment: 'Fresh LLM analysis' }
+        ]
+      };
+    }
+  };
+
+  prisma.complianceCheck.findUnique = async ({ where }) => mockChecks.get(where.id) || null;
+  prisma.complianceCheck.findFirst = async ({ where, include }) => {
+    for (const c of mockChecks.values()) {
+      if (where.contentHash && c.contentHash !== where.contentHash) continue;
+      if (where.companyProfileId && c.companyProfileId !== where.companyProfileId) continue;
+      if (where.status && c.status !== where.status) continue;
+      if (where.id?.not && c.id === where.id.not) continue;
+      return { ...c, items: mockItems.get(c.id) || c.items || [] };
+    }
+    return null;
+  };
+  prisma.complianceCheck.update = async ({ where, data }) => {
+    const existing = mockChecks.get(where.id) || {};
+    const updated = { ...existing, ...data };
+    mockChecks.set(where.id, updated);
+    return { ...updated, items: mockItems.get(where.id) || [] };
+  };
+  if (!prisma.complianceCheckItem) prisma.complianceCheckItem = {};
+  prisma.complianceCheckItem.deleteMany = async ({ where }) => {
+    mockItems.set(where.checkId, []);
+    return { count: 1 };
+  };
+  prisma.complianceCheckItem.createMany = async ({ data }) => {
+    for (const item of data) {
+      const arr = mockItems.get(item.checkId) || [];
+      arr.push({ id: `item_${Date.now()}_${Math.random()}`, ...item });
+      mockItems.set(item.checkId, arr);
+    }
+    return { count: data.length };
+  };
+  prisma.complianceCheckItem.create = async ({ data }) => {
+    const arr = mockItems.get(data.checkId) || [];
+    const created = { id: `item_${Date.now()}_${Math.random()}`, ...data };
+    arr.push(created);
+    mockItems.set(data.checkId, arr);
+    return created;
+  };
+
+  try {
+    // Process Check B (Different tenant 'company-B')
+    const resB = await ComplianceProcessorService.processComplianceCheck('check-B', undefined, mockLlmProvider);
+    assert.strictEqual(llmCalls, 1, 'Different companyProfileId must NOT use Company-A cache and must invoke LLM');
+    assert.strictEqual(resB.companyProfileId, 'company-B');
+    console.log('     ✅ Different tenant (company-B) did NOT reuse company-A cache and ran fresh analysis');
+
+    // Process Check A2 (Same tenant 'company-A')
+    const resA2 = await ComplianceProcessorService.processComplianceCheck('check-A2', undefined, mockLlmProvider);
+    assert.strictEqual(llmCalls, 1, 'Same companyProfileId MUST reuse Company-A cache without calling LLM again');
+    assert.strictEqual(resA2.companyProfileId, 'company-A');
+    console.log('     ✅ Same tenant (company-A) successfully reused internal deduplication cache without extra LLM call');
+  } finally {
+    prisma.complianceCheck.findUnique = origFindUnique;
+    prisma.complianceCheck.findFirst = origFindFirst;
+    prisma.complianceCheck.update = origUpdate;
+    if (origDeleteMany) prisma.complianceCheckItem.deleteMany = origDeleteMany;
+    if (origCreateMany) prisma.complianceCheckItem.createMany = origCreateMany;
+    if (origCreate) prisma.complianceCheckItem.create = origCreate;
+  }
+
   // =========================================================================
   // 6. REST API Route Auth & Multi-Tenant Isolation Tests
   // =========================================================================

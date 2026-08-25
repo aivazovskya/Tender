@@ -55,10 +55,11 @@ export class ComplianceProcessorService {
     });
 
     try {
-      // 2. Deduplication check: check if an identical check already finished with status DONE
+      // 2. Deduplication check: check if an identical check already finished with status DONE for this specific companyProfileId
       const cached = await prisma.complianceCheck.findFirst({
         where: {
           contentHash: check.contentHash,
+          companyProfileId: check.companyProfileId,
           status: 'DONE',
           id: { not: checkId }
         },
