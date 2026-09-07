@@ -248,7 +248,36 @@ export async function getRecentFailedAttemptsCount(email: string): Promise<numbe
   }
 }
 
-export async function recordLoginAttempt(email: string, userId: string | null, success: boolean): Promise<void> {
+export async function getRecentIpFailedAttemptsCount(ipHash: string): Promise<number> {
+  const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+  if (isMemoryMode()) {
+    const entry = memoryFailedAttempts.get(`ip_${ipHash}`);
+    if (!entry || Date.now() - entry.lastAttempt > 15 * 60 * 1000) {
+      return 0;
+    }
+    return entry.count;
+  }
+
+  try {
+    return await prisma.loginAttempt.count({
+      where: {
+        ipHash,
+        success: false,
+        createdAt: { gte: fifteenMinutesAgo }
+      }
+    });
+  } catch (err: any) {
+    console.error('[auth-store] DB unavailable in getRecentIpFailedAttemptsCount:', err?.message);
+    return 0; // Fallback to non-blocking on IP count
+  }
+}
+
+export async function recordLoginAttempt(
+  email: string, 
+  userId: string | null, 
+  success: boolean,
+  ipHash?: string
+): Promise<void> {
   if (isMemoryMode()) {
     if (!success) {
       const entry = memoryFailedAttempts.get(email) || { count: 0, lastAttempt: Date.now() };
@@ -259,6 +288,18 @@ export async function recordLoginAttempt(email: string, userId: string | null, s
       }
       entry.lastAttempt = Date.now();
       memoryFailedAttempts.set(email, entry);
+
+      if (ipHash) {
+        const ipKey = `ip_${ipHash}`;
+        const ipEntry = memoryFailedAttempts.get(ipKey) || { count: 0, lastAttempt: Date.now() };
+        if (Date.now() - ipEntry.lastAttempt > 15 * 60 * 1000) {
+          ipEntry.count = 1;
+        } else {
+          ipEntry.count += 1;
+        }
+        ipEntry.lastAttempt = Date.now();
+        memoryFailedAttempts.set(ipKey, ipEntry);
+      }
     } else {
       memoryFailedAttempts.delete(email);
     }
@@ -267,7 +308,7 @@ export async function recordLoginAttempt(email: string, userId: string | null, s
 
   try {
     await prisma.loginAttempt.create({
-      data: { email, userId, success }
+      data: { email, userId, success, ipHash }
     });
   } catch (err: any) {
     console.error('[auth-store] Non-blocking DB error recording login attempt:', err?.message);
@@ -282,6 +323,18 @@ export async function recordLoginAttempt(email: string, userId: string | null, s
     }
     entry.lastAttempt = Date.now();
     memoryFailedAttempts.set(email, entry);
+
+    if (ipHash) {
+      const ipKey = `ip_${ipHash}`;
+      const ipEntry = memoryFailedAttempts.get(ipKey) || { count: 0, lastAttempt: Date.now() };
+      if (Date.now() - ipEntry.lastAttempt > 15 * 60 * 1000) {
+        ipEntry.count = 1;
+      } else {
+        ipEntry.count += 1;
+      }
+      ipEntry.lastAttempt = Date.now();
+      memoryFailedAttempts.set(ipKey, ipEntry);
+    }
   } else {
     memoryFailedAttempts.delete(email);
   }

@@ -455,7 +455,8 @@ export class SupplierComparisonExcelService {
       // Supplier Columns
       suppliers.forEach((s, sIdx) => {
         const sCol = baseColCount + budgetColCount + (sIdx * colsPerSupplier) + 1;
-        const sp = item?.prices?.[s.id];
+        const supplierId = s?.id || '';
+        const sp = supplierId && item?.prices ? (item.prices as Record<string, any>)[supplierId] : undefined;
 
         const propName = sp?.proposedName || item?.name || '';
         const priceRub0 = sp ? Number(sp.priceRub0) || 0 : 0;

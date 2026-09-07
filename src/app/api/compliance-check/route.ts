@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
             companyName: 'Моя Компания',
             bin: `12345${Math.floor(1000000 + Math.random() * 9000000)}`,
             activities: 'Тендерные поставки',
+            contactEmail: `${auth.userId}@tenderai.kz`,
             subscriptionPlan: 'FREE'
           }
         });

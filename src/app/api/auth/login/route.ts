@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { 
   findUserByEmail, 
   createSession, 
   getRecentFailedAttemptsCount, 
+  getRecentIpFailedAttemptsCount,
   recordLoginAttempt 
 } from '@/lib/security/auth-store';
 
@@ -22,8 +24,20 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const clientIp = request.ip || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
+    const ipHash = crypto.createHash('sha256').update(clientIp).digest('hex').substring(0, 16);
 
-    // 1. Rate limiting check (max 5 failed attempts in 15 minutes per email)
+    // 1. Rate limiting check:
+    // (a) Protect against IP spraying attacks across different emails (max 20 attempts per IP in 15m)
+    const ipFailedAttempts = await getRecentIpFailedAttemptsCount(ipHash);
+    if (ipFailedAttempts >= 20) {
+      return NextResponse.json(
+        { success: false, message: 'Слишком много неудачных попыток входа с вашего IP-адреса. Попробуйте через 15 минут.' },
+        { status: 429 }
+      );
+    }
+
+    // (b) Protect against credential stuffing against single email (max 5 failed attempts in 15m)
     const recentFailedAttempts = await getRecentFailedAttemptsCount(normalizedEmail);
 
     if (recentFailedAttempts >= 5) {
@@ -42,7 +56,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!user || !user.passwordHash || !isMatch) {
-      await recordLoginAttempt(normalizedEmail, user?.id || null, false);
+      await recordLoginAttempt(normalizedEmail, user?.id || null, false, ipHash);
 
       return NextResponse.json(
         { success: false, message: 'Неверный email или пароль' },
@@ -76,7 +90,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Record successful login and create session
-    await recordLoginAttempt(normalizedEmail, user.id, true);
+    await recordLoginAttempt(normalizedEmail, user.id, true, ipHash);
 
     const userAgent = request.headers.get('user-agent') || undefined;
     const session = await createSession(user.id, userAgent);

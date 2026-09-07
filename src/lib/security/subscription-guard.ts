@@ -67,8 +67,9 @@ export async function validateExportAccess(request: NextRequest): Promise<Subscr
     userPlan = headerPlan.toUpperCase();
   }
 
-  // Внутреннее использование — платные ограничения отключены для всех пользователей
-  const isAllowed = true;
+  // In production, export is strictly restricted to TEAM and ENTERPRISE plans
+  const allowUnrestrictedAccess = !isProd && (allowDemoAuth || process.env.BYPASS_SUBSCRIPTION_LIMITS === 'true');
+  const isAllowed = allowUnrestrictedAccess || ['TEAM', 'ENTERPRISE'].includes(userPlan);
 
   if (!isAllowed) {
     return {
@@ -146,8 +147,9 @@ export async function validateReputationAccess(request: NextRequest): Promise<Su
     userPlan = headerPlan.toUpperCase();
   }
 
-  // Внутреннее использование — платные ограничения отключены для всех пользователей
-  const isAllowed = true;
+  // In production, reputation checks are strictly restricted to PRO, TEAM and ENTERPRISE plans
+  const allowUnrestrictedAccess = !isProd && (allowDemoAuth || process.env.BYPASS_SUBSCRIPTION_LIMITS === 'true');
+  const isAllowed = allowUnrestrictedAccess || ['PRO', 'TEAM', 'ENTERPRISE'].includes(userPlan);
 
   if (!isAllowed) {
     return {

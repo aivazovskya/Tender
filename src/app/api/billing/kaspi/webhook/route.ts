@@ -102,15 +102,18 @@ export async function POST(req: NextRequest) {
     // 5. Atomic Update in Database
     const nextExpiration = new Date();
     nextExpiration.setDate(nextExpiration.getDate() + 30); // +30 days subscription
+    const effectivePlanId = tariffPlanId || existingPayment?.tariffPlanId || 'PRO';
+    const associatedUserId = existingPayment?.userId;
+    const associatedOrgId = existingPayment?.organizationId;
 
-    await prisma.$transaction([
+    const txOps: any[] = [
       prisma.payment.upsert({
         where: { orderId },
         update: {
           kaspiTransactionId,
           status: 'PAID',
           amount: paidAmount,
-          tariffPlanId: tariffPlanId || 'PRO',
+          tariffPlanId: effectivePlanId,
           rawWebhookPayload: rawBody,
           confirmedAt: new Date()
         },
@@ -119,21 +122,53 @@ export async function POST(req: NextRequest) {
           kaspiTransactionId,
           status: 'PAID',
           amount: paidAmount,
-          tariffPlanId: tariffPlanId || 'PRO',
+          tariffPlanId: effectivePlanId,
           rawWebhookPayload: rawBody,
           confirmedAt: new Date()
         }
-      }),
-      ...(bin ? [
+      })
+    ];
+
+    // Activate subscription by userId if linked to the order
+    if (associatedUserId) {
+      txOps.push(
         prisma.companyProfile.updateMany({
-          where: { bin },
+          where: { userId: associatedUserId },
           data: {
-            subscriptionPlan: tariffPlanId || 'PRO',
+            subscriptionPlan: effectivePlanId,
             subscriptionExpiresAt: nextExpiration
           }
         })
-      ] : [])
-    ]);
+      );
+    }
+
+    // Activate subscription by organizationId if linked
+    if (associatedOrgId) {
+      txOps.push(
+        prisma.organization.updateMany({
+          where: { id: associatedOrgId },
+          data: {
+            subscriptionPlan: effectivePlanId,
+            subscriptionExpiresAt: nextExpiration
+          }
+        })
+      );
+    }
+
+    // Also update by BIN if provided in payload
+    if (bin) {
+      txOps.push(
+        prisma.companyProfile.updateMany({
+          where: { bin },
+          data: {
+            subscriptionPlan: effectivePlanId,
+            subscriptionExpiresAt: nextExpiration
+          }
+        })
+      );
+    }
+
+    await prisma.$transaction(txOps);
 
     console.log(`✅ [Kaspi Pay Webhook] Payment verified & activated for Order #${orderId}`);
 

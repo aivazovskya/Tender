@@ -30,6 +30,35 @@ export class ReputationService {
   }
 
   /**
+   * Validates Kazakhstani 12-digit BIN/IIN checksum algorithm
+   * Uses primary weights [1..10, 1], mod 11, and secondary weights [3..10, 1..3] on remainder 10
+   */
+  static isValidBinChecksum(bin: string): boolean {
+    if (!this.isValidBin(bin)) return false;
+    const digits = bin.trim().split('').map(d => parseInt(d, 10));
+    
+    // Weights 1: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1]
+    const w1 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1];
+    let sum1 = 0;
+    for (let i = 0; i < 11; i++) {
+      sum1 += digits[i] * w1[i];
+    }
+    let k = sum1 % 11;
+
+    if (k === 10) {
+      // Weights 2: [3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3]
+      const w2 = [3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3];
+      let sum2 = 0;
+      for (let i = 0; i < 11; i++) {
+        sum2 += digits[i] * w2[i];
+      }
+      k = sum2 % 11;
+    }
+
+    return k < 10 && k === digits[11];
+  }
+
+  /**
    * Main reputation check method with 24h caching, rate limiting, and expired ban filter.
    */
   static async checkBin(

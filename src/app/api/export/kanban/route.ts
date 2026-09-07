@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
 
     const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
-    return new NextResponse(excelBuffer, {
+    return new NextResponse(excelBuffer as any, {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

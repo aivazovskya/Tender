@@ -379,13 +379,11 @@ export class SupplierComparisonService {
    * Saves updated supplier comparison data to DB
    */
   static async saveComparison(tenderId: string, userId: string, payload: TenderSupplierComparisonData): Promise<TenderSupplierComparisonData> {
-    let company = await resolveOwnCompanyProfile(userId);
-    if (!company) {
-      company = { id: 'temp-comp-id', companyName: 'Моя компания', bin: '123456789012' } as any;
-    }
+    const rawCompany = await resolveOwnCompanyProfile(userId);
+    const company = rawCompany || ({ id: 'temp-comp-id', companyName: 'Моя компания', bin: '123456789012' } as any);
 
     try {
-      if (company.id && !company.id.startsWith('temp-')) {
+      if (company && company.id && !company.id.startsWith('temp-')) {
         await prisma.$transaction(async (tx) => {
           // 1. Upsert comparison header
           const comparison = await tx.tenderSupplierComparison.upsert({

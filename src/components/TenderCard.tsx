@@ -89,11 +89,6 @@ export const TenderCard: React.FC<TenderCardProps> = ({
             href={`/tenders/${tender.id}`}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={(e) => {
-              if (onOpenDetails) {
-                // If onOpenDetails is provided, also trigger it if not default
-              }
-            }}
             className="hover:underline cursor-pointer"
           >
             {tender.title}

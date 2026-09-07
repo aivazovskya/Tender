@@ -247,3 +247,7 @@ export async function validatePublicApiKey(request: NextRequest): Promise<Public
     keyId: matchedKey.id
   };
 }
+
+export function getMemoryKeyStore(): StoredApiKey[] {
+  return memoryKeyStore;
+}

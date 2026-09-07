@@ -21,7 +21,7 @@ export async function GET(
     const safeLotNumber = (data.tenderNumber || tenderId).replace(/[^\wа-яА-ЯёЁ\-]/gi, '_');
     const filename = `Конкурентный_лист_${safeLotNumber}.xlsx`;
 
-    return new NextResponse(excelBuffer, {
+    return new NextResponse(excelBuffer as any, {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -68,7 +68,7 @@ export async function POST(
     const safeLotNumber = (data.tenderNumber || tenderId).replace(/[^\wа-яА-ЯёЁ\-]/gi, '_');
     const filename = `Конкурентный_лист_${safeLotNumber}.xlsx`;
 
-    return new NextResponse(excelBuffer, {
+    return new NextResponse(excelBuffer as any, {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

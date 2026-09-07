@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Tender, CompanyProfileData } from '../types/tender';
 import { INITIAL_TENDERS } from '../mockData';
 import { prisma } from '../prisma';
@@ -76,10 +77,63 @@ export class TelegrafBotService {
   }
 
   /**
-   * Generates deep link URL for connecting Telegram chat ID to user account
+   * Generates a signed deep link token for connecting Telegram chat ID to user account
    */
-  static generateDeepLink(userId: string): string {
+  static generateDeepLinkToken(userId: string): string {
+    const secret = process.env.API_SECRET_KEY || process.env.KASPI_WEBHOOK_SECRET || 'tender_tg_default_sec';
+    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes TTL
+    const sig = crypto.createHmac('sha256', secret).update(`${userId}:${expiresAt}`).digest('hex').substring(0, 16);
+    return `${userId}__${expiresAt}__${sig}`;
+  }
+
+  /**
+   * Verifies a deep link token, returning the target userId if valid and unexpired
+   */
+  static verifyDeepLinkToken(token: string): string | null {
+    if (!token) return null;
+
+    // Signed token format: userId__expiresAt__signature
+    if (token.includes('__')) {
+      const parts = token.split('__');
+      if (parts.length !== 3) return null;
+      const [targetUserId, expiresAtStr, sig] = parts;
+      const expiresAt = parseInt(expiresAtStr, 10);
+      if (isNaN(expiresAt) || expiresAt < Date.now()) {
+        return null; // Expired
+      }
+      const secret = process.env.API_SECRET_KEY || process.env.KASPI_WEBHOOK_SECRET || 'tender_tg_default_sec';
+      const expectedSig = crypto.createHmac('sha256', secret).update(`${targetUserId}:${expiresAt}`).digest('hex').substring(0, 16);
+      if (expectedSig !== sig) {
+        return null; // Invalid cryptographic signature
+      }
+      return targetUserId;
+    }
+
+    // In non-production or test environments, allow direct userId for backward compatibility
+    if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_UNSIGNED_DEEP_LINK === 'true') {
+      return token;
+    }
+
+    return null;
+  }
+
+  /**
+   * Generates deep link URL for connecting Telegram chat ID to user account.
+   * If sign=true or generateSignedDeepLink() is called, produces an HMAC-signed token.
+   */
+  static generateDeepLink(userId: string, sign: boolean = false): string {
+    if (sign) {
+      const token = TelegrafBotService.generateDeepLinkToken(userId);
+      return `https://t.me/TenderAI_KZ_bot?start=${token}`;
+    }
     return `https://t.me/TenderAI_KZ_bot?start=${userId}`;
+  }
+
+  /**
+   * Generates cryptographically signed deep link URL for connecting Telegram chat ID to user account
+   */
+  static generateSignedDeepLink(userId: string): string {
+    return TelegrafBotService.generateDeepLink(userId, true);
   }
 
   /**
@@ -93,17 +147,20 @@ export class TelegrafBotService {
     try {
       const cleanCmd = command.trim().toLowerCase();
 
-      // Auto-bind chatId if user accessed via deep-link: /start <userId>
+      // Auto-bind chatId if user accessed via signed deep-link: /start <signedToken>
       if (cleanCmd === '/start' && args.length > 0 && chatId) {
-        const payload = args[0].trim();
-        const unboundProfile = await prisma.companyProfile.findFirst({
-          where: { OR: [{ userId: payload }, { id: payload }] }
-        });
-        if (unboundProfile) {
-          await prisma.companyProfile.update({
-            where: { id: unboundProfile.id },
-            data: { telegramChatId: chatId }
+        const rawPayload = args[0].trim();
+        const verifiedUserId = TelegrafBotService.verifyDeepLinkToken(rawPayload);
+        if (verifiedUserId) {
+          const unboundProfile = await prisma.companyProfile.findFirst({
+            where: { OR: [{ userId: verifiedUserId }, { id: verifiedUserId }] }
           });
+          if (unboundProfile) {
+            await prisma.companyProfile.update({
+              where: { id: unboundProfile.id },
+              data: { telegramChatId: chatId }
+            });
+          }
         }
       }
 
