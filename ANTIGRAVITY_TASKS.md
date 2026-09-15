@@ -15,13 +15,19 @@ ingestion/cron, core tender API, kanban/export/finance, frontend↔API конт�
 
 ### Чек-лист: подтверждённые баги (чинить, в порядке приоритета)
 
-- [x] `src/middleware.ts:28` — блокирует `/api/billing/kaspi/webhook` 401-м раньше проверки HMAC-подписи → платежи Kaspi никогда не подтвердятся в проде. (Исправлено: вебхуки Kaspi и Telegram добавлены в bypass-лист middleware)
-- [x] `src/app/page.tsx:255` — не читает пагинацию `/api/tenders` (`total`/`totalPages`), UI молча показывает максимум 20 тендеров из всей базы. (Исправлено: добавлена серверная пагинация, кнопки перелистывания и счётчик страниц)
-- [x] `src/app/api/export/kanban/route.ts:33` — `kanbanCard.findMany` без `where`, экспорт в Excel отдаёт воронки Kanban всех компаний платформы. (Исправлено: добавлен скоуп where: { userId: access.userId })
-- [x] `src/app/api/tenders/[id]/documents/route.ts:9` — `validateApiAuth()` считается, но не проверяется; документы (имя/БИН компании) текут между тенантами. (Исправлено: проверка auth.authorized и фильтр по companyProfileId)
-- [x] `src/app/api/billing/kaspi/create-order/route.ts:7` — `auth.authorized` не проверяется; юзеры со статусом PENDING/REJECTED всё равно создают оплачиваемый заказ. (Исправлено: добавлена проверка auth.authorized)
+- [x] `src/middleware.ts:28` — блокирует `/api/billing/kaspi/webhook` 401-м раньше проверки HMAC-подписи → платежи Kaspi никогда не подтвердятся в проде. (Исправлено и перепроверено чтением кода: вебхуки Kaspi и Telegram добавлены в bypass-лист middleware)
+- [x] `src/app/page.tsx:255` — не читает пагинацию `/api/tenders` (`total`/`totalPages`), UI молча показывает максимум 20 тендеров из всей базы. (Исправлено: поля total и totalPages теперь читаются напрямую из ответа /api/tenders с фолбэком на pagination/длину массива; блок пагинации в UI отображается корректно)
+- [x] `src/app/api/export/kanban/route.ts:33` — `kanbanCard.findMany` без `where`, экспорт в Excel отдаёт воронки Kanban всех компаний платформы. (Исправлено и перепроверено чтением кода: добавлен скоуп where: { userId: access.userId }, `access.userId` гарантированно берётся только из уже авторизованной сессии)
+- [x] `src/app/api/tenders/[id]/documents/route.ts:9` — `validateApiAuth()` считается, но не проверяется; документы (имя/БИН компании) текут между тенантами. (Исправлено и перепроверено чтением кода: проверка auth.authorized и фильтр по companyProfileId через resolveOwnCompanyProfile)
+- [x] `src/app/api/billing/kaspi/create-order/route.ts:7` — `auth.authorized` не проверяется; юзеры со статусом PENDING/REJECTED всё равно создают оплачиваемый заказ. (Исправлено и перепроверено чтением кода: добавлена проверка auth.authorized)
 - [ ] `src/app/api/billing/kaspi/webhook/route.ts:161` — активация подписки по полю `bin` из payload без сверки с владельцем заказа (`[PLAUSIBLE]`, отложено: согласовать формат payload с владельцем интеграции Kaspi)
-- [x] `src/lib/security/auth.ts:55` — сравнение `ADMIN_API_KEY` через `===` вместо `crypto.timingSafeEqual` (Исправлено: timingSafeEqual внедрён)
+- [x] `src/lib/security/auth.ts:55` — сравнение `ADMIN_API_KEY` через `===` вместо `crypto.timingSafeEqual` (Исправлено и перепроверено чтением кода: timingSafeEqual внедрён с проверкой длины перед сравнением, как в Kaspi-вебхуке)
+
+**✅ `src/app/page.tsx:255` — фикс пагинации завершён.** Исправлено чтение ответа в `page.tsx`:
+поля `total` и `totalPages` теперь читаются непосредственно из плоской структуры ответа
+`/api/tenders` (`data.total`, `data.totalPages`), сохраняя обратную совместимость с вложенным
+объектом `pagination` при его наличии. Контролы пагинации (`totalPages > 1`) теперь стабильно
+рендерятся и позволяют пользователю просматривать все страницы каталога тендеров.
 
 ### Чек-лист: опровергнуто при перепроверке (НЕ трогать, не открывать заново)
 

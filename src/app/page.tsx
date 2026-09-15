@@ -266,13 +266,14 @@ export default function HomePage() {
       .then(data => {
         if (data.success && data.tenders) {
           setTenders(data.tenders);
-          if (data.pagination) {
-            setTotalPages(data.pagination.totalPages || 1);
-            setTotalCount(data.pagination.total ?? data.tenders.length);
-          } else {
-            setTotalPages(1);
-            setTotalCount(data.tenders.length);
-          }
+          const total = typeof data.total === 'number'
+            ? data.total
+            : (typeof data.pagination?.total === 'number' ? data.pagination.total : data.tenders.length);
+          const totalPages = typeof data.totalPages === 'number'
+            ? data.totalPages
+            : (typeof data.pagination?.totalPages === 'number' ? data.pagination.totalPages : Math.max(1, Math.ceil(total / 20)));
+          setTotalPages(totalPages);
+          setTotalCount(total);
         }
       })
       .catch(() => {})
