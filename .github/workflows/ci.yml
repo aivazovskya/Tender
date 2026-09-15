@@ -63,6 +63,5 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tender_db?schema=public
           REDIS_URL: redis://localhost:6379
-          ALLOW_DEMO_AUTH: 'true'
           CRON_SECRET: 'ci-test-cron-secret-123'
           JWT_SECRET: 'ci-test-jwt-secret-123'
