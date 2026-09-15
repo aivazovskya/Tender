@@ -11,63 +11,77 @@ export class GoszakupApiAdapter extends BaseTenderAdapter {
 
     if (token && token.trim().length > 0 && !token.includes('your_')) {
       try {
-        const query = `
-          query {
-            TrdBuy(limit: 10) {
-              id
-              numberAnno
-              nameRu
-              totalSum
-              customerBin
-              customerNameRu
-              regionRu
-              publishDate
-              endDate
-              Files {
+        const allItems: any[] = [];
+        let after: number | null = null;
+        const maxPages = 4;
+        const pageSize = 50;
+
+        for (let page = 0; page < maxPages; page++) {
+          const afterArg: string = after !== null ? `, after: ${after}` : '';
+          const query = `
+            query {
+              TrdBuy(limit: ${pageSize}${afterArg}) {
+                id
+                numberAnno
                 nameRu
-                filePath
-                fileSize
+                totalSum
+                customerBin
+                customerNameRu
+                regionRu
+                publishDate
+                endDate
+                Files {
+                  nameRu
+                  filePath
+                  fileSize
+                }
               }
             }
-          }
-        `;
+          `;
 
-        const res = await fetch('https://ows.goszakup.gov.kz/v3/graphql', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ query })
-        });
+          const res = await fetch('https://ows.goszakup.gov.kz/v3/graphql', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ query })
+          });
 
-        if (res.ok) {
+          if (!res.ok) break;
           const json = await res.json();
-          if (json?.data?.TrdBuy && Array.isArray(json.data.TrdBuy)) {
-            this.usedFallbackData = false;
-            return json.data.TrdBuy.map((b: any) => ({
-              id: b.id,
-              number_anno: b.numberAnno || `${b.id}-2026`,
-              name_ru: b.nameRu,
-              customer_name_ru: b.customerNameRu || 'Заказчик ЕГСЗ РК',
-              customer_bin: b.customerBin || '000000000000',
-              total_sum: Number(b.totalSum) || 0,
-              region_ru: b.regionRu || 'г. Астана',
-              publish_date: b.publishDate || new Date().toISOString(),
-              end_date: b.endDate || new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
-              security_sum: Math.round((Number(b.totalSum) || 0) * 0.03),
-              trade_buy_name_ru: 'Открытый конкурс',
-              ref_buy_status_id: 'PUBLISHED',
-              files: Array.isArray(b.Files || b.files) ? (b.Files || b.files).map((f: any) => ({
-                name: f.nameRu || f.name || 'ТЗ_Спецификация.pdf',
-                path: f.filePath || f.path || f.url || '',
-                size: f.fileSize ? `${Math.round(Number(f.fileSize) / 1024)} KB` : '1.2 MB'
-              })) : []
-            }));
-          }
+          const trdBuy = json?.data?.TrdBuy;
+          if (!Array.isArray(trdBuy) || trdBuy.length === 0) break;
+
+          allItems.push(...trdBuy);
+          if (trdBuy.length < pageSize) break;
+          after = trdBuy[trdBuy.length - 1].id;
+        }
+
+        if (allItems.length > 0) {
+          this.usedFallbackData = false;
+          return allItems.map((b: any) => ({
+            id: b.id,
+            number_anno: b.numberAnno || `${b.id}-2026`,
+            name_ru: b.nameRu,
+            customer_name_ru: b.customerNameRu || 'Заказчик ЕГСЗ РК',
+            customer_bin: b.customerBin || '000000000000',
+            total_sum: Number(b.totalSum) || 0,
+            region_ru: b.regionRu || 'г. Астана',
+            publish_date: b.publishDate || new Date().toISOString(),
+            end_date: b.endDate || new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
+            security_sum: Math.round((Number(b.totalSum) || 0) * 0.03),
+            trade_buy_name_ru: 'Открытый конкурс',
+            ref_buy_status_id: 'PUBLISHED',
+            files: Array.isArray(b.Files || b.files) ? (b.Files || b.files).map((f: any) => ({
+              name: f.nameRu || f.name || 'ТЗ_Спецификация.pdf',
+              path: f.filePath || f.path || f.url || '',
+              size: f.fileSize ? `${Math.round(Number(f.fileSize) / 1024)} KB` : '1.2 MB'
+            })) : []
+          }));
         }
       } catch (err) {
-        console.warn('[GoszakupApiAdapter] Ошибка соединения с GraphQL API:', err);
+        console.warn('[GoszakupApiAdapter] Ошибка соединения с API Госзакупок:', err);
       }
     }
 

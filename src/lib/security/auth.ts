@@ -51,8 +51,13 @@ export async function validateApiAuth(
     }
   }
 
-  // 2. Determine actual user role securely from token
-  const isAdminToken = !!expectedAdminKey && token === expectedAdminKey;
+  // 2. Determine actual user role securely from token (timing-safe comparison)
+  const isAdminToken = !!(
+    expectedAdminKey &&
+    token &&
+    token.length === expectedAdminKey.length &&
+    crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expectedAdminKey))
+  );
   let actualRole: 'ADMIN' | 'USER' = isAdminToken ? 'ADMIN' : 'USER';
 
   // 3. Resolve userId & validate Session in DB / Store

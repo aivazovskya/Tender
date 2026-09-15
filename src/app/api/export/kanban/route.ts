@@ -28,9 +28,14 @@ export async function POST(request: NextRequest) {
   try {
     let cards: any[] = [];
 
-    // Fetch kanban cards from Prisma DB
+    // Fetch kanban cards from Prisma DB (scoped to user/tenant)
     try {
+      const whereClause: any = {};
+      if (access.userId && !access.userId.startsWith('admin-')) {
+        whereClause.userId = access.userId;
+      }
       cards = await prisma.kanbanCard.findMany({
+        where: whereClause,
         include: {
           tender: true,
           user: true

@@ -24,8 +24,12 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 3. Allow cron endpoints with secret header
-  if (pathname.startsWith('/api/cron/')) {
+  // 3. Allow cron endpoints and incoming webhooks (which authenticate via signatures)
+  if (
+    pathname.startsWith('/api/cron/') ||
+    pathname === '/api/billing/kaspi/webhook' ||
+    pathname === '/api/telegram/webhook'
+  ) {
     return NextResponse.next();
   }
 

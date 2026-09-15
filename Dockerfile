@@ -1,9 +1,10 @@
 # 1. Base Image
-FROM node:20-alpine AS base
+FROM node:20-bookworm-slim AS base
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
 
 # 2. Dependencies Stage
 FROM base AS deps
-RUN apk add --no-libc-compat libc6-compat
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -22,7 +23,7 @@ ENV NODE_ENV production
 RUN npx prisma generate
 RUN npm run build
 
-# 4. Runner Stage (Production Web Server)
+# 4. Runner Stage (Production Web & Worker Server)
 FROM base AS runner
 WORKDIR /app
 
@@ -30,9 +31,16 @@ ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Install Playwright browser and system dependencies
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json ./
+RUN npx playwright install --with-deps chromium \
+    && chmod -R 777 /ms-playwright
+
+RUN groupadd --system --gid 1001 nodejs \
+    && useradd --system --uid 1001 -g nodejs nextjs
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./

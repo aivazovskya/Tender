@@ -161,19 +161,21 @@ export class SupplierComparisonService {
     }
 
     try {
-      const existing = await prisma.tenderSupplierComparison.findFirst({
-        where: {
-          tenderId,
-          ...(company?.id && !company.id.startsWith('temp-') ? { companyId: company.id } : {})
-        },
-        include: {
-          suppliers: { orderBy: { order: 'asc' } },
-          lineItems: {
-            orderBy: { order: 'asc' },
-            include: { prices: true }
-          }
-        }
-      });
+      const existing = (company?.id && !company.id.startsWith('temp-'))
+        ? await prisma.tenderSupplierComparison.findFirst({
+            where: {
+              tenderId,
+              companyId: company.id
+            },
+            include: {
+              suppliers: { orderBy: { order: 'asc' } },
+              lineItems: {
+                orderBy: { order: 'asc' },
+                include: { prices: true }
+              }
+            }
+          })
+        : null;
 
       if (existing) {
         const suppliersData: ComparisonSupplierData[] = existing.suppliers.map(s => ({

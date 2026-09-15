@@ -5,6 +5,9 @@ import { TARIFF_PLANS } from '@/lib/services/kaspi.service';
 
 export async function POST(request: NextRequest) {
   const auth = await validateApiAuth(request);
+  if (!auth.authorized && auth.response) {
+    return auth.response;
+  }
 
   try {
     const body = await request.json();

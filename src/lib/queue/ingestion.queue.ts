@@ -29,7 +29,7 @@ export async function processIngestionJob(jobData: { source: string }) {
   if (source === 'CHECK_SLA') {
     console.log('[BullMQ Worker] Автоматический запуск проверки SLA и дедлайнов...');
     try {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const appUrl = process.env.INTERNAL_APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
       const cronSecret = process.env.CRON_SECRET || process.env.ADMIN_API_KEY || 'internal';
       const res = await fetch(`${appUrl}/api/notifications/check-sla`, {
         headers: { 'X-Cron-Secret': cronSecret }
@@ -42,7 +42,7 @@ export async function processIngestionJob(jobData: { source: string }) {
   } else if (source === 'CHECK_MATCHES') {
     console.log('[BullMQ Worker] Автоматический запуск ИИ-матчинга новых лотов по профилям...');
     try {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const appUrl = process.env.INTERNAL_APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
       const cronSecret = process.env.CRON_SECRET || process.env.ADMIN_API_KEY || 'internal';
       const res = await fetch(`${appUrl}/api/notifications/check-matches`, {
         headers: { 'X-Cron-Secret': cronSecret }
@@ -55,7 +55,7 @@ export async function processIngestionJob(jobData: { source: string }) {
   } else if (source === 'CHECK_HEALTH') {
     console.log('[BullMQ Worker] Автоматический запуск проверки активности источников (Ingestion Health)...');
     try {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const appUrl = process.env.INTERNAL_APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
       const cronSecret = process.env.CRON_SECRET || process.env.ADMIN_API_KEY || 'internal';
       const res = await fetch(`${appUrl}/api/cron/health-check`, {
         headers: { 'X-Cron-Secret': cronSecret }
@@ -63,6 +63,45 @@ export async function processIngestionJob(jobData: { source: string }) {
       result = await res.json();
     } catch (err: any) {
       console.warn('[BullMQ Worker] Сбой автономного вызова health-check:', err?.message);
+      result = { success: false, error: err?.message };
+    }
+  } else if (source === 'CHECK_SECURITY_EXPIRY') {
+    console.log('[BullMQ Worker] Автоматический запуск проверки истекающих обеспечений...');
+    try {
+      const appUrl = process.env.INTERNAL_APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const cronSecret = process.env.CRON_SECRET || process.env.ADMIN_API_KEY || 'internal';
+      const res = await fetch(`${appUrl}/api/notifications/check-security-expiry`, {
+        headers: { 'X-Cron-Secret': cronSecret }
+      });
+      result = await res.json();
+    } catch (err: any) {
+      console.warn('[BullMQ Worker] Сбой автономного вызова check-security-expiry:', err?.message);
+      result = { success: false, error: err?.message };
+    }
+  } else if (source === 'CHECK_UPCOMING_DEADLINES') {
+    console.log('[BullMQ Worker] Автоматический запуск проверки приближающихся дедлайнов...');
+    try {
+      const appUrl = process.env.INTERNAL_APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const cronSecret = process.env.CRON_SECRET || process.env.ADMIN_API_KEY || 'internal';
+      const res = await fetch(`${appUrl}/api/cron/check-upcoming-deadlines`, {
+        headers: { 'X-Cron-Secret': cronSecret }
+      });
+      result = await res.json();
+    } catch (err: any) {
+      console.warn('[BullMQ Worker] Сбой автономного вызова check-upcoming-deadlines:', err?.message);
+      result = { success: false, error: err?.message };
+    }
+  } else if (source === 'CHECK_SUBMITTED_RESULTS') {
+    console.log('[BullMQ Worker] Автоматический запуск проверки результатов поданных заявок...');
+    try {
+      const appUrl = process.env.INTERNAL_APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const cronSecret = process.env.CRON_SECRET || process.env.ADMIN_API_KEY || 'internal';
+      const res = await fetch(`${appUrl}/api/cron/check-submitted-tender-results`, {
+        headers: { 'X-Cron-Secret': cronSecret }
+      });
+      result = await res.json();
+    } catch (err: any) {
+      console.warn('[BullMQ Worker] Сбой автономного вызова check-submitted-tender-results:', err?.message);
       result = { success: false, error: err?.message };
     }
   } else {
@@ -168,6 +207,39 @@ export async function scheduleAllActiveSources(): Promise<number> {
       {
         repeat: { every: 60 * 60 * 1000 },
         jobId: 'repeat-CHECK_HEALTH'
+      }
+    );
+    scheduledCount++;
+
+    // Schedule daily Security Expiry checker job (08:00)
+    await ingestionQueue.add(
+      'ingest-CHECK_SECURITY_EXPIRY',
+      { source: 'CHECK_SECURITY_EXPIRY' },
+      {
+        repeat: { pattern: '0 8 * * *' },
+        jobId: 'repeat-CHECK_SECURITY_EXPIRY'
+      }
+    );
+    scheduledCount++;
+
+    // Schedule Upcoming Deadlines checker job (07:00 & 19:00)
+    await ingestionQueue.add(
+      'ingest-CHECK_UPCOMING_DEADLINES',
+      { source: 'CHECK_UPCOMING_DEADLINES' },
+      {
+        repeat: { pattern: '0 7,19 * * *' },
+        jobId: 'repeat-CHECK_UPCOMING_DEADLINES'
+      }
+    );
+    scheduledCount++;
+
+    // Schedule Submitted Results checker job (06:00 & 18:00)
+    await ingestionQueue.add(
+      'ingest-CHECK_SUBMITTED_RESULTS',
+      { source: 'CHECK_SUBMITTED_RESULTS' },
+      {
+        repeat: { pattern: '0 6,18 * * *' },
+        jobId: 'repeat-CHECK_SUBMITTED_RESULTS'
       }
     );
     scheduledCount++;

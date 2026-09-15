@@ -103,14 +103,50 @@ export function validateUrlForSSRF(targetUrl: string): { allowed: boolean; reaso
     return { allowed: false, reason: `Обращение к внутреннему хосту '${hostname}' заблокировано по соображениям безопасности (SSRF Protection)` };
   }
 
-  // Direct IP address check
-  if (net.isIP(hostname)) {
-    if (isPrivateIp(hostname)) {
+  // Direct IP address check (including decimal integer, hex, octal notations)
+  const canonicalIp = net.isIP(hostname) ? hostname : parseAlternateIp(hostname);
+  if (canonicalIp) {
+    if (isPrivateIp(canonicalIp)) {
       return { allowed: false, reason: `Обращение к приватному/локальному IP-адресу (${hostname}) запрещено` };
     }
   }
 
   return { allowed: true };
+}
+
+/**
+ * Parses alternative representations of IPv4 addresses (decimal integer, hex, octal)
+ */
+export function parseAlternateIp(hostname: string): string | null {
+  // Pure decimal integer IP e.g. 2130706433 (127.0.0.1)
+  if (/^\d+$/.test(hostname)) {
+    const num = parseInt(hostname, 10);
+    if (!isNaN(num) && num >= 0 && num <= 4294967295) {
+      return `${(num >>> 24) & 255}.${(num >>> 16) & 255}.${(num >>> 8) & 255}.${num & 255}`;
+    }
+  }
+  // Hex notation e.g. 0x7f000001
+  if (/^0x[0-9a-fA-F]+$/i.test(hostname)) {
+    const num = parseInt(hostname, 16);
+    if (!isNaN(num) && num >= 0 && num <= 4294967295) {
+      return `${(num >>> 24) & 255}.${(num >>> 16) & 255}.${(num >>> 8) & 255}.${num & 255}`;
+    }
+  }
+  // Octal or dotted hex/octal e.g. 0177.0.0.1 or 0x7f.0.0.1
+  if (hostname.includes('.')) {
+    const parts = hostname.split('.');
+    if (parts.length === 4 && parts.every(p => /^(0x[0-9a-fA-F]+|0[0-7]+|\d+)$/i.test(p))) {
+      const parsedParts = parts.map(p => {
+        if (/^0x/i.test(p)) return parseInt(p, 16);
+        if (/^0\d+/.test(p)) return parseInt(p, 8);
+        return parseInt(p, 10);
+      });
+      if (parsedParts.every(p => !isNaN(p) && p >= 0 && p <= 255)) {
+        return parsedParts.join('.');
+      }
+    }
+  }
+  return null;
 }
 
 /**
@@ -122,11 +158,12 @@ export async function resolveAndValidateHost(hostname: string): Promise<{ allowe
     return basicCheck;
   }
 
-  if (net.isIP(hostname)) {
-    if (isPrivateIp(hostname)) {
+  const canonicalIp = net.isIP(hostname) ? hostname : parseAlternateIp(hostname);
+  if (canonicalIp) {
+    if (isPrivateIp(canonicalIp)) {
       return { allowed: false, reason: `Прямой IP ${hostname} находится в приватном диапазоне` };
     }
-    return { allowed: true, addresses: [hostname] };
+    return { allowed: true, addresses: [canonicalIp] };
   }
 
   try {

@@ -45,9 +45,12 @@ export async function GET(request: NextRequest) {
   const to = searchParams.get('to');
 
   try {
+    // Scope report data to user/tenant organization unless system admin
+    const scopedUserId = (auth.role === 'ADMIN' || auth.userId.startsWith('admin-')) ? undefined : auth.userId;
     const report = await ManagementReportService.generateReport(
       from || undefined,
-      to || undefined
+      to || undefined,
+      scopedUserId
     );
 
     return NextResponse.json({

@@ -8,6 +8,9 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   const auth = await validateApiAuth(request);
+  if (!auth.authorized && auth.response) {
+    return auth.response;
+  }
   const tenderId = params.id;
 
   if (!tenderId) {
@@ -42,6 +45,9 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   const auth = await validateApiAuth(request);
+  if (!auth.authorized && auth.response) {
+    return auth.response;
+  }
   const tenderId = params.id;
 
   if (!tenderId) {

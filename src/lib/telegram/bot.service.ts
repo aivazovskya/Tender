@@ -86,6 +86,8 @@ export class TelegrafBotService {
     return `${userId}__${expiresAt}__${sig}`;
   }
 
+  private static consumedDeepLinkTokens: Map<string, number> = new Map();
+
   /**
    * Verifies a deep link token, returning the target userId if valid and unexpired
    */
@@ -101,11 +103,25 @@ export class TelegrafBotService {
       if (isNaN(expiresAt) || expiresAt < Date.now()) {
         return null; // Expired
       }
+      // Replay protection: check if token was already consumed
+      if (TelegrafBotService.consumedDeepLinkTokens.has(token)) {
+        return null;
+      }
+
       const secret = process.env.API_SECRET_KEY || process.env.KASPI_WEBHOOK_SECRET || 'tender_tg_default_sec';
       const expectedSig = crypto.createHmac('sha256', secret).update(`${targetUserId}:${expiresAt}`).digest('hex').substring(0, 16);
-      if (expectedSig !== sig) {
+      
+      if (sig.length !== expectedSig.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))) {
         return null; // Invalid cryptographic signature
       }
+
+      // Mark token as consumed and prune expired
+      TelegrafBotService.consumedDeepLinkTokens.set(token, expiresAt);
+      const now = Date.now();
+      for (const [k, exp] of TelegrafBotService.consumedDeepLinkTokens.entries()) {
+        if (exp < now) TelegrafBotService.consumedDeepLinkTokens.delete(k);
+      }
+
       return targetUserId;
     }
 

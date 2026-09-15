@@ -11,38 +11,48 @@ export class SamrukApiAdapter extends BaseTenderAdapter {
 
     if (token && token.trim().length > 0 && !token.includes('your_')) {
       try {
-        const res = await fetch('https://portal.sk.kz/api/v1/adverts?limit=10', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json'
-          }
-        });
+        const allItems: any[] = [];
+        const maxPages = 4;
+        const pageSize = 50;
 
-        if (res.ok) {
+        for (let page = 1; page <= maxPages; page++) {
+          const res = await fetch(`https://portal.sk.kz/api/v1/adverts?page=${page}&limit=${pageSize}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json'
+            }
+          });
+
+          if (!res.ok) break;
           const json = await res.json();
           const items = Array.isArray(json) ? json : json?.data || json?.items;
-          if (Array.isArray(items) && items.length > 0) {
-            this.usedFallbackData = false;
-            return items.map((item: any) => ({
-              advertId: item.id || item.advertId,
-              advertNumber: item.advertNumber || `SK-${item.id}`,
-              titleRu: item.titleRu || item.name,
-              organizerRu: item.organizerRu || item.customerName || 'АО "Самрук-Казына"',
-              organizerBin: item.organizerBin || item.customerBin || '000000000000',
-              sum: Number(item.sum || item.totalSum) || 0,
-              regionNameRu: item.regionNameRu || item.region || 'г. Астана',
-              publishDate: item.publishDate || new Date().toISOString(),
-              endDate: item.endDate || new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
-              guaranteeAmount: Math.round((Number(item.sum || item.totalSum) || 0) * 0.01),
-              files: Array.isArray(item.files || item.documents || item.attachments)
-                ? (item.files || item.documents || item.attachments).map((f: any) => ({
-                    name: f.name || f.fileName || 'Спецификация.pdf',
-                    url: f.url || f.fileUrl || f.path || '',
-                    size: f.size || f.fileSize || '1.5 MB'
-                  }))
-                : []
-            }));
-          }
+          if (!Array.isArray(items) || items.length === 0) break;
+
+          allItems.push(...items);
+          if (items.length < pageSize) break;
+        }
+
+        if (allItems.length > 0) {
+          this.usedFallbackData = false;
+          return allItems.map((item: any) => ({
+            advertId: item.id || item.advertId,
+            advertNumber: item.advertNumber || `SK-${item.id}`,
+            titleRu: item.titleRu || item.name,
+            organizerRu: item.organizerRu || item.customerName || 'АО "Самрук-Казына"',
+            organizerBin: item.organizerBin || item.customerBin || '000000000000',
+            sum: Number(item.sum || item.totalSum) || 0,
+            regionNameRu: item.regionNameRu || item.region || 'г. Астана',
+            publishDate: item.publishDate || new Date().toISOString(),
+            endDate: item.endDate || new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
+            guaranteeAmount: Math.round((Number(item.sum || item.totalSum) || 0) * 0.01),
+            files: Array.isArray(item.files || item.documents || item.attachments)
+              ? (item.files || item.documents || item.attachments).map((f: any) => ({
+                  name: f.name || f.fileName || 'Спецификация.pdf',
+                  url: f.url || f.fileUrl || f.path || '',
+                  size: f.size || f.fileSize || '1.5 MB'
+                }))
+              : []
+          }));
         }
       } catch (err) {
         console.warn('[SamrukApiAdapter] Ошибка соединения с API Самрук-Казына:', err);

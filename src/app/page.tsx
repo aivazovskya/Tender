@@ -102,6 +102,9 @@ export default function HomePage() {
   const [minAmount, setMinAmount] = useState<string>('');
   const [maxAmount, setMaxAmount] = useState<string>('');
   const [sortBy, setSortBy] = useState<'date' | 'amount_desc' | 'risk_asc' | 'match_desc'>('date');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalCount, setTotalCount] = useState<number>(0);
 
   const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
 
@@ -238,6 +241,11 @@ export default function HomePage() {
       .catch(() => {});
   }, [isDemoMode]);
 
+  // Reset pagination when search filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedRegion, selectedCategory, selectedSource, minAmount, maxAmount]);
+
   // Fetch tenders via REST API (/api/tenders or /api/demo/tenders)
   useEffect(() => {
     setLoading(true);
@@ -246,6 +254,10 @@ export default function HomePage() {
     if (selectedRegion !== 'Все регионы') params.set('region', selectedRegion);
     if (selectedCategory !== 'Все категории') params.set('category', selectedCategory);
     if (selectedSource !== 'ALL') params.set('source', selectedSource);
+    if (minAmount) params.set('minAmount', minAmount);
+    if (maxAmount) params.set('maxAmount', maxAmount);
+    params.set('page', String(currentPage));
+    params.set('limit', '20');
 
     const apiEndpoint = isDemoMode ? `/api/demo/tenders?${params.toString()}` : `/api/tenders?${params.toString()}`;
 
@@ -254,11 +266,18 @@ export default function HomePage() {
       .then(data => {
         if (data.success && data.tenders) {
           setTenders(data.tenders);
+          if (data.pagination) {
+            setTotalPages(data.pagination.totalPages || 1);
+            setTotalCount(data.pagination.total ?? data.tenders.length);
+          } else {
+            setTotalPages(1);
+            setTotalCount(data.tenders.length);
+          }
         }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [searchQuery, selectedRegion, selectedCategory, selectedSource, isDemoMode]);
+  }, [searchQuery, selectedRegion, selectedCategory, selectedSource, minAmount, maxAmount, isDemoMode, currentPage]);
 
   // Kanban Handlers with API Sync & State Rollback Protection (Bug #10)
   const handleAddToKanban = (tender: Tender) => {
@@ -679,7 +698,7 @@ export default function HomePage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-bold text-ink tracking-tight flex items-center space-x-3">
-                  <span>{t.hero.foundTenders} <span className="text-ember">{filteredTenders.length}</span></span>
+                  <span>{t.hero.foundTenders} <span className="text-ember">{totalCount > 0 ? totalCount : filteredTenders.length}</span></span>
                 </h2>
                 
                 <div className="flex items-center space-x-3">
@@ -708,20 +727,67 @@ export default function HomePage() {
                   <h3 className="text-base font-semibold text-ink">{t.hero.noTendersFound}</h3>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredTenders.map((tender) => (
-                    <TenderCard
-                      key={tender.id}
-                      tender={tender}
-                      onOpenDetails={(t) => window.open(`/tenders/${t.id}`, '_blank', 'noopener,noreferrer')}
-                      onAddToKanban={handleAddToKanban}
-                      onSendToTelegram={handleSendToTelegram}
-                      isInKanban={kanbanItems.some(k => k.tenderId === tender.id)}
-                      language={language}
-                      dataSources={dataSources}
-                    />
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredTenders.map((tender) => (
+                      <TenderCard
+                        key={tender.id}
+                        tender={tender}
+                        onOpenDetails={(t) => window.open(`/tenders/${t.id}`, '_blank', 'noopener,noreferrer')}
+                        onAddToKanban={handleAddToKanban}
+                        onSendToTelegram={handleSendToTelegram}
+                        isInKanban={kanbanItems.some(k => k.tenderId === tender.id)}
+                        language={language}
+                        dataSources={dataSources}
+                      />
+                    ))}
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between border-t border-hairline pt-6 px-2 gap-4">
+                      <div className="text-xs text-mid-gray">
+                        Страница <span className="font-semibold text-ink">{currentPage}</span> из <span className="font-semibold text-ink">{totalPages}</span> (всего {totalCount} лотов)
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          disabled={currentPage <= 1 || loading}
+                          className="px-3 py-1.5 rounded-xl border border-hairline bg-paper hover:bg-surface-alt disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold text-ink transition-colors shadow-subtle"
+                        >
+                          Назад
+                        </button>
+                        <div className="flex items-center space-x-1">
+                          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                            let pageNum = i + 1;
+                            if (totalPages > 5 && currentPage > 3) {
+                              pageNum = Math.min(totalPages - 4, currentPage - 2) + i;
+                            }
+                            return (
+                              <button
+                                key={pageNum}
+                                onClick={() => setCurrentPage(pageNum)}
+                                className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${
+                                  currentPage === pageNum
+                                    ? 'bg-ink text-paper'
+                                    : 'bg-surface-alt hover:bg-paper text-ink-soft border border-hairline'
+                                }`}
+                              >
+                                {pageNum}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <button
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          disabled={currentPage >= totalPages || loading}
+                          className="px-3 py-1.5 rounded-xl border border-hairline bg-paper hover:bg-surface-alt disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold text-ink transition-colors shadow-subtle"
+                        >
+                          Вперёд
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
+import { resolveOwnCompanyProfile } from '@/lib/security/resolve-company-profile';
 
 export async function PATCH(
   request: NextRequest,
@@ -15,6 +16,13 @@ export async function PATCH(
     const existing = await prisma.securityInstrument.findUnique({ where: { id } });
     if (!existing) {
       return NextResponse.json({ success: false, message: 'Запись обеспечения не найдена' }, { status: 404 });
+    }
+
+    if (auth.role !== 'ADMIN' && !auth.userId.startsWith('admin-')) {
+      const companyProfile = await resolveOwnCompanyProfile(auth.userId);
+      if (!companyProfile || existing.companyProfileId !== companyProfile.id) {
+        return NextResponse.json({ success: false, message: 'Запись обеспечения не найдена или нет доступа' }, { status: 404 });
+      }
     }
 
     const body = await request.json();

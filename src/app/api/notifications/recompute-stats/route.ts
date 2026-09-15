@@ -8,12 +8,11 @@ export async function POST(request: NextRequest) {
     const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
     
     const expectedSecret = process.env.CRON_SECRET || process.env.ADMIN_API_KEY;
-    const isProd = process.env.NODE_ENV === 'production';
 
     const isAuthorized = Boolean(expectedSecret && (
       cronSecret === expectedSecret ||
       (authHeader && authHeader.endsWith(expectedSecret))
-    )) || (!isProd && !cronSecret);
+    ));
 
     if (!isAuthorized) {
       return NextResponse.json(

@@ -41,7 +41,10 @@ export class ConfigurableScraperAdapter extends BaseTenderAdapter {
     try {
       if (renderMode === 'JS_RENDERED') {
         const playwright = require('playwright');
-        browser = await playwright.chromium.launch({ headless: true });
+        browser = await playwright.chromium.launch({
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+        });
       }
 
       for (let page = startPage; page < startPage + maxPages; page++) {
