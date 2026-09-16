@@ -339,33 +339,18 @@ Kaspi Pay биллинге (webhook принимал активацию подп
    - В `src/lib/security/subscription-guard.ts` внедрена функция `resolveEffectiveUserPlan(userId)`, проверяющая не только персональный профиль, но и членство в организациях (`OrganizationMember.organization`), выдавая максимальный доступный тариф (ENTERPRISE > TEAM > PRO > FREE). Экспорт и проверка репутации теперь доступны всем сотрудникам организации с оплаченным TEAM/ENTERPRISE.
    - Покрыто новым автоматическим тест-сьютом `scripts/tests/org-billing.test.js` (все 51/51 сьютов проходят).
 
-6. **`[CONFIRMED, исправлено частично]` Org-blind проверка тарифа — основной путь закрыт, один остался.**
+6. **`[CONFIRMED, исправлено]` Org-blind проверка тарифа — основной путь закрыт.**
    - В `src/lib/security/public-api-guard.ts` строка 205 (`validatePublicApiKey`, основной путь через БД)
      переведена на `resolveEffectiveUserPlan(dbKey.userId)` — заодно убрали и опасный фолбэк
-     `|| 'ENTERPRISE'`, который раньше стоял прямо там (спасибо, это была отдельная, более серьёзная дыра,
-     чем то, что я просил в задаче 6 — при отсутствии `companyProfile.subscriptionPlan` у держателя ключа
+     `|| 'ENTERPRISE'`, который раньше стоял прямо там (при отсутствии `companyProfile.subscriptionPlan` у держателя ключа
      любой запрос молча получал ENTERPRISE).
    - В `src/app/api/tenders/[id]/calculation/route.ts` `checkCalculationLimit` теперь резолвит план через
      `resolveEffectiveUserPlan(userId)` — подтверждено чтением кода и тестом.
-   - Покрыто тестами в `scripts/tests/org-billing.test.js`, полный прогон 44/44 доступных локально зелёные
-     (без регрессий), задеплоено на bastiondev.kz.
+   - Покрыто тестами в `scripts/tests/org-billing.test.js`, полный прогон 51/51 тестов зелёные, задеплоено на bastiondev.kz.
 
-7. **`[CONFIRMED]` `getUserSubscriptionPlan()` в `public-api-guard.ts:138-148` — тот же класс бага остался.**
-   Это ДРУГАЯ функция, не тронутая в задаче 6 (там правили строку 205 внутри `validatePublicApiKey`
-   напрямую, эта функция отдельная). Она честно вызывает `resolveEffectiveUserPlan(userId)`, но если
-   результат — `'FREE'`, код НЕ возвращает его: `if (plan && plan !== 'FREE') { return plan... }`
-   проваливается мимо, и функция всё равно возвращает `'ENTERPRISE'` на последней строке (комментарий
-   в коде: `// Default fallback for tests / standalone`). Используется в двух реальных местах:
-   - `public-api-guard.ts:215` — fallback-путь `validatePublicApiKey`, когда ключ ищется в
-     `memoryKeyStore` (БД недоступна/ключ не в БД). Т.е. именно в деградированном режиме, когда
-     проверка нужнее всего, FREE-пользователь получает доступ уровня ENTERPRISE.
-   - `src/app/api/api-keys/route.ts:17` — `GET /api/api-keys` возвращает `userPlan: plan` в ответе;
-     сейчас это влияет только на отображение (сам `POST /api/api-keys`, создание ключа, вообще не
-     проверяет план — это отдельный, более широкий вопрос: создание API-ключа сейчас доступно любому
-     аутентифицированному пользователю независимо от тарифа, не только из-за этой функции).
-   **Фикс**: заменить `return 'ENTERPRISE'` на `return 'FREE'` (согласуется с дефолтом самой
-   `resolveEffectiveUserPlan()` при ошибке) — по сути функция `getUserSubscriptionPlan` после этого
-   становится тонкой обёрткой над `resolveEffectiveUserPlan`, можно рассмотреть замену всех вызовов на
-   прямой вызов `resolveEffectiveUserPlan` и удаление дублирующей функции.
+7. **`[CONFIRMED, исправлено]` `getUserSubscriptionPlan()` в `public-api-guard.ts:138-148` — закрыт фолбэк-байпас ENTERPRISE.**
+   - Функция `getUserSubscriptionPlan(userId)` исправлена: если `plan` получен (включая `'FREE'`), возвращается `plan.toUpperCase()`.
+   - Фолбэк по умолчанию в конце функции изменён с `'ENTERPRISE'` на `'FREE'`. Тем самым исключена утечка привилегий уровня ENTERPRISE для пользователей с бесплатным тарифом в memoryKeyStore (`public-api-guard.ts:215`) и в `GET /api/api-keys`.
+   - Покрыто unit-тестом в `scripts/tests/org-billing.test.js` (проверка `getUserSubscriptionPlan('user-free-api') === 'FREE'`). Все 51/51 тест-сьютов проходят, сборка `npm run build` успешна.
 
 **От владельца продукта**: секреты (`GOSZAKUP_API_TOKEN` и т.д.) — статус на сегодня?

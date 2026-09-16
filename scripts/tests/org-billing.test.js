@@ -213,6 +213,18 @@ async function testPublicApiGuardOrgPlan() {
     const plan = await getUserSubscriptionPlan('user-org-api');
     assert.strictEqual(plan, 'ENTERPRISE', 'getUserSubscriptionPlan must inherit organization ENTERPRISE plan');
     console.log('   ✅ public-api-guard correctly inherits organization ENTERPRISE plan');
+
+    // User has FREE personal profile and no organization
+    prisma.user.findUnique = async () => ({
+      id: 'user-free-api',
+      role: 'USER',
+      companyProfile: { subscriptionPlan: 'FREE' },
+      orgMemberships: []
+    });
+
+    const freePlan = await getUserSubscriptionPlan('user-free-api');
+    assert.strictEqual(freePlan, 'FREE', 'getUserSubscriptionPlan must return FREE for free users (no enterprise fallback leak)');
+    console.log('   ✅ public-api-guard returns FREE for free users without enterprise fallback leak');
   } finally {
     prisma.user.findUnique = origFindUnique;
   }

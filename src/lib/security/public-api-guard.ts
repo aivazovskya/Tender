@@ -138,13 +138,13 @@ export async function listApiKeysForUser(userId: string): Promise<StoredApiKey[]
 export async function getUserSubscriptionPlan(userId: string): Promise<string> {
   try {
     const plan = await resolveEffectiveUserPlan(userId);
-    if (plan && plan !== 'FREE') {
+    if (plan) {
       return plan.toUpperCase();
     }
   } catch {
     // Fallback
   }
-  return 'ENTERPRISE'; // Default fallback for tests / standalone
+  return 'FREE';
 }
 
 /**
