@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Search, 
   Kanban, 
@@ -13,7 +13,9 @@ import {
   BarChart3,
   ShieldAlert,
   User as UserIcon,
-  LogOut
+  LogOut,
+  Menu,
+  X
 } from 'lucide-react';
 
 import { useTranslation } from '../lib/i18n/useTranslation';
@@ -47,6 +49,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   onLogout
 }) => {
   const t = useTranslation(language);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-40 bg-paper/90 backdrop-blur-md border-b border-hairline shadow-subtle">
@@ -54,7 +57,13 @@ export const Navigation: React.FC<NavigationProps> = ({
         <div className="flex items-center justify-between h-16">
           
           {/* Logo & Brand with Ember Accent */}
-          <div className="flex items-center space-x-3 cursor-pointer group" onClick={() => setActiveTab('catalog')}>
+          <div 
+            className="flex items-center space-x-3 cursor-pointer group" 
+            onClick={() => {
+              setActiveTab('catalog');
+              setIsMobileMenuOpen(false);
+            }}
+          >
             <div className="w-9 h-9 rounded-xl bg-ink text-paper flex items-center justify-center shadow-subtle relative overflow-hidden group-hover:scale-105 transition-transform">
               <Layers className="w-5 h-5 text-paper" />
               <div className="absolute top-0 right-0 w-2 h-2 bg-ember rounded-full" />
@@ -243,10 +252,165 @@ export const Navigation: React.FC<NavigationProps> = ({
               )
             )}
 
+            {/* Mobile Menu Toggle Button */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="md:hidden p-1.5 rounded-lg bg-surface-alt border border-hairline text-ink hover:bg-paper transition-colors focus:outline-none"
+              aria-label={isMobileMenuOpen ? 'Закрыть меню' : 'Открыть меню'}
+            >
+              {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </button>
+
           </div>
 
         </div>
       </div>
+
+      {/* Mobile Navigation Drawer / Panel */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden border-t border-hairline bg-paper/95 backdrop-blur-md px-4 pt-3 pb-4 space-y-3 animate-fadeIn shadow-subtle">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                setActiveTab('catalog');
+                setIsMobileMenuOpen(false);
+              }}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                activeTab === 'catalog'
+                  ? 'bg-surface-alt text-ink shadow-subtle border border-hairline font-bold'
+                  : 'text-mid-gray hover:text-ink hover:bg-surface-alt/50 border border-transparent'
+              }`}
+            >
+              <Search className="w-4 h-4 text-ink" />
+              <span>{t.nav.catalog}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('matching');
+                setIsMobileMenuOpen(false);
+              }}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                activeTab === 'matching'
+                  ? 'bg-surface-alt text-ink shadow-subtle border border-hairline font-bold'
+                  : 'text-mid-gray hover:text-ink hover:bg-surface-alt/50 border border-transparent'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-ember" />
+              <span>{t.nav.matching}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('kanban');
+                setIsMobileMenuOpen(false);
+              }}
+              className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                activeTab === 'kanban'
+                  ? 'bg-surface-alt text-ink shadow-subtle border border-hairline font-bold'
+                  : 'text-mid-gray hover:text-ink hover:bg-surface-alt/50 border border-transparent'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Kanban className="w-4 h-4 text-ink" />
+                <span>{t.nav.kanban}</span>
+              </div>
+              {kanbanCount > 0 && (
+                <span className="px-1.5 py-0.2 text-[10px] font-semibold bg-ink text-paper rounded-full">
+                  {kanbanCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('reports');
+                setIsMobileMenuOpen(false);
+              }}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                activeTab === 'reports'
+                  ? 'bg-surface-alt text-ink shadow-subtle border border-hairline font-bold'
+                  : 'text-mid-gray hover:text-ink hover:bg-surface-alt/50 border border-transparent'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4 text-blue-600" />
+              <span>Отчёты KPI</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('security');
+                setIsMobileMenuOpen(false);
+              }}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                activeTab === 'security'
+                  ? 'bg-surface-alt text-ink shadow-subtle border border-hairline font-bold'
+                  : 'text-mid-gray hover:text-ink hover:bg-surface-alt/50 border border-transparent'
+              }`}
+            >
+              <ShieldAlert className="w-4 h-4 text-amber-600" />
+              <span>Обеспечения</span>
+            </button>
+
+            {currentUser?.role === 'ADMIN' && (
+              <button
+                onClick={() => {
+                  setActiveTab('admin');
+                  setIsMobileMenuOpen(false);
+                }}
+                className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                  activeTab === 'admin'
+                    ? 'bg-surface-alt text-ink shadow-subtle border border-hairline font-bold'
+                    : 'text-mid-gray hover:text-ink hover:bg-surface-alt/50 border border-transparent'
+                }`}
+              >
+                <Activity className="w-4 h-4 text-ink" />
+                <span>{t.nav.admin}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Additional Mobile Shortcuts */}
+          <div className="pt-2.5 border-t border-hairline flex flex-wrap gap-2">
+            {onOpenComplianceModal && (
+              <button
+                onClick={() => {
+                  onOpenComplianceModal();
+                  setIsMobileMenuOpen(false);
+                }}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-surface-alt border border-hairline text-ink hover:bg-paper text-xs font-medium transition-colors shadow-subtle"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-ember" />
+                <span>Проверка ТЗ</span>
+              </button>
+            )}
+
+            {onOpenApiKeyModal && (
+              <button
+                onClick={() => {
+                  onOpenApiKeyModal();
+                  setIsMobileMenuOpen(false);
+                }}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-surface-alt border border-hairline text-ink hover:bg-paper text-xs font-medium transition-colors shadow-subtle"
+              >
+                <Key className="w-3.5 h-3.5 text-amber-600" />
+                <span>API REST</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => {
+                setActiveTab('telegram');
+                setIsMobileMenuOpen(false);
+              }}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-surface-alt border border-hairline text-ink hover:bg-paper text-xs font-medium transition-colors shadow-subtle"
+            >
+              <Send className="w-3.5 h-3.5 text-sky-600" />
+              <span>Telegram Bot</span>
+            </button>
+          </div>
+        </div>
+      )}
     </header>
   );
 };
