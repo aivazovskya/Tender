@@ -156,6 +156,13 @@ export async function POST(req: NextRequest) {
             subscriptionPlan: effectivePlanId,
             subscriptionExpiresAt: nextExpiration
           }
+        }),
+        prisma.companyProfile.updateMany({
+          where: { organizationId: associatedOrgId },
+          data: {
+            subscriptionPlan: effectivePlanId,
+            subscriptionExpiresAt: nextExpiration
+          }
         })
       );
     }

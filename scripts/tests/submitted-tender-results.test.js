@@ -115,12 +115,47 @@ async function testUnresolvedProfileSkipping() {
   }
 }
 
+async function testSamrukSourceAwareSkipping() {
+  console.log('\n5️⃣ Testing Samruk-Kazyna Source-Aware Skipping...');
+  const { prisma } = require('../../src/lib/prisma');
+  const origFindMany = prisma.kanbanCard.findMany;
+
+  try {
+    prisma.kanbanCard.findMany = async () => [
+      {
+        id: 'test-card-samruk',
+        userId: 'some-user',
+        organizationId: null,
+        tender: { source: 'SAMRUK_KAZYNA', externalId: 'SK-2026-12345', title: 'Samruk Tender' }
+      }
+    ];
+
+    process.env.CRON_SECRET = 'valid-test-secret-123';
+    const req = {
+      headers: new Map([['x-cron-secret', 'valid-test-secret-123']]),
+      url: 'http://localhost/api/cron/check-submitted-tender-results'
+    };
+    req.headers.get = (name) => name.toLowerCase() === 'x-cron-secret' ? 'valid-test-secret-123' : null;
+
+    const res = await checkSubmittedResultsGET(req);
+    const data = await res.json();
+    assert.strictEqual(data.success, true);
+    assert.strictEqual(data.wonCount, 0);
+    assert.strictEqual(data.lostCount, 0);
+    assert.strictEqual(data.pendingCount, 1, 'Samruk tender must be safely skipped as pending');
+    console.log('   ✅ SAMRUK_KAZYNA lot safely skipped without sending request to Goszakup API');
+  } finally {
+    prisma.kanbanCard.findMany = origFindMany;
+  }
+}
+
 async function runAll() {
   try {
     await testGoszakupAdapterFetchBuyResult();
     await testCronSecurityAndExecution();
     await testVercelCronRegistration();
     await testUnresolvedProfileSkipping();
+    await testSamrukSourceAwareSkipping();
     console.log('\n🎉 Submitted Tender Results Tracking Test Suite completed successfully!');
     process.exit(0);
   } catch (err) {
@@ -130,3 +165,4 @@ async function runAll() {
 }
 
 runAll();
+

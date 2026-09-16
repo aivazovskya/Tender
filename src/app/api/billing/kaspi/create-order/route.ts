@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { tariffId } = body;
+    const { tariffId, organizationId: bodyOrgId } = body;
 
     // Security check (Bug #8): Validate tariffId and calculate price server-side
     const plan = TARIFF_PLANS.find(p => p.id === (tariffId || 'PRO'));
@@ -68,14 +68,47 @@ export async function POST(request: NextRequest) {
       }).catch(() => {});
     }
 
-    // Persist Payment record in PostgreSQL DB with PENDING status and userId relation
+    // Resolve organizationId: from request body (if valid membership) or via user's organization/company profile
+    let targetOrgId: string | undefined = undefined;
+    if (auth.userId && auth.userId !== 'demo-user-id') {
+      if (bodyOrgId) {
+        try {
+          const isMember = await prisma.organizationMember.findFirst({
+            where: { organizationId: bodyOrgId, userId: auth.userId }
+          });
+          if (isMember) {
+            targetOrgId = bodyOrgId;
+          }
+        } catch {}
+      }
+      if (!targetOrgId) {
+        try {
+          const member = await prisma.organizationMember.findFirst({
+            where: { userId: auth.userId }
+          });
+          if (member) {
+            targetOrgId = member.organizationId;
+          } else {
+            const profile = await prisma.companyProfile.findFirst({
+              where: { userId: auth.userId }
+            });
+            if (profile?.organizationId) {
+              targetOrgId = profile.organizationId;
+            }
+          }
+        } catch {}
+      }
+    }
+
+    // Persist Payment record in PostgreSQL DB with PENDING status, userId and organizationId relation
     await prisma.payment.create({
       data: {
         orderId,
         amount: amountKzt,
         tariffPlanId: effectiveTariffId,
         status: 'PENDING',
-        userId: auth.userId !== 'demo-user-id' ? auth.userId : undefined
+        userId: auth.userId !== 'demo-user-id' ? auth.userId : undefined,
+        organizationId: targetOrgId || undefined
       }
     });
 

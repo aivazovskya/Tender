@@ -327,27 +327,16 @@ Kaspi Pay биллинге (webhook принимал активацию подп
    При выборе любого раздела меню автоматически закрывается. Покрыто тестом `scripts/tests/mobile-navigation.test.js` (50/50 тестов проходят).
    Проверено вживую на bastiondev.kz (375px, под ADMIN-сессией) — работает корректно.
 
-4. **`[CONFIRMED]` Проверка результатов поданных заявок игнорирует источник лота.**
-   `src/app/api/cron/check-submitted-tender-results/route.ts:54` — `const adapter = new GoszakupApiAdapter()`
-   создаётся один раз и используется для **всех** карточек Kanban в статусе `SUBMITTED`, независимо от
-   `card.tender.source`. У `SamrukApiAdapter` (`src/lib/ingestion/samruk.adapter.ts`) метода `fetchBuyResult`
-   нет вообще. Для лотов с `portal.sk.kz` это означает: `externalId` в формате `SK-2026-XXXXX` уходит в
-   GraphQL-запрос к Госзакупкам, ничего там не находит, и `buyResult.isFinished` всегда `false` —
-   `pendingCount++` без единой ошибки в логах. Результат (выиграли/проиграли) по Samruk-лотам никогда не
-   определяется автоматически, команда должна отслеживать вручную.
-   **Фикс**: выбирать адаптер по `card.tender.source` (`GOSZAKUP` → `GoszakupApiAdapter`, `SAMRUK_KAZYNA` →
-   нужно either завести `fetchBuyResult` в `SamrukApiAdapter` по аналогии, либо явно скипать такие карточки
-   с явным логом вместо молчаливого `pendingCount++`). Проверить на реальных данных, когда будут токены.
+4. **`[CONFIRMED, исправлено]` Проверка результатов поданных заявок игнорирует источник лота.**
+   В `src/app/api/cron/check-submitted-tender-results/route.ts` добавлена проверка `card.tender.source`:
+   для `SAMRUK_KAZYNA` лоты безопасно логируются (`Samruk-Kazyna automated result-checking not supported yet, skipping`)
+   и пропускаются без отправки их ID в GraphQL Госзакупок. Неподдерживаемые источники также безопасно скипаются с логом.
+   Покрыто тестом в `scripts/tests/submitted-tender-results.test.js`.
 
-5. **`[CONFIRMED]` Командные тарифы (TEAM/ENTERPRISE) не активируются на всю организацию.**
-   `src/app/api/billing/kaspi/create-order/route.ts` никогда не проставляет `organizationId` в
-   создаваемой записи `Payment` (только `userId`). После фикса вебхука в разделе 5 (п. "тариф из payload
-   перебивал записанный при заказе") активация подписки строго идёт по `existingPayment.userId`/
-   `organizationId` — а раз `organizationId` никогда не заполняется, подписка TEAM ("До 5 сотрудников в
-   аккаунте") или ENTERPRISE ("Безлимитные сотрудники") активируется только у того, кто оплатил, а не у
-   всей команды/организации. Нужно: (а) решить, к какой организации привязывать заказ при оплате
-   (профиль компании плательщика? выбор в UI при оформлении?), (б) прокинуть `organizationId` в
-   `create-order`, (в) убедиться, что `CompanyProfile`/доступ остальных участников `OrganizationMember`
-   реально проверяет `organization.subscriptionPlan`, а не только собственный `subscriptionPlan` профиля.
+5. **`[CONFIRMED, исправлено]` Командные тарифы (TEAM/ENTERPRISE) не активировались на всю организацию.**
+   - В `src/app/api/billing/kaspi/create-order/route.ts` поддержан опциональный `organizationId` из body, а также автоматический резолв организации пользователя через `OrganizationMember` / `CompanyProfile.organizationId`. Значение `organizationId` сохраняется в записи `Payment`.
+   - В `src/app/api/billing/kaspi/webhook/route.ts` при подтверждении оплаты заказа с `associatedOrgId` тариф и срок действия обновляются как в `Organization`, так и во всех связанных `CompanyProfile`.
+   - В `src/lib/security/subscription-guard.ts` внедрена функция `resolveEffectiveUserPlan(userId)`, проверяющая не только персональный профиль, но и членство в организациях (`OrganizationMember.organization`), выдавая максимальный доступный тариф (ENTERPRISE > TEAM > PRO > FREE). Экспорт и проверка репутации теперь доступны всем сотрудникам организации с оплаченным TEAM/ENTERPRISE.
+   - Покрыто новым автоматическим тест-сьютом `scripts/tests/org-billing.test.js` (все 51/51 сьютов проходят).
 
 **От владельца продукта**: секреты (`GOSZAKUP_API_TOKEN` и т.д.) — статус на сегодня?

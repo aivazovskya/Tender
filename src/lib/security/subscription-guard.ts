@@ -10,6 +10,64 @@ export interface SubscriptionAuthResult {
 }
 
 /**
+ * Resolves the effective subscription plan for a user, taking into account:
+ * 1. Admin role -> 'ENTERPRISE'
+ * 2. User's personal company profile subscription plan
+ * 3. Any organization memberships the user belongs to (e.g. TEAM, ENTERPRISE)
+ * Returns the highest ranking plan ('FREE' < 'PRO' < 'TEAM' < 'ENTERPRISE').
+ */
+export async function resolveEffectiveUserPlan(userId: string): Promise<string> {
+  const PLAN_RANKS: Record<string, number> = {
+    FREE: 0,
+    PRO: 1,
+    TEAM: 2,
+    ENTERPRISE: 3
+  };
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        companyProfile: true,
+        orgMemberships: {
+          include: {
+            organization: true
+          }
+        }
+      }
+    });
+
+    if (!user) return 'FREE';
+    if (user.role === 'ADMIN') return 'ENTERPRISE';
+
+    let highestPlan = 'FREE';
+    let highestRank = 0;
+
+    const personalPlan = user.companyProfile?.subscriptionPlan?.toUpperCase();
+    if (personalPlan && PLAN_RANKS[personalPlan] !== undefined) {
+      if (PLAN_RANKS[personalPlan] > highestRank) {
+        highestPlan = personalPlan;
+        highestRank = PLAN_RANKS[personalPlan];
+      }
+    }
+
+    for (const membership of user.orgMemberships || []) {
+      const orgPlan = membership.organization?.subscriptionPlan?.toUpperCase();
+      if (orgPlan && PLAN_RANKS[orgPlan] !== undefined) {
+        if (PLAN_RANKS[orgPlan] > highestRank) {
+          highestPlan = orgPlan;
+          highestRank = PLAN_RANKS[orgPlan];
+        }
+      }
+    }
+
+    return highestPlan;
+  } catch {
+    return 'FREE';
+  }
+}
+
+/**
  * Validates whether the requesting user/session has access to export features.
  * Export is restricted to 'TEAM' and 'ENTERPRISE' subscription plans.
  */
@@ -42,20 +100,10 @@ export async function validateExportAccess(request: NextRequest): Promise<Subscr
 
   // 2. Fetch subscription plan from database if user ID is known
   if (userId) {
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: { companyProfile: true }
-      });
-      if (user) {
-        if (user.role === 'ADMIN') {
-          userPlan = 'ENTERPRISE';
-        } else if (user.companyProfile?.subscriptionPlan) {
-          userPlan = user.companyProfile.subscriptionPlan.toUpperCase();
-        }
-      }
-    } catch {
-      // Fallback if DB connection transiently unavailable
+    if (auth.role === 'ADMIN') {
+      userPlan = 'ENTERPRISE';
+    } else {
+      userPlan = await resolveEffectiveUserPlan(userId);
     }
   }
 
@@ -124,19 +172,11 @@ export async function validateReputationAccess(request: NextRequest): Promise<Su
   }
 
   if (userId) {
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: { companyProfile: true }
-      });
-      if (user) {
-        if (user.role === 'ADMIN') {
-          userPlan = 'ENTERPRISE';
-        } else if (user.companyProfile?.subscriptionPlan) {
-          userPlan = user.companyProfile.subscriptionPlan.toUpperCase();
-        }
-      }
-    } catch {}
+    if (auth.role === 'ADMIN') {
+      userPlan = 'ENTERPRISE';
+    } else {
+      userPlan = await resolveEffectiveUserPlan(userId);
+    }
   }
 
   const isProd = process.env.NODE_ENV === 'production';

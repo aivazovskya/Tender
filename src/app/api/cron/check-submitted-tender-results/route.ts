@@ -59,6 +59,19 @@ async function handleCronJob(request: NextRequest) {
     for (const card of submittedCards) {
       if (!card.tender || !card.tender.externalId) continue;
 
+      // 1.1 Source-aware check (Samruk-Kazyna result checking is not yet supported via API)
+      const source = card.tender.source;
+      if (source === 'SAMRUK_KAZYNA') {
+        console.info(`[Cron check-submitted-tender-results] Card ${card.id}: Samruk-Kazyna automated result-checking not supported yet (${card.tender.externalId}), skipping`);
+        pendingCount++;
+        continue;
+      }
+      if (source && source !== 'GOSZAKUP') {
+        console.warn(`[Cron check-submitted-tender-results] Card ${card.id}: Unsupported tender source '${source}' for externalId ${card.tender.externalId}, skipping`);
+        pendingCount++;
+        continue;
+      }
+
       // 2. Resolve CompanyProfile for card (by userId or organizationId)
       let profile: any = null;
       if (card.userId) {
