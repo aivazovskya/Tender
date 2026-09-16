@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
-import { TARIFF_PLANS } from '@/lib/services/kaspi.service';
 
 /**
  * Helper to safely verify Kaspi Pay HMAC-SHA256 signature
@@ -56,7 +55,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Safe JSON Parse after cryptographic validation
     const payload = JSON.parse(rawBody);
-    const { orderId, kaspiTransactionId, status, amount, tariffPlanId, bin } = payload;
+    const { orderId, kaspiTransactionId, status, amount } = payload;
 
     if (!orderId || !kaspiTransactionId || status !== 'SUCCESS') {
       return NextResponse.json(
@@ -65,46 +64,52 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Check existing payment & price tampering (Bug #8 defense in depth)
-    const paidAmount = parseFloat(amount) || 0;
-    const targetPlan = TARIFF_PLANS.find(p => p.id === (tariffPlanId || 'PRO'));
-    const expectedMinAmount = targetPlan ? targetPlan.priceKztMonth : 0;
-
+    // 4. The order MUST have been created by our own /api/billing/kaspi/create-order
+    // endpoint first. Never activate a subscription for an orderId we don't
+    // recognize — there would be no reliable, server-verified way to know
+    // which account should receive it, or what was actually agreed/priced.
     const existingPayment = await prisma.payment.findUnique({
       where: { orderId }
     });
 
-    if (existingPayment) {
-      if (existingPayment.status === 'PAID') {
-        console.log(`[Kaspi Webhook] Idempotent hit for already processed transaction: ${kaspiTransactionId}`);
-        return NextResponse.json({
-          success: true,
-          message: 'Transaction already processed (Idempotent OK)',
-          status: 'PAID'
-        });
-      }
-      // Security check: ensure paid amount is not less than the original order price
-      if (paidAmount < existingPayment.amount) {
-        console.error(`[SECURITY ALERT] Kaspi webhook paid amount (${paidAmount} KZT) is less than order price (${existingPayment.amount} KZT) for Order #${orderId}`);
-        return NextResponse.json(
-          { success: false, error: 'Payment amount mismatch: Paid amount is less than required order amount' },
-          { status: 400 }
-        );
-      }
-    } else if (expectedMinAmount > 0 && paidAmount < expectedMinAmount) {
-      console.error(`[SECURITY ALERT] Kaspi webhook paid amount (${paidAmount} KZT) is less than plan price (${expectedMinAmount} KZT) for Tariff ${tariffPlanId}`);
+    if (!existingPayment) {
+      console.error(`[SECURITY ALERT] Kaspi webhook for unknown orderId #${orderId} — no matching order was created via /api/billing/kaspi/create-order. Rejecting.`);
       return NextResponse.json(
-        { success: false, error: 'Payment amount mismatch: Paid amount is less than tariff price' },
+        { success: false, error: 'Unknown order: no matching order was created for this orderId' },
+        { status: 404 }
+      );
+    }
+
+    if (existingPayment.status === 'PAID') {
+      console.log(`[Kaspi Webhook] Idempotent hit for already processed transaction: ${kaspiTransactionId}`);
+      return NextResponse.json({
+        success: true,
+        message: 'Transaction already processed (Idempotent OK)',
+        status: 'PAID'
+      });
+    }
+
+    // 5. Price tampering check (Bug #8 defense in depth): the paid amount must
+    // cover what was actually priced and recorded at order-creation time.
+    const paidAmount = parseFloat(amount) || 0;
+    if (paidAmount < existingPayment.amount) {
+      console.error(`[SECURITY ALERT] Kaspi webhook paid amount (${paidAmount} KZT) is less than order price (${existingPayment.amount} KZT) for Order #${orderId}`);
+      return NextResponse.json(
+        { success: false, error: 'Payment amount mismatch: Paid amount is less than required order amount' },
         { status: 400 }
       );
     }
 
-    // 5. Atomic Update in Database
+    // 6. Atomic Update in Database
     const nextExpiration = new Date();
     nextExpiration.setDate(nextExpiration.getDate() + 30); // +30 days subscription
-    const effectivePlanId = tariffPlanId || existingPayment?.tariffPlanId || 'PRO';
-    const associatedUserId = existingPayment?.userId;
-    const associatedOrgId = existingPayment?.organizationId;
+    // Trust only what was recorded server-side when the order was created —
+    // never the webhook payload's own tariffPlanId (that field is not
+    // verified against anything and would let a signed-but-uncontrolled
+    // payload activate a higher tier than was actually priced/paid for).
+    const effectivePlanId = existingPayment.tariffPlanId || 'PRO';
+    const associatedUserId = existingPayment.userId;
+    const associatedOrgId = existingPayment.organizationId;
 
     const txOps: any[] = [
       prisma.payment.upsert({
@@ -155,18 +160,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Also update by BIN if provided in payload
-    if (bin) {
-      txOps.push(
-        prisma.companyProfile.updateMany({
-          where: { bin },
-          data: {
-            subscriptionPlan: effectivePlanId,
-            subscriptionExpiresAt: nextExpiration
-          }
-        })
-      );
-    }
+    // Note: subscriptions are activated only via the userId/organizationId
+    // recorded on the order at creation time (see above) — never via a `bin`
+    // field taken from the webhook payload. That field is not verified
+    // against who created or paid for the order, and would let anyone who
+    // can complete a Kaspi payment (for any order they control) activate a
+    // subscription on a company they have no relationship with, just by
+    // guessing/knowing its BIN.
 
     await prisma.$transaction(txOps);
 
