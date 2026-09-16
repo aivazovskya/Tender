@@ -9,7 +9,9 @@ services:
     container_name: tender_web
     restart: always
     ports:
-      - "3000:3000"
+      # Bind only to localhost; a reverse proxy (nginx/caddy) in front terminates
+      # public traffic on 80/443 and forwards to 127.0.0.1:3000.
+      - "127.0.0.1:3000:3000"
     env_file:
       - .env
     environment:
