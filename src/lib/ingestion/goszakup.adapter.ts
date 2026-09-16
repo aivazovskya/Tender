@@ -135,7 +135,12 @@ export class GoszakupApiAdapter extends BaseTenderAdapter {
         source: 'GOSZAKUP',
         externalId: raw.number_anno,
         title: raw.name_ru,
-        description: 'Автоматически импортировано из веб-сервисов ЕГСЗ goszakup.gov.kz.',
+        // The TrdBuy type in the official v3 schema has no description/subject field
+        // beyond the title (nameRu) — a real per-lot description would need the
+        // nested Lots registry, not yet queried here (needs verification against
+        // live data with a real token before wiring it up). Honest placeholder
+        // instead of a misleading import-source note.
+        description: 'Описание не указано заказчиком',
         customerName: raw.customer_name_ru,
         customerBin: raw.customer_bin,
         category: 'ИТ и ПО',

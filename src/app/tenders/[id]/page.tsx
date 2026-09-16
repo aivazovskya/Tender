@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Tender } from '@/lib/types/tender';
+import { FOOTER_RIGHTS_TEXT } from '@/lib/constants';
 import { TenderDetailContent } from '@/components/TenderDetailContent';
 import { 
   ArrowLeft, 
@@ -226,7 +227,7 @@ export default function TenderDetailPage() {
 
       {/* Page Footer */}
       <footer className="border-t border-hairline py-6 text-center text-xs text-mid-gray">
-        <p>© {new Date().getFullYear()} TenderAI — Платформа мониторинга и автоматизации госзакупок Казахстана</p>
+        <p>{FOOTER_RIGHTS_TEXT}</p>
       </footer>
 
     </div>

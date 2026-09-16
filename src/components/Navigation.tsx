@@ -64,11 +64,11 @@ export const Navigation: React.FC<NavigationProps> = ({
                 <span className="text-lg font-bold tracking-tight text-ink">
                   Tender<span className="text-ember">AI</span>
                 </span>
-                <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-surface-alt text-mid-gray border border-hairline">
+                <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-medium rounded-full bg-surface-alt text-mid-gray border border-hairline">
                   KZ v1.6
                 </span>
               </div>
-              <p className="text-[11px] text-mid-gray leading-none">
+              <p className="hidden sm:block text-[11px] text-mid-gray leading-none">
                 {t.nav.brandSub}
               </p>
             </div>
@@ -215,9 +215,9 @@ export const Navigation: React.FC<NavigationProps> = ({
             {/* Auth / Profile Button */}
             {currentUser && currentUser.id !== 'demo-user-id' ? (
               <div className="flex items-center space-x-1.5 pl-1">
-                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-surface-alt border border-hairline text-xs">
+                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-surface-alt border border-hairline text-xs" title={currentUser.email}>
                   <UserIcon className="w-3.5 h-3.5 text-ember" />
-                  <span className="font-semibold text-ink max-w-[100px] truncate" title={currentUser.email}>
+                  <span className="hidden sm:inline font-semibold text-ink max-w-[100px] truncate">
                     {currentUser.name || currentUser.email.split('@')[0]}
                   </span>
                 </div>

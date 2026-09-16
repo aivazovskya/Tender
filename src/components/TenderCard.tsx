@@ -87,8 +87,6 @@ export const TenderCard: React.FC<TenderCardProps> = ({
         <h3 className="text-base font-semibold text-ink hover:text-ember transition-colors line-clamp-2 mb-3 leading-snug tracking-tight">
           <Link
             href={`/tenders/${tender.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
             className="hover:underline cursor-pointer"
           >
             {tender.title}
@@ -125,7 +123,10 @@ export const TenderCard: React.FC<TenderCardProps> = ({
           </div>
           {tender.applicationSecurityAmount && (
             <div className="text-right">
-              <p className="text-[10px] uppercase tracking-wider text-mid-gray font-medium">{t.tenderCard.applicationSecurity}</p>
+              <p className="text-[10px] uppercase tracking-wider text-mid-gray font-medium">
+                {t.tenderCard.applicationSecurity}
+                {typeof tender.applicationSecurityPercent === 'number' ? ` (${tender.applicationSecurityPercent}%)` : ''}
+              </p>
               <p className="text-xs font-semibold text-ink-soft font-mono">
                 {tender.applicationSecurityAmount.toLocaleString('ru-RU')} ₸
               </p>

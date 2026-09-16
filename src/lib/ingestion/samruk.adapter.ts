@@ -41,6 +41,7 @@ export class SamrukApiAdapter extends BaseTenderAdapter {
             organizerRu: item.organizerRu || item.customerName || 'АО "Самрук-Казына"',
             organizerBin: item.organizerBin || item.customerBin || '000000000000',
             sum: Number(item.sum || item.totalSum) || 0,
+            description: item.descriptionRu || item.description || item.subjectRu || item.subject || null,
             regionNameRu: item.regionNameRu || item.region || 'г. Астана',
             publishDate: item.publishDate || new Date().toISOString(),
             endDate: item.endDate || new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
@@ -105,7 +106,10 @@ export class SamrukApiAdapter extends BaseTenderAdapter {
         source: 'SAMRUK_KAZYNA',
         externalId: raw.advertNumber,
         title: raw.titleRu,
-        description: 'Импортировано из портала закупок АО ФНБ "Самрук-Казына" (portal.sk.kz).',
+        // portal.sk.kz advert listing doesn't reliably expose a description field
+        // (guessed candidate field names above); falls back to an honest
+        // "not provided" placeholder instead of a misleading import-source note.
+        description: raw.description || 'Описание не указано заказчиком',
         customerName: raw.organizerRu,
         customerBin: raw.organizerBin,
         category: 'Транспорт и Логистика',

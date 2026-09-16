@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { 
+import { FOOTER_RIGHTS_TEXT } from '../../lib/constants';
+import {
   LogIn, 
   UserPlus, 
   Mail, 
@@ -311,7 +312,7 @@ function LoginForm() {
 
       {/* Footer */}
       <footer className="px-6 py-4 border-t border-hairline text-center text-xs text-mid-gray">
-        <p>© {new Date().getFullYear()} TenderAI — Автоматизация и аналитика закупок Казахстана</p>
+        <p>{FOOTER_RIGHTS_TEXT}</p>
       </footer>
 
     </div>
