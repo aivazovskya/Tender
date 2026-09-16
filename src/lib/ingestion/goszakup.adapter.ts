@@ -27,13 +27,12 @@ export class GoszakupApiAdapter extends BaseTenderAdapter {
                 totalSum
                 customerBin
                 customerNameRu
-                regionRu
+                kato
                 publishDate
                 endDate
                 Files {
                   nameRu
                   filePath
-                  fileSize
                 }
               }
             }
@@ -67,7 +66,10 @@ export class GoszakupApiAdapter extends BaseTenderAdapter {
             customer_name_ru: b.customerNameRu || 'Заказчик ЕГСЗ РК',
             customer_bin: b.customerBin || '000000000000',
             total_sum: Number(b.totalSum) || 0,
-            region_ru: b.regionRu || 'г. Астана',
+            // TrdBuy has no region name field in the v3 schema — only `kato` (location
+            // classifier codes, not human-readable names). Falls back to a constant until
+            // a KATO code -> region name lookup table is added.
+            region_ru: 'г. Астана',
             publish_date: b.publishDate || new Date().toISOString(),
             end_date: b.endDate || new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
             security_sum: Math.round((Number(b.totalSum) || 0) * 0.03),
@@ -76,7 +78,7 @@ export class GoszakupApiAdapter extends BaseTenderAdapter {
             files: Array.isArray(b.Files || b.files) ? (b.Files || b.files).map((f: any) => ({
               name: f.nameRu || f.name || 'ТЗ_Спецификация.pdf',
               path: f.filePath || f.path || f.url || '',
-              size: f.fileSize ? `${Math.round(Number(f.fileSize) / 1024)} KB` : '1.2 MB'
+              size: '1.2 MB'
             })) : []
           }));
         }
