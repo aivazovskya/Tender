@@ -325,5 +325,29 @@ Kaspi Pay биллинге (webhook принимал активацию подп
    и раскрывающаяся панель мобильной навигации. Доступны все ключевые вкладки (Каталог, ИИ-Матчинг, Воронка со счётчиком,
    Отчёты KPI, Обеспечения, Админка для роли ADMIN), а также быстрые действия («Проверка ТЗ», «API REST», «Telegram Bot»).
    При выборе любого раздела меню автоматически закрывается. Покрыто тестом `scripts/tests/mobile-navigation.test.js` (50/50 тестов проходят).
+   Проверено вживую на bastiondev.kz (375px, под ADMIN-сессией) — работает корректно.
+
+4. **`[CONFIRMED]` Проверка результатов поданных заявок игнорирует источник лота.**
+   `src/app/api/cron/check-submitted-tender-results/route.ts:54` — `const adapter = new GoszakupApiAdapter()`
+   создаётся один раз и используется для **всех** карточек Kanban в статусе `SUBMITTED`, независимо от
+   `card.tender.source`. У `SamrukApiAdapter` (`src/lib/ingestion/samruk.adapter.ts`) метода `fetchBuyResult`
+   нет вообще. Для лотов с `portal.sk.kz` это означает: `externalId` в формате `SK-2026-XXXXX` уходит в
+   GraphQL-запрос к Госзакупкам, ничего там не находит, и `buyResult.isFinished` всегда `false` —
+   `pendingCount++` без единой ошибки в логах. Результат (выиграли/проиграли) по Samruk-лотам никогда не
+   определяется автоматически, команда должна отслеживать вручную.
+   **Фикс**: выбирать адаптер по `card.tender.source` (`GOSZAKUP` → `GoszakupApiAdapter`, `SAMRUK_KAZYNA` →
+   нужно either завести `fetchBuyResult` в `SamrukApiAdapter` по аналогии, либо явно скипать такие карточки
+   с явным логом вместо молчаливого `pendingCount++`). Проверить на реальных данных, когда будут токены.
+
+5. **`[CONFIRMED]` Командные тарифы (TEAM/ENTERPRISE) не активируются на всю организацию.**
+   `src/app/api/billing/kaspi/create-order/route.ts` никогда не проставляет `organizationId` в
+   создаваемой записи `Payment` (только `userId`). После фикса вебхука в разделе 5 (п. "тариф из payload
+   перебивал записанный при заказе") активация подписки строго идёт по `existingPayment.userId`/
+   `organizationId` — а раз `organizationId` никогда не заполняется, подписка TEAM ("До 5 сотрудников в
+   аккаунте") или ENTERPRISE ("Безлимитные сотрудники") активируется только у того, кто оплатил, а не у
+   всей команды/организации. Нужно: (а) решить, к какой организации привязывать заказ при оплате
+   (профиль компании плательщика? выбор в UI при оформлении?), (б) прокинуть `organizationId` в
+   `create-order`, (в) убедиться, что `CompanyProfile`/доступ остальных участников `OrganizationMember`
+   реально проверяет `organization.subscriptionPlan`, а не только собственный `subscriptionPlan` профиля.
 
 **От владельца продукта**: секреты (`GOSZAKUP_API_TOKEN` и т.д.) — статус на сегодня?
