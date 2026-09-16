@@ -140,7 +140,7 @@ export const DocumentGeneratorModal: React.FC<DocumentGeneratorModalProps> = ({
             {loading ? (
               <div className="py-6 text-center text-xs text-mid-gray animate-pulse">Загрузка шаблонов...</div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {templates.map(tpl => (
                   <div
                     key={tpl.id}
@@ -184,7 +184,7 @@ export const DocumentGeneratorModal: React.FC<DocumentGeneratorModalProps> = ({
           {previewText && (
             <div className="space-y-2 pt-2 border-t border-hairline">
               <span className="text-[11px] font-bold text-mid-gray uppercase tracking-wider block">
-                Предпросмотр подставленных реквизитов:
+                Предпросмотр сформированного документа (реквизиты, ТЗ и расчёт):
               </span>
               <div className="p-4 bg-surface-alt/40 border border-hairline rounded-xl text-xs font-mono whitespace-pre-wrap text-slate-800 max-h-48 overflow-y-auto">
                 {previewText}

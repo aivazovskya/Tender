@@ -40,8 +40,11 @@ export async function POST(
       return NextResponse.json({ success: false, message: 'Шаблон документа не найден' }, { status: 404 });
     }
 
+    // Load generation context (requirements checklist + cost calculation)
+    const context = await DocGeneratorService.loadGenerationContext(tenderId, companyProfile.id);
+
     // Resolve Placeholders
-    const resolvedBodyText = DocGeneratorService.resolvePlaceholders(template.bodyTemplate, tender, companyProfile);
+    const resolvedBodyText = DocGeneratorService.resolvePlaceholders(template.bodyTemplate, tender, companyProfile, context);
 
     // Create record first to get ID
     const genDoc = await prisma.generatedDocument.create({

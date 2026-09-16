@@ -48,10 +48,16 @@ export async function GET(
       );
     }
 
+    const context = await DocGeneratorService.loadGenerationContext(
+      genDoc.tenderId,
+      genDoc.companyProfileId
+    );
+
     const resolvedText = DocGeneratorService.resolvePlaceholders(
       genDoc.template.bodyTemplate,
       genDoc.tender,
-      genDoc.companyProfile
+      genDoc.companyProfile,
+      context
     );
 
     const docxBuffer = await DocGeneratorService.generateDocxBuffer(genDoc.template.name, resolvedText);

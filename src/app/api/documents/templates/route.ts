@@ -29,6 +29,34 @@ const DEFAULT_TEMPLATES = [
 
 Дата: {{today}}
 Руководитель: ___________________`
+  },
+  {
+    name: 'Форма соответствия требованиям ТЗ (Техническая спецификация)',
+    category: 'ALL',
+    bodyTemplate: `ТЕХНИЧЕСКАЯ СПЕЦИФИКАЦИЯ
+(Форма подтверждения соответствия требованиям Заказчика)
+
+к закупке: "{{tenderTitle}}"
+Заказчик: {{customerName}}
+Потенциальный поставщик: ТОО "{{companyName}}" (БИН: {{bin}})
+
+1. ОБЩИЕ СВЕДЕНИЯ И ЦЕНОВОЕ ПРЕДЛОЖЕНИЕ
+Настоящим ТОО "{{companyName}}" подтверждает готовность осуществить поставку товаров / выполнение работ / оказание услуг в полном соответствии с требованиями конкурсной документации и технической спецификации Заказчика.
+
+Срок действия заявки: до {{deadlineDate}}.
+{{commercialOffer}}
+
+2. ПОДТВЕРЖДЕНИЕ СООТВЕТСТВИЯ ТРЕБОВАНИЯМ ТЕХНИЧЕСКОЙ СПЕЦИФИКАЦИИ
+Ниже приведено постатейное подтверждение соответствия установленным квалификационным и техническим требованиям Заказчика:
+
+{{requirementsList}}
+
+3. ГАРАНТИЙНЫЕ ОБЯЗАТЕЛЬСТВА
+ТОО "{{companyName}}" гарантирует достоверность предоставленных сведений, качество поставляемых товаров/услуг, соблюдение сроков поставки и требований законодательства Республики Казахстан.
+
+Дата: {{today}}
+Руководитель ТОО "{{companyName}}": ___________________ / {{companyName}} /
+М.П.`
   }
 ];
 
@@ -37,7 +65,26 @@ export async function GET(request: NextRequest) {
   const category = searchParams.get('category');
 
   try {
-    let templates = await prisma.documentTemplate.findMany({
+    // Ensure all default templates exist in database
+    try {
+      const allTemplates = await prisma.documentTemplate.findMany();
+      const existingNames = new Set(allTemplates.map(t => t.name));
+      const missing = DEFAULT_TEMPLATES.filter(t => !existingNames.has(t.name));
+
+      if (missing.length > 0) {
+        for (const tpl of missing) {
+          try {
+            await prisma.documentTemplate.create({ data: tpl });
+          } catch {
+            // Ignore potential concurrent create conflict
+          }
+        }
+      }
+    } catch (seedErr: any) {
+      console.warn('[API /api/documents/templates seed warning]:', seedErr?.message);
+    }
+
+    const templates = await prisma.documentTemplate.findMany({
       where: category && category !== 'ALL' ? {
         OR: [
           { category: category },
@@ -46,17 +93,6 @@ export async function GET(request: NextRequest) {
       } : {},
       orderBy: { createdAt: 'asc' }
     });
-
-    // Seed default templates if database is empty
-    if (templates.length === 0) {
-      await prisma.documentTemplate.createMany({
-        data: DEFAULT_TEMPLATES
-      });
-
-      templates = await prisma.documentTemplate.findMany({
-        orderBy: { createdAt: 'asc' }
-      });
-    }
 
     return NextResponse.json({ success: true, templates });
   } catch (error: any) {
