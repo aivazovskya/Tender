@@ -339,4 +339,22 @@ Kaspi Pay биллинге (webhook принимал активацию подп
    - В `src/lib/security/subscription-guard.ts` внедрена функция `resolveEffectiveUserPlan(userId)`, проверяющая не только персональный профиль, но и членство в организациях (`OrganizationMember.organization`), выдавая максимальный доступный тариф (ENTERPRISE > TEAM > PRO > FREE). Экспорт и проверка репутации теперь доступны всем сотрудникам организации с оплаченным TEAM/ENTERPRISE.
    - Покрыто новым автоматическим тест-сьютом `scripts/tests/org-billing.test.js` (все 51/51 сьютов проходят).
 
+6. **`[CONFIRMED]` Неполное покрытие org-blind проверки тарифа (задача 5 закрыта частично).**
+   `resolveEffectiveUserPlan()` внедрена в `validateExportAccess`/`validateReputationAccess`
+   (`subscription-guard.ts`), но ещё **два** места продолжают проверять только личный
+   `companyProfile.subscriptionPlan`, игнорируя членство в организации — тот же класс бага, что чинили
+   в задаче 5:
+   - `src/lib/security/public-api-guard.ts:205` — `userPlan = dbKey.user?.companyProfile?.subscriptionPlan?.toUpperCase() || 'ENTERPRISE'`
+     (это гейт публичного REST API для Enterprise-тарифа, задокументированного в README). Сотрудник
+     организации с оплаченным ENTERPRISE, но без собственного `subscriptionPlan` на своём профиле,
+     получит план из фолбэка `|| 'ENTERPRISE'` — нужно отдельно проверить, баг ли это (слишком широкий
+     доступ по умолчанию) или осознанный дефолт для API-ключей; в любом случае стоит явно завязать на
+     `resolveEffectiveUserPlan()` вместо обоих текущих концов условия.
+   - `src/app/api/tenders/[id]/calculation/route.ts:46` — `checkCalculationLimit()` берёт
+     `companyProfile.subscriptionPlan` напрямую (лимиты FREE=3/PRO=50/TEAM,ENTERPRISE=∞ на количество
+     расчётов). Сотрудник TEAM-организации с личным профилем на FREE упрётся в лимит 3, хотя организация
+     оплатила безлимит.
+   **Фикс**: заменить оба места на `resolveEffectiveUserPlan(userId)` из `subscription-guard.ts`
+   (уже экспортирована и покрыта тестами) вместо прямого чтения `companyProfile.subscriptionPlan`.
+
 **От владельца продукта**: секреты (`GOSZAKUP_API_TOKEN` и т.д.) — статус на сегодня?
