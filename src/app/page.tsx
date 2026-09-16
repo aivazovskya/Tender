@@ -852,7 +852,7 @@ export default function HomePage() {
           />
         )}
 
-        {activeTab === 'admin' && (
+        {activeTab === 'admin' && currentUser?.role === 'ADMIN' && (
           <AdminPanel
             sources={dataSources}
             onTriggerSync={(srcId) => showToast(`Запущен синк источника...`)}

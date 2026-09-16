@@ -141,17 +141,19 @@ export const Navigation: React.FC<NavigationProps> = ({
               <span>Обеспечения</span>
             </button>
 
-            <button
-              onClick={() => setActiveTab('admin')}
-              className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                activeTab === 'admin'
-                  ? 'bg-paper text-ink shadow-subtle border border-hairline'
-                  : 'text-mid-gray hover:text-ink hover:bg-paper/50'
-              }`}
-            >
-              <Activity className="w-3.5 h-3.5" />
-              <span>{t.nav.admin}</span>
-            </button>
+            {currentUser?.role === 'ADMIN' && (
+              <button
+                onClick={() => setActiveTab('admin')}
+                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  activeTab === 'admin'
+                    ? 'bg-paper text-ink shadow-subtle border border-hairline'
+                    : 'text-mid-gray hover:text-ink hover:bg-paper/50'
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5" />
+                <span>{t.nav.admin}</span>
+              </button>
+            )}
           </nav>
 
           {/* Right Action Bar */}
