@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Tender, CompetitionEstimate } from '../lib/types/tender';
 import { getSourceLabel, DataSourceMeta } from '../lib/utils/sourceLabel';
@@ -59,6 +59,26 @@ export const TenderDetailContent: React.FC<TenderDetailContentProps> = ({
 }) => {
   const t = useTranslation(language);
   const [activeTab, setActiveTab] = useState<'overview' | 'calc' | 'comparison' | 'requirements' | 'documents' | 'execution' | 'ai' | 'rag' | 'audit'>('overview');
+
+  // Scroll-shadow indicators for the tab bar, which overflows horizontally
+  // once all 9 tabs are present — without this there's no visual hint that
+  // more tabs exist off-screen.
+  const tabsScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollTabsLeft, setCanScrollTabsLeft] = useState(false);
+  const [canScrollTabsRight, setCanScrollTabsRight] = useState(false);
+
+  const updateTabsScrollShadows = () => {
+    const el = tabsScrollRef.current;
+    if (!el) return;
+    setCanScrollTabsLeft(el.scrollLeft > 2);
+    setCanScrollTabsRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+  };
+
+  useEffect(() => {
+    updateTabsScrollShadows();
+    window.addEventListener('resize', updateTabsScrollShadows);
+    return () => window.removeEventListener('resize', updateTabsScrollShadows);
+  }, []);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [isComplianceModalOpen, setIsComplianceModalOpen] = useState(false);
   
@@ -171,7 +191,18 @@ export const TenderDetailContent: React.FC<TenderDetailContentProps> = ({
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex items-center border-b border-hairline px-6 bg-surface-alt overflow-x-auto">
+      <div className="relative border-b border-hairline bg-surface-alt">
+        {canScrollTabsLeft && (
+          <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 z-10 bg-gradient-to-r from-surface-alt to-transparent" />
+        )}
+        {canScrollTabsRight && (
+          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 z-10 bg-gradient-to-l from-surface-alt to-transparent" />
+        )}
+        <div
+          ref={tabsScrollRef}
+          onScroll={updateTabsScrollShadows}
+          className="flex items-center px-6 overflow-x-auto"
+        >
         <button
           onClick={() => setActiveTab('overview')}
           className={`px-4 py-3 text-xs font-medium border-b-2 transition-all flex items-center space-x-2 shrink-0 ${
@@ -279,6 +310,7 @@ export const TenderDetailContent: React.FC<TenderDetailContentProps> = ({
           <History className="w-4 h-4 text-emerald-600" />
           <span>{t.tenderDetail.tabAudit.replace('{count}', String(tender.history?.length || 0))}</span>
         </button>
+        </div>
       </div>
 
       {/* Body Content */}
