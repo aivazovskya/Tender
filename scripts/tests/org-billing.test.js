@@ -191,12 +191,65 @@ async function testWebhookOrganizationSync() {
   console.log('   ✅ webhook syncs plan across organization and associated company profiles');
 }
 
+async function testPublicApiGuardOrgPlan() {
+  console.log('\n5️⃣ Testing public-api-guard org plan integration...');
+  const { getUserSubscriptionPlan } = require('../../src/lib/security/public-api-guard');
+  const origFindUnique = prisma.user.findUnique;
+
+  try {
+    // User has FREE personal profile, but ENTERPRISE organization membership
+    prisma.user.findUnique = async () => ({
+      id: 'user-org-api',
+      role: 'USER',
+      companyProfile: { subscriptionPlan: 'FREE' },
+      orgMemberships: [
+        {
+          role: 'MEMBER',
+          organization: { id: 'org-ent', subscriptionPlan: 'ENTERPRISE' }
+        }
+      ]
+    });
+
+    const plan = await getUserSubscriptionPlan('user-org-api');
+    assert.strictEqual(plan, 'ENTERPRISE', 'getUserSubscriptionPlan must inherit organization ENTERPRISE plan');
+    console.log('   ✅ public-api-guard correctly inherits organization ENTERPRISE plan');
+  } finally {
+    prisma.user.findUnique = origFindUnique;
+  }
+}
+
+async function testCalculationLimitOrgPlan() {
+  console.log('\n6️⃣ Testing calculation limit org plan integration (code inspection & unit)...');
+  const fs = require('fs');
+  const path = require('path');
+  const calcRouteCode = fs.readFileSync(
+    path.join(process.cwd(), 'src/app/api/tenders/[id]/calculation/route.ts'),
+    'utf8'
+  );
+
+  assert.ok(
+    calcRouteCode.includes("import { resolveEffectiveUserPlan } from '@/lib/security/subscription-guard'"),
+    'calculation route must import resolveEffectiveUserPlan'
+  );
+  assert.ok(
+    calcRouteCode.includes('checkCalculationLimit(companyProfile, auth.userId)'),
+    'calculation route must pass auth.userId to checkCalculationLimit'
+  );
+  assert.ok(
+    calcRouteCode.includes('await resolveEffectiveUserPlan(userId)'),
+    'checkCalculationLimit must resolve effective plan including organization'
+  );
+  console.log('   ✅ calculation route correctly resolves effective plan from organization');
+}
+
 async function runAll() {
   try {
     await testResolveEffectiveUserPlan();
     await testExportAccessWithOrgPlan();
     await testCreateOrderOrganizationLink();
     await testWebhookOrganizationSync();
+    await testPublicApiGuardOrgPlan();
+    await testCalculationLimitOrgPlan();
     console.log('\n🎉 Organization Billing & Subscription Test Suite completed successfully!');
     process.exit(0);
   } catch (err) {

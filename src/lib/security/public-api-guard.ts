@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
+import { resolveEffectiveUserPlan } from './subscription-guard';
 
 export interface PublicApiValidationResult {
   authorized: boolean;
@@ -136,11 +137,9 @@ export async function listApiKeysForUser(userId: string): Promise<StoredApiKey[]
  */
 export async function getUserSubscriptionPlan(userId: string): Promise<string> {
   try {
-    const profile = await prisma.companyProfile.findFirst({
-      where: { userId }
-    });
-    if (profile?.subscriptionPlan) {
-      return profile.subscriptionPlan.toUpperCase();
+    const plan = await resolveEffectiveUserPlan(userId);
+    if (plan && plan !== 'FREE') {
+      return plan.toUpperCase();
     }
   } catch {
     // Fallback
@@ -202,7 +201,7 @@ export async function validatePublicApiKey(request: NextRequest): Promise<Public
         revokedAt: dbKey.revokedAt ? dbKey.revokedAt.toISOString() : null,
         createdAt: dbKey.createdAt.toISOString()
       };
-      userPlan = dbKey.user?.companyProfile?.subscriptionPlan?.toUpperCase() || 'ENTERPRISE';
+      userPlan = await resolveEffectiveUserPlan(dbKey.userId);
     }
   } catch {
     // DB unreachable, check memory store

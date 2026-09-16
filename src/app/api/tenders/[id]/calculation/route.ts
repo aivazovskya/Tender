@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
+import { resolveEffectiveUserPlan } from '@/lib/security/subscription-guard';
 import { TenderCalculationService } from '@/lib/services/tender-calculation.service';
 import { Prisma } from '@prisma/client';
 
@@ -42,8 +43,19 @@ async function getOrCreateCompanyProfile(userId: string) {
   return profile;
 }
 
-async function checkCalculationLimit(companyProfile: any): Promise<{ allowed: boolean; limit: number; used: number; currentPlan: string }> {
-  const currentPlan = (companyProfile.subscriptionPlan || 'FREE').toUpperCase();
+async function checkCalculationLimit(companyProfile: any, userId?: string): Promise<{ allowed: boolean; limit: number; used: number; currentPlan: string }> {
+  let currentPlan = (companyProfile.subscriptionPlan || 'FREE').toUpperCase();
+  if (userId) {
+    try {
+      const effectivePlan = await resolveEffectiveUserPlan(userId);
+      if (effectivePlan) {
+        currentPlan = effectivePlan.toUpperCase();
+      }
+    } catch {
+      // fallback to companyProfile plan
+    }
+  }
+
   const PLAN_LIMITS: Record<string, number> = {
     FREE: 3,
     PRO: 50,
@@ -100,7 +112,7 @@ export async function GET(
 
     if (!calculation) {
       // Check subscription plan calculation limit before creation
-      const limitCheck = await checkCalculationLimit(companyProfile);
+      const limitCheck = await checkCalculationLimit(companyProfile, auth.userId);
       if (!limitCheck.allowed) {
         return NextResponse.json(
           {
