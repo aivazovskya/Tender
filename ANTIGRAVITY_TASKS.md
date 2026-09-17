@@ -467,29 +467,22 @@ Kaspi Pay биллинге (webhook принимал активацию подп
 
 </details>
 
-## 9. `[CONFIRMED]` Отключить платный апгрейд, выдать команде ENTERPRISE без оплаты
+## 9. `[CONFIRMED, исправлено]` Отключить платный апгрейд, выдать команде ENTERPRISE без оплаты
 
-Раз подписка пока не продаётся, нужно два взаимосвязанных изменения — не точечный грант одному профилю
-(это не переживёт добавление нового сотрудника), а структурное решение на уровне конфигурации.
+Раз подписка пока не продаётся, реализовано структурное решение на уровне конфигурации:
 
-1. **Флаг отключения биллинга.** Добавить `BILLING_ENABLED` (или аналог) в `.env`/`.env.example`,
-   по умолчанию `false` для текущего (внутреннего) деплоя. В `resolveEffectiveUserPlan()`
-   (`src/lib/security/subscription-guard.ts`) — если `process.env.BILLING_ENABLED !== 'true'`, сразу
-   возвращать `'ENTERPRISE'` для любого аутентифицированного пользователя, не доходя до запросов к БД.
-   Это одна точка правды — раз `resolveEffectiveUserPlan()` уже используется во всех местах проверки
-   тарифа (`validateExportAccess`, `validateReputationAccess`, `public-api-guard.ts`,
-   `calculation/route.ts` — задачи 5–7 всё туда завели), флаг закроет разом весь продукт без
-   необходимости трогать каждую проверку отдельно.
-2. **Спрятать платный UI.** Нашёл, что `activeTab === 'billing'` (рендерит `BillingModal`, `page.tsx:880`)
-   сейчас **не открывается ни одной кнопкой в самой навигации** — я не нашёл `setActiveTab('billing')`
-   нигде в `.tsx`-файлах, кроме определения типа. Значит, вероятно, есть другой триггер (баннер
-   "функция заблокирована", ответ `402` от `/api/billing/change-plan`, или что-то в
-   `CompanyProfileModal`/бейдж тарифа) — antigravity нужно самостоятельно найти все точки входа
-   (`grep` по `requiresPayment`, `402`, `BillingModal`, бейджам тарифа) и спрятать их все за тем же
-   `BILLING_ENABLED` (когда `false` — фича просто не заблокирована, апгрейд не предлагается).
-3. **Существующие профили.** У части пользователей (включая тестовый профиль, который я создавал для
-   проверки задачи 7) уже стоит `subscriptionPlan: 'FREE'` в БД — с флагом `BILLING_ENABLED=false` это
-   не имеет значения (эффективный план всегда ENTERPRISE), менять сами записи в БД не нужно.
-4. Роуты `/api/billing/kaspi/*` и `subscription-guard.ts`'s billing-specific проверки трогать/удалять
-   не нужно — они становятся мёртвым, но безопасным кодом; если продукт когда-нибудь снова начнёт
-   продаваться, достаточно вернуть `BILLING_ENABLED=true`.
+1. **Флаг отключения биллинга.** Добавлен `BILLING_ENABLED="false"` и `NEXT_PUBLIC_BILLING_ENABLED="false"` в `.env`/`.env.example`.
+   В `resolveEffectiveUserPlan()` (`src/lib/security/subscription-guard.ts`): если `process.env.BILLING_ENABLED !== 'true'`,
+   немедленно возвращается `'ENTERPRISE'` для любого аутентифицированного пользователя без обращения к базе данных.
+   Поскольку `resolveEffectiveUserPlan` является единой точкой проверки для всех сервисов (`validateExportAccess`,
+   `validateReputationAccess`, `public-api-guard.ts`, `calculation/route.ts`), доступ уровня ENTERPRISE обеспечен для всей команды.
+2. **Синхронизация профиля и фронтенда.** В `GET /api/company-profile` отдаётся эффективный план (`subscriptionPlan: effectivePlan`).
+   Фронтенд автоматически получает и устанавливает статус `userTariff = 'ENTERPRISE'` даже для профилей со значением `FREE` в БД.
+3. **Скрытие платного UI.** Рендеринг `BillingModal` в `src/app/page.tsx` закрыт проверкой `process.env.NEXT_PUBLIC_BILLING_ENABLED === 'true'`.
+   Добавлен автоматический редирект с вкладки `billing` на `catalog` при выключенном биллинге. В `TenderCalculator.tsx` ссылка на апгрейд
+   через Kaspi скрыта и заменена информационным уведомлением.
+4. **Безопасность и сохранность кода.** Роуты Kaspi Pay (`/api/billing/kaspi/*`) сохранены без изменений.
+   Для возврата коммерческих продаж в будущем достаточно изменить флаг на `BILLING_ENABLED="true"`.
+5. **Тестирование.** В `scripts/tests/org-billing.test.js` добавлены тесты для режимов `BILLING_ENABLED=false` и `BILLING_ENABLED=true`,
+   а также проверка отдачи плана через `/api/company-profile`. Сборка `npm run build` успешна (51/51 маршрутов), `check:client-secrets` пройден.
+

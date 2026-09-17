@@ -17,6 +17,16 @@ export interface SubscriptionAuthResult {
  * Returns the highest ranking plan ('FREE' < 'PRO' < 'TEAM' < 'ENTERPRISE').
  */
 export async function resolveEffectiveUserPlan(userId: string): Promise<string> {
+  if (!userId || typeof userId !== 'string' || !userId.trim()) {
+    return 'FREE';
+  }
+
+  // Task 9: When billing is disabled (internal use / no subscriptions sold),
+  // immediately grant full ENTERPRISE access to all authenticated users without DB roundtrip.
+  if (process.env.BILLING_ENABLED !== 'true') {
+    return 'ENTERPRISE';
+  }
+
   const PLAN_RANKS: Record<string, number> = {
     FREE: 0,
     PRO: 1,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
+import { resolveEffectiveUserPlan } from '@/lib/security/subscription-guard';
 
 const emptyProfileTemplate = {
   companyName: '',
@@ -16,6 +17,7 @@ const emptyProfileTemplate = {
 
 export async function GET(request: NextRequest) {
   const auth = await validateApiAuth(request);
+  const effectivePlan = auth.userId ? await resolveEffectiveUserPlan(auth.userId) : 'FREE';
 
   try {
     const profile = await prisma.companyProfile.findFirst({
@@ -26,7 +28,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         isFallback: false,
-        profile
+        profile: {
+          ...profile,
+          subscriptionPlan: effectivePlan
+        }
       });
     }
   } catch (error: any) {
@@ -36,7 +41,10 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     success: true,
     isFallback: true,
-    profile: emptyProfileTemplate
+    profile: {
+      ...emptyProfileTemplate,
+      subscriptionPlan: effectivePlan
+    }
   });
 }
 

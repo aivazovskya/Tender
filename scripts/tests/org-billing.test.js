@@ -8,8 +8,38 @@ console.log('🧪 Starting Organization Billing & Subscription Test Suite...\n')
 async function testResolveEffectiveUserPlan() {
   console.log('1️⃣ Testing resolveEffectiveUserPlan logic...');
   const origFindUnique = prisma.user.findUnique;
+  const origBillingEnabled = process.env.BILLING_ENABLED;
 
   try {
+    // -------------------------------------------------------------
+    // Part A: BILLING_ENABLED !== 'true' (Default / Internal deployment)
+    // -------------------------------------------------------------
+    console.log('   Testing BILLING_ENABLED=false (Task 9 default)...');
+    process.env.BILLING_ENABLED = 'false';
+
+    // Empty or non-string user ID must return FREE
+    const planEmpty = await resolveEffectiveUserPlan('');
+    assert.strictEqual(planEmpty, 'FREE', 'Empty userId must return FREE');
+    console.log('   ✅ Empty userId safely returns FREE');
+
+    // Any authenticated user must immediately receive ENTERPRISE without querying DB
+    let dbCalled = false;
+    prisma.user.findUnique = async () => {
+      dbCalled = true;
+      return { id: 'any-user', role: 'USER', companyProfile: { subscriptionPlan: 'FREE' } };
+    };
+
+    const defaultPlan = await resolveEffectiveUserPlan('any-authenticated-user');
+    assert.strictEqual(defaultPlan, 'ENTERPRISE', 'When BILLING_ENABLED=false, any authenticated user must receive ENTERPRISE');
+    assert.strictEqual(dbCalled, false, 'When BILLING_ENABLED=false, DB must NOT be queried');
+    console.log('   ✅ When BILLING_ENABLED=false, any user gets ENTERPRISE without DB queries');
+
+    // -------------------------------------------------------------
+    // Part B: BILLING_ENABLED === 'true' (Active Kaspi Pay Acquiring)
+    // -------------------------------------------------------------
+    console.log('   Testing BILLING_ENABLED=true (Tiered subscription ranking)...');
+    process.env.BILLING_ENABLED = 'true';
+
     // 1.1 Non-existent user
     prisma.user.findUnique = async () => null;
     const planNull = await resolveEffectiveUserPlan('non-existent');
@@ -71,6 +101,11 @@ async function testResolveEffectiveUserPlan() {
     console.log('   ✅ Higher organization plan overrides lower personal plan');
   } finally {
     prisma.user.findUnique = origFindUnique;
+    if (origBillingEnabled !== undefined) {
+      process.env.BILLING_ENABLED = origBillingEnabled;
+    } else {
+      delete process.env.BILLING_ENABLED;
+    }
   }
 }
 
@@ -79,23 +114,11 @@ async function testExportAccessWithOrgPlan() {
   const origFindUnique = prisma.user.findUnique;
   const origNodeEnv = process.env.NODE_ENV;
   const origAllowDemo = process.env.ALLOW_DEMO_AUTH;
+  const origBillingEnabled = process.env.BILLING_ENABLED;
 
   try {
     process.env.NODE_ENV = 'production';
     delete process.env.ALLOW_DEMO_AUTH;
-
-    // Mock user belonging to TEAM organization
-    prisma.user.findUnique = async () => ({
-      id: 'user-org-export',
-      role: 'USER',
-      companyProfile: { subscriptionPlan: 'FREE' },
-      orgMemberships: [
-        {
-          role: 'MEMBER',
-          organization: { id: 'org-export', subscriptionPlan: 'TEAM' }
-        }
-      ]
-    });
 
     // Setup authenticated memory session
     process.env.AUTH_STORE_MODE = 'memory';
@@ -133,10 +156,19 @@ async function testExportAccessWithOrgPlan() {
       }
     };
 
+    // Mode A: BILLING_ENABLED=false -> automatically ENTERPRISE
+    process.env.BILLING_ENABLED = 'false';
+    const resDisabled = await validateExportAccess(req);
+    assert.strictEqual(resDisabled.authorized, true, 'Export access must be authorized when billing is disabled');
+    assert.strictEqual(resDisabled.plan, 'ENTERPRISE', 'Plan must be ENTERPRISE when BILLING_ENABLED=false');
+    console.log('   ✅ When BILLING_ENABLED=false, export access is granted with ENTERPRISE plan');
+
+    // Mode B: BILLING_ENABLED=true -> inherits TEAM from organization
+    process.env.BILLING_ENABLED = 'true';
     const res = await validateExportAccess(req);
     assert.strictEqual(res.authorized, true, 'User with org TEAM plan must have export access');
     assert.strictEqual(res.plan, 'TEAM');
-    console.log('   ✅ Member of TEAM organization is granted export access in production');
+    console.log('   ✅ Member of TEAM organization is granted export access in production when BILLING_ENABLED=true');
   } finally {
     prisma.user.findUnique = origFindUnique;
     process.env.NODE_ENV = origNodeEnv;
@@ -145,6 +177,11 @@ async function testExportAccessWithOrgPlan() {
       process.env.ALLOW_DEMO_AUTH = origAllowDemo;
     } else {
       delete process.env.ALLOW_DEMO_AUTH;
+    }
+    if (origBillingEnabled !== undefined) {
+      process.env.BILLING_ENABLED = origBillingEnabled;
+    } else {
+      delete process.env.BILLING_ENABLED;
     }
   }
 }
@@ -195,8 +232,18 @@ async function testPublicApiGuardOrgPlan() {
   console.log('\n5️⃣ Testing public-api-guard org plan integration...');
   const { getUserSubscriptionPlan } = require('../../src/lib/security/public-api-guard');
   const origFindUnique = prisma.user.findUnique;
+  const origBillingEnabled = process.env.BILLING_ENABLED;
 
   try {
+    // Mode A: BILLING_ENABLED=false -> all users get ENTERPRISE for API keys
+    process.env.BILLING_ENABLED = 'false';
+    const planDisabled = await getUserSubscriptionPlan('user-free-api');
+    assert.strictEqual(planDisabled, 'ENTERPRISE', 'getUserSubscriptionPlan must return ENTERPRISE when BILLING_ENABLED=false');
+    console.log('   ✅ public-api-guard grants ENTERPRISE when BILLING_ENABLED=false');
+
+    // Mode B: BILLING_ENABLED=true -> tiered check
+    process.env.BILLING_ENABLED = 'true';
+
     // User has FREE personal profile, but ENTERPRISE organization membership
     prisma.user.findUnique = async () => ({
       id: 'user-org-api',
@@ -227,6 +274,11 @@ async function testPublicApiGuardOrgPlan() {
     console.log('   ✅ public-api-guard returns FREE for free users without enterprise fallback leak');
   } finally {
     prisma.user.findUnique = origFindUnique;
+    if (origBillingEnabled !== undefined) {
+      process.env.BILLING_ENABLED = origBillingEnabled;
+    } else {
+      delete process.env.BILLING_ENABLED;
+    }
   }
 }
 
@@ -254,6 +306,52 @@ async function testCalculationLimitOrgPlan() {
   console.log('   ✅ calculation route correctly resolves effective plan from organization');
 }
 
+async function testCompanyProfileEffectivePlan() {
+  console.log('\n7️⃣ Testing /api/company-profile returns effective ENTERPRISE plan when BILLING_ENABLED=false...');
+  const { GET: companyProfileGET } = require('../../src/app/api/company-profile/route');
+  const origFindFirst = prisma.companyProfile.findFirst;
+  const origBillingEnabled = process.env.BILLING_ENABLED;
+
+  try {
+    process.env.BILLING_ENABLED = 'false';
+
+    // Mock DB returning FREE plan for company profile
+    prisma.companyProfile.findFirst = async () => ({
+      id: 'prof-free-1',
+      userId: 'user-free-1',
+      companyName: 'Test FREE Co',
+      bin: '123456789012',
+      subscriptionPlan: 'FREE'
+    });
+
+    const req = {
+      headers: {
+        get: (key) => {
+          if (key.toLowerCase() === 'x-user-id') return 'user-free-1';
+          return null;
+        }
+      },
+      cookies: {
+        get: () => null
+      }
+    };
+
+    const res = await companyProfileGET(req);
+    const data = await res.json();
+
+    assert.strictEqual(data.success, true);
+    assert.strictEqual(data.profile.subscriptionPlan, 'ENTERPRISE', 'Profile subscriptionPlan must be upgraded to effective ENTERPRISE plan');
+    console.log('   ✅ /api/company-profile correctly returns effective ENTERPRISE plan to client');
+  } finally {
+    prisma.companyProfile.findFirst = origFindFirst;
+    if (origBillingEnabled !== undefined) {
+      process.env.BILLING_ENABLED = origBillingEnabled;
+    } else {
+      delete process.env.BILLING_ENABLED;
+    }
+  }
+}
+
 async function runAll() {
   try {
     await testResolveEffectiveUserPlan();
@@ -262,6 +360,7 @@ async function runAll() {
     await testWebhookOrganizationSync();
     await testPublicApiGuardOrgPlan();
     await testCalculationLimitOrgPlan();
+    await testCompanyProfileEffectivePlan();
     console.log('\n🎉 Organization Billing & Subscription Test Suite completed successfully!');
     process.exit(0);
   } catch (err) {
@@ -271,3 +370,4 @@ async function runAll() {
 }
 
 runAll();
+

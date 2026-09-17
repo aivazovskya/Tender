@@ -59,6 +59,13 @@ export default function HomePage() {
       });
   }, []);
 
+  // When billing is disabled, any navigation to 'billing' tab safely defaults to 'catalog'
+  useEffect(() => {
+    if (activeTab === 'billing' && process.env.NEXT_PUBLIC_BILLING_ENABLED !== 'true') {
+      setActiveTab('catalog');
+    }
+  }, [activeTab]);
+
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     setCurrentUser(null);
@@ -877,7 +884,7 @@ export default function HomePage() {
         />
       )}
 
-      {activeTab === 'billing' && (
+      {process.env.NEXT_PUBLIC_BILLING_ENABLED === 'true' && activeTab === 'billing' && (
         <BillingModal
           onClose={() => setActiveTab('catalog')}
           currentPlan={userTariff}

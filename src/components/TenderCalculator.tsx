@@ -234,14 +234,22 @@ export const TenderCalculator: React.FC<TenderCalculatorProps> = ({ tender, lang
           </ul>
         </div>
 
-        <div className="pt-2 flex items-center space-x-3">
-          <a
-            href="/#pricing"
-            className="px-4 py-2 rounded-xl bg-ember hover:bg-ember/90 text-white font-semibold text-xs transition-all shadow-subtle flex items-center space-x-1.5"
-          >
-            <span>{isKk ? 'Тарифті жаңарту (Pro 29 900 ₸)' : 'Обновить тариф (Pro 29 900 ₸)'}</span>
-          </a>
-        </div>
+        {process.env.NEXT_PUBLIC_BILLING_ENABLED === 'true' ? (
+          <div className="pt-2 flex items-center space-x-3">
+            <a
+              href="/#pricing"
+              className="px-4 py-2 rounded-xl bg-ember hover:bg-ember/90 text-white font-semibold text-xs transition-all shadow-subtle flex items-center space-x-1.5"
+            >
+              <span>{isKk ? 'Тарифті жаңарту (Pro 29 900 ₸)' : 'Обновить тариф (Pro 29 900 ₸)'}</span>
+            </a>
+          </div>
+        ) : (
+          <div className="pt-2">
+            <p className="text-[11px] text-amber-800 font-medium">
+              {isKk ? 'Лимитті арттыру үшін жүйе әкімшісіне хабарласыңыз.' : 'Для расширения лимитов обратитесь к системному администратору.'}
+            </p>
+          </div>
+        )}
       </div>
     );
   }
