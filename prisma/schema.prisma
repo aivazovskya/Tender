@@ -19,6 +19,14 @@ enum TenderStatus {
   CLOSED
   CANCELLED
   SUSPENDED
+  PUBLISHED
+  ACCEPTING_BIDS
+  APPLICATIONS_REVIEW
+  PRICE_PROPOSALS_OPENED
+  AUCTION_IN_PROGRESS
+  SUMMARIZING
+  FINISHED
+  FAILED
 }
 
 enum RiskScoringStatus {
@@ -103,6 +111,8 @@ model Tender {
   deadlines                  TenderDeadline[]
   supplierComparisons        TenderSupplierComparison[]
   complianceChecks           ComplianceCheck[]
+  lastPolledAt               DateTime?
+  statusEvents               TenderStatusEvent[]
 
   @@unique([source, externalId])
 }
@@ -138,6 +148,20 @@ model TenderAuditTrail {
   newValue  String?
   changedBy String   @default("System Parser")
   timestamp DateTime @default(now())
+}
+
+model TenderStatusEvent {
+  id             String        @id @default(cuid())
+  tenderId       String
+  tender         Tender        @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  source         String
+  previousStatus TenderStatus?
+  newStatus      TenderStatus
+  changedAt      DateTime      @default(now())
+  detectedAt     DateTime      @default(now())
+  raw            Json?
+
+  @@index([tenderId, changedAt])
 }
 
 model DataSource {

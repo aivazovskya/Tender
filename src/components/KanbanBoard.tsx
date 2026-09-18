@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 
 import { useTranslation } from '../lib/i18n/useTranslation';
+import { STATUS_LABELS_RU } from '../lib/types/tender';
 
 export type PriorityType = 'LOW' | 'MEDIUM' | 'HIGH';
 
@@ -159,6 +160,11 @@ const KanbanCardItem: React.FC<KanbanCardItemProps> = ({
           <span className={`px-1.5 py-0.2 text-[9px] font-bold rounded border ${priorityStyle.bg} ${priorityStyle.text} ${priorityStyle.border}`}>
             {t.kanban.priority[currentPriority]}
           </span>
+          {item.tender.status && item.tender.status !== 'ACTIVE' && (
+            <span className="px-1.5 py-0.2 text-[9px] font-medium rounded bg-surface-alt text-ink-soft border border-hairline" title={`Статус закупки: ${STATUS_LABELS_RU[item.tender.status] || item.tender.status}`}>
+              {STATUS_LABELS_RU[item.tender.status] || item.tender.status}
+            </span>
+          )}
         </div>
         <button
           onClick={() => onRemoveItem(item.id)}

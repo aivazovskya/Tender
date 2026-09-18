@@ -67,6 +67,48 @@ export interface Tender {
   // Semantic match percentage (dynamically populated per profile)
   matchPercentage?: number;
   matchReason?: string;
+  lastPolledAt?: string;
+  statusEvents?: TenderStatusEvent[];
+}
+
+export type TenderStatus = 
+  | 'ACTIVE'
+  | 'CLOSED'
+  | 'CANCELLED'
+  | 'SUSPENDED'
+  | 'PUBLISHED'
+  | 'ACCEPTING_BIDS'
+  | 'APPLICATIONS_REVIEW'
+  | 'PRICE_PROPOSALS_OPENED'
+  | 'AUCTION_IN_PROGRESS'
+  | 'SUMMARIZING'
+  | 'FINISHED'
+  | 'FAILED';
+
+export const STATUS_LABELS_RU: Record<string, string> = {
+  ACTIVE: 'Активен / В работе',
+  PUBLISHED: 'Опубликован',
+  ACCEPTING_BIDS: 'Приём заявок',
+  APPLICATIONS_REVIEW: 'Рассмотрение заявок',
+  PRICE_PROPOSALS_OPENED: 'Вскрытие ценовых предложений',
+  AUCTION_IN_PROGRESS: 'Торги / Аукцион',
+  SUMMARIZING: 'Подведение итогов',
+  FINISHED: 'Завершён',
+  CLOSED: 'Закрыт',
+  CANCELLED: 'Отменён',
+  SUSPENDED: 'Приостановлен',
+  FAILED: 'Не состоялся'
+};
+
+export interface TenderStatusEvent {
+  id: string;
+  tenderId: string;
+  source: string;
+  previousStatus?: TenderStatus | string | null;
+  newStatus: TenderStatus | string;
+  changedAt: string;
+  detectedAt: string;
+  raw?: any;
 }
 
 export interface DataSourceStatus {

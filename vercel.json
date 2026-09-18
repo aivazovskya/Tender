@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/check-submitted-tender-results",
       "schedule": "0 6,18 * * *"
+    },
+    {
+      "path": "/api/cron/poll-tender-statuses",
+      "schedule": "*/30 * * * *"
     }
   ]
 }

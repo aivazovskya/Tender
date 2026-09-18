@@ -23,7 +23,8 @@ import {
   Truck,
   ArrowLeft,
   Check,
-  PlusCircle
+  PlusCircle,
+  Radio
 } from 'lucide-react';
 
 import { useTranslation } from '../lib/i18n/useTranslation';
@@ -33,6 +34,7 @@ import { RequirementsChecklistWidget } from './RequirementsChecklistWidget';
 import { DocumentGeneratorModal } from './DocumentGeneratorModal';
 import { PostContractWidget } from './PostContractWidget';
 import { ComplianceCheckerModal } from './ComplianceCheckerModal';
+import { TenderStatusTimelineWidget } from './TenderStatusTimelineWidget';
 
 export interface TenderDetailContentProps {
   tender: Tender;
@@ -58,7 +60,7 @@ export const TenderDetailContent: React.FC<TenderDetailContentProps> = ({
   isStandalonePage = false
 }) => {
   const t = useTranslation(language);
-  const [activeTab, setActiveTab] = useState<'overview' | 'calc' | 'comparison' | 'requirements' | 'documents' | 'execution' | 'ai' | 'rag' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'timeline' | 'calc' | 'comparison' | 'requirements' | 'documents' | 'execution' | 'ai' | 'rag' | 'audit'>('overview');
 
   // Scroll-shadow indicators for the tab bar, which overflows horizontally
   // once all 9 tabs are present — without this there's no visual hint that
@@ -216,6 +218,18 @@ export const TenderDetailContent: React.FC<TenderDetailContentProps> = ({
         </button>
 
         <button
+          onClick={() => setActiveTab('timeline')}
+          className={`px-4 py-3 text-xs font-medium border-b-2 transition-all flex items-center space-x-2 shrink-0 ${
+            activeTab === 'timeline'
+              ? 'border-ink text-ink font-semibold'
+              : 'border-transparent text-mid-gray hover:text-ink'
+          }`}
+        >
+          <Radio className="w-4 h-4 text-emerald-600" />
+          <span>Мониторинг статусов</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('calc')}
           className={`px-4 py-3 text-xs font-medium border-b-2 transition-all flex items-center space-x-2 shrink-0 ${
             activeTab === 'calc'
@@ -343,6 +357,15 @@ export const TenderDetailContent: React.FC<TenderDetailContentProps> = ({
               </div>
             </div>
 
+            {/* Real-time Status Monitoring & Transition Timeline */}
+            <TenderStatusTimelineWidget
+              tenderId={tender.id}
+              currentStatus={tender.status}
+              source={tender.source}
+              deadlineDate={tender.deadlineDate}
+              language={language}
+            />
+
             <div className="p-5 rounded-2xl bg-surface-alt border border-hairline space-y-3">
               <h3 className="text-xs font-bold text-ink uppercase tracking-wider">
                 {t.tenderDetail.customerInfo}
@@ -419,6 +442,19 @@ export const TenderDetailContent: React.FC<TenderDetailContentProps> = ({
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* TAB STATUS TIMELINE & MONITORING */}
+        {activeTab === 'timeline' && (
+          <div className="space-y-6 animate-fadeIn">
+            <TenderStatusTimelineWidget
+              tenderId={tender.id}
+              currentStatus={tender.status}
+              source={tender.source}
+              deadlineDate={tender.deadlineDate}
+              language={language}
+            />
           </div>
         )}
 
