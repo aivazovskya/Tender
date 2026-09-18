@@ -1,6 +1,7 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { DEFAULT_PENALTY_RATE_PER_DAY } from '../constants/tender-risk';
+import { TelegramBotService } from './telegram.service';
 
 export function roundMoney(value: number | Prisma.Decimal | string): number {
   const num = typeof value === 'number' ? value : parseFloat(value.toString());
@@ -130,6 +131,7 @@ export class TenderCalculationService {
       totalCost: roundMoney(calc.totalCost),
       targetMarginPct: roundMoney(calc.targetMarginPct),
       minMarginPct: roundMoney(calc.minMarginPct),
+      minAcceptableMarginPct: calc.minAcceptableMarginPct != null ? roundMoney(calc.minAcceptableMarginPct) : null,
       riskAdjustedMarginPct: calc.riskAdjustedMarginPct != null ? roundMoney(calc.riskAdjustedMarginPct) : null,
       recommendedPrice: roundMoney(calc.recommendedPrice),
       minAcceptablePrice: roundMoney(calc.minAcceptablePrice),
@@ -149,6 +151,141 @@ export class TenderCalculationService {
       })),
       createdAt: calc.createdAt,
       updatedAt: calc.updatedAt
+    };
+  }
+
+  /**
+   * Recalculates all calculations for a tender upon a price change event (Phase 2).
+   * If the effective margin drops below the user's minimum acceptable margin threshold,
+   * dispatches a Telegram alert.
+   */
+  static async recalculateOnPriceChange(
+    tenderId: string,
+    newPrice: number,
+    options?: { previousPrice?: number; prismaClient?: PrismaClient | Prisma.TransactionClient }
+  ): Promise<{
+    recalculatedCount: number;
+    redZoneCount: number;
+    alertsSent: number;
+    results: any[];
+  }> {
+    const client = options?.prismaClient || prisma;
+    let calculations: any[] = [];
+
+    try {
+      calculations = await (client as any).tenderCalculation.findMany({
+        where: { tenderId },
+        include: {
+          costItems: true,
+          company: true,
+          tender: true
+        }
+      });
+    } catch (err: any) {
+      console.warn(`[TenderCalculationService] Failed to find calculations for tender ${tenderId}:`, err?.message);
+      return { recalculatedCount: 0, redZoneCount: 0, alertsSent: 0, results: [] };
+    }
+
+    if (!calculations || calculations.length === 0) {
+      return { recalculatedCount: 0, redZoneCount: 0, alertsSent: 0, results: [] };
+    }
+
+    let recalculatedCount = 0;
+    let redZoneCount = 0;
+    let alertsSent = 0;
+    const results: any[] = [];
+
+    for (const calc of calculations) {
+      try {
+        // 1. Update startPrice on the calculation
+        await (client as any).tenderCalculation.update({
+          where: { id: calc.id },
+          data: {
+            startPrice: new Prisma.Decimal(newPrice)
+          }
+        });
+
+        // 2. Recalculate derived totals (totalCost, recommendedPrice, minAcceptablePrice, etc.)
+        const updatedCalc = await this.recalculate(calc.id, client);
+        recalculatedCount++;
+
+        // 3. Determine minimum threshold (from calc.minAcceptableMarginPct, calc.minMarginPct, or company default)
+        const threshold = roundMoney(
+          calc.minAcceptableMarginPct != null
+            ? calc.minAcceptableMarginPct
+            : calc.minMarginPct != null
+            ? calc.minMarginPct
+            : calc.company?.minAcceptableMarginPct != null
+            ? calc.company.minAcceptableMarginPct
+            : 5.0
+        );
+
+        const totalCost = roundMoney(updatedCalc.totalCost);
+        const minAcceptablePrice = roundMoney(updatedCalc.minAcceptablePrice);
+        const recommendedPrice = roundMoney(updatedCalc.recommendedPrice);
+
+        // Effective margin % at the new price:
+        const effectiveMarginPct = totalCost > 0
+          ? roundMoney(((newPrice - totalCost) / totalCost) * 100)
+          : 0;
+
+        const isRedZone = newPrice < minAcceptablePrice || effectiveMarginPct < threshold;
+
+        if (isRedZone) {
+          redZoneCount++;
+
+          // Dispatch Telegram notification
+          const tender = updatedCalc.tender || calc.tender;
+          const targetChatId = calc.company?.telegramChatId || process.env.TELEGRAM_DEFAULT_CHAT_ID;
+
+          if (tender && targetChatId) {
+            const prevPriceStr = options?.previousPrice 
+              ? `${Number(options.previousPrice).toLocaleString('ru-RU')} ₸`
+              : 'Не указана';
+            const newPriceStr = `${Number(newPrice).toLocaleString('ru-RU')} ₸`;
+            const costStr = `${Number(totalCost).toLocaleString('ru-RU')} ₸`;
+            const minPriceStr = `${Number(minAcceptablePrice).toLocaleString('ru-RU')} ₸`;
+
+            const alertMessage = 
+              `⚠️ <b>Рентабельность лота ушла в красную зону!</b>\n\n` +
+              `<b>${tender.title}</b>\n` +
+              `📌 Изменение цены: <s>${prevPriceStr}</s> ➔ <b>${newPriceStr}</b>\n` +
+              `📉 Текущая маржа при новой цене: <b>${effectiveMarginPct}%</b> (порог: <b>${threshold}%</b>)\n` +
+              `💼 Себестоимость: <b>${costStr}</b>\n` +
+              `🛑 Мин. допустимая цена: <b>${minPriceStr}</b>\n` +
+              `💡 Рекомендуемая цена: <b>${Number(recommendedPrice).toLocaleString('ru-RU')} ₸</b>\n\n` +
+              `Участие по текущей цене приведёт к марже ниже установленного минимума!`;
+
+            try {
+              const delivery = await TelegramBotService.sendNotification(tender as any, targetChatId, alertMessage);
+              if (delivery.success) {
+                alertsSent++;
+              }
+            } catch (notifyErr: any) {
+              console.warn(`[TenderCalculationService] Telegram notification failed:`, notifyErr?.message);
+            }
+          }
+        }
+
+        results.push({
+          calculationId: calc.id,
+          effectiveMarginPct,
+          threshold,
+          isRedZone,
+          totalCost,
+          minAcceptablePrice,
+          recommendedPrice
+        });
+      } catch (err: any) {
+        console.warn(`[TenderCalculationService] Error recalculating calculation ${calc.id}:`, err?.message);
+      }
+    }
+
+    return {
+      recalculatedCount,
+      redZoneCount,
+      alertsSent,
+      results
     };
   }
 }

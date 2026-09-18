@@ -92,6 +92,7 @@ export const TenderDetailContent: React.FC<TenderDetailContentProps> = ({
   ]);
   const [inputQuestion, setInputQuestion] = useState('');
   const [competitionEstimate, setCompetitionEstimate] = useState<CompetitionEstimate | null>(null);
+  const [dumpingAlerts, setDumpingAlerts] = useState<any[]>(tender.dumpingAlerts || []);
 
   useEffect(() => {
     if (!tender?.id) return;
@@ -100,6 +101,15 @@ export const TenderDetailContent: React.FC<TenderDetailContentProps> = ({
       .then(data => {
         if (data.success && data.data) {
           setCompetitionEstimate(data.data);
+        }
+      })
+      .catch(() => {});
+
+    fetch(`/api/tenders/${tender.id}/dumping-alerts`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.alerts)) {
+          setDumpingAlerts(data.alerts);
         }
       })
       .catch(() => {});
@@ -365,6 +375,36 @@ export const TenderDetailContent: React.FC<TenderDetailContentProps> = ({
               deadlineDate={tender.deadlineDate}
               language={language}
             />
+
+            {/* Anti-Dumping Alert Banner if active */}
+            {dumpingAlerts.length > 0 && (() => {
+              const latestAlert = dumpingAlerts[0];
+              const isCrit = latestAlert.severity === 'CRITICAL';
+              return (
+                <div className={`p-4 rounded-2xl border flex items-start space-x-3 shadow-subtle ${
+                  isCrit ? 'bg-rose-500/10 border-rose-500/30 text-rose-900' : 'bg-amber-500/10 border-amber-500/30 text-amber-900'
+                }`}>
+                  <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${isCrit ? 'text-rose-600' : 'text-amber-600'}`} />
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        isCrit ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
+                      }`}>
+                        {isCrit ? '🚨 ДЕМПИНГ ЗАФИКСИРОВАН' : '⚠️ ПРЕДУПРЕЖДЕНИЕ О ДЕМПИНГЕ'}
+                      </span>
+                      <span className="text-[11px] font-mono text-mid-gray">
+                        Снижение: {latestAlert.deviationPercent}% (Порог: {latestAlert.thresholdPercent}%)
+                      </span>
+                    </div>
+                    <p className="text-xs leading-relaxed">
+                      {isCrit
+                        ? `Предложенная цена (${Number(latestAlert.currentPrice).toLocaleString('ru-RU')} ₸) превышает нормативный порог демпинга. Требуется внесение антидемпингового обеспечения по ст. 26 Закона о ГЗ РК!`
+                        : `Предложенная цена (${Number(latestAlert.currentPrice).toLocaleString('ru-RU')} ₸) приблизилась к нормативному порогу демпинга. Дополнительное снижение приведет к требованию антидемпингового обеспечения.`}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="p-5 rounded-2xl bg-surface-alt border border-hairline space-y-3">
               <h3 className="text-xs font-bold text-ink uppercase tracking-wider">

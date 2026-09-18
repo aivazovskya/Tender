@@ -69,6 +69,7 @@ export interface Tender {
   matchReason?: string;
   lastPolledAt?: string;
   statusEvents?: TenderStatusEvent[];
+  dumpingAlerts?: DumpingAlert[];
 }
 
 export type TenderStatus = 
@@ -111,6 +112,96 @@ export interface TenderStatusEvent {
   raw?: any;
 }
 
+export type DumpingSeverity = 'WARNING' | 'CRITICAL';
+
+export interface DumpingThreshold {
+  id?: string;
+  source: string;
+  procurementMethod: string;
+  subjectType?: string | null;
+  thresholdPercent: number;
+  descriptionRu?: string | null;
+  effectiveFrom?: string | Date;
+}
+
+export interface DumpingAlert {
+  id: string;
+  tenderId: string;
+  currentPrice: number;
+  referencePrice: number;
+  deviationPercent: number;
+  thresholdPercent: number;
+  severity: DumpingSeverity;
+  triggeredAt: string;
+  notes?: string | null;
+}
+
+export const DEFAULT_DUMPING_THRESHOLDS: Omit<DumpingThreshold, 'id'>[] = [
+  {
+    source: 'GOSZAKUP',
+    procurementMethod: 'OPEN_TENDER',
+    subjectType: 'ALL',
+    thresholdPercent: 20.0,
+    descriptionRu: 'Открытый конкурс (общий случай) — порог 20%'
+  },
+  {
+    source: 'GOSZAKUP',
+    procurementMethod: 'OPEN_TENDER',
+    subjectType: 'CONSTRUCTION',
+    thresholdPercent: 5.0,
+    descriptionRu: 'Конкурс на строительство и ремонт (СМР) — порог 5%'
+  },
+  {
+    source: 'GOSZAKUP',
+    procurementMethod: 'OPEN_TENDER',
+    subjectType: 'DESIGN',
+    thresholdPercent: 10.0,
+    descriptionRu: 'Проектно-изыскательские работы (ПИР) — порог 10%'
+  },
+  {
+    source: 'GOSZAKUP',
+    procurementMethod: 'OPEN_TENDER',
+    subjectType: 'SUPERVISION',
+    thresholdPercent: 10.0,
+    descriptionRu: 'Технический и авторский надзор — порог 10%'
+  },
+  {
+    source: 'GOSZAKUP',
+    procurementMethod: 'PRICE_PROPOSAL',
+    subjectType: 'ALL',
+    thresholdPercent: 30.0,
+    descriptionRu: 'Запрос ценовых предложений (ЗЦП) — 30% от средней цены предложений'
+  },
+  {
+    source: 'GOSZAKUP',
+    procurementMethod: 'E_STORE',
+    subjectType: 'ALL',
+    thresholdPercent: 50.0,
+    descriptionRu: 'Электронный магазин — 50% от средней цены предложений'
+  },
+  {
+    source: 'SAMRUK_KAZYNA',
+    procurementMethod: 'OPEN_TENDER',
+    subjectType: 'ALL',
+    thresholdPercent: 20.0,
+    descriptionRu: 'Самрук-Казына: Открытый тендер — базовый ориентир 20%'
+  },
+  {
+    source: 'SAMRUK_KAZYNA',
+    procurementMethod: 'PRICE_PROPOSAL',
+    subjectType: 'ALL',
+    thresholdPercent: 30.0,
+    descriptionRu: 'Самрук-Казына: Запрос ценовых предложений — базовый ориентир 30%'
+  },
+  {
+    source: 'DEFAULT',
+    procurementMethod: 'DEFAULT',
+    subjectType: 'ALL',
+    thresholdPercent: 20.0,
+    descriptionRu: 'Универсальный порог демпинга по умолчанию — 20%'
+  }
+];
+
 export interface DataSourceStatus {
   id: string;
   name: SourceType;
@@ -134,6 +225,7 @@ export interface CompanyProfileData {
   maxAmount: number;
   contactEmail: string;
   telegramChatId?: string;
+  minAcceptableMarginPct?: number;
   subscriptionPlan?: string;
 }
 
@@ -224,6 +316,7 @@ export interface TenderCalculation {
   totalCost: number;
   targetMarginPct: number;
   minMarginPct: number;
+  minAcceptableMarginPct?: number | null;
   riskAdjustedMarginPct: number | null;
   recommendedPrice: number;
   minAcceptablePrice: number;

@@ -113,6 +113,7 @@ model Tender {
   complianceChecks           ComplianceCheck[]
   lastPolledAt               DateTime?
   statusEvents               TenderStatusEvent[]
+  dumpingAlerts              DumpingAlert[]
 
   @@unique([source, externalId])
 }
@@ -162,6 +163,36 @@ model TenderStatusEvent {
   raw            Json?
 
   @@index([tenderId, changedAt])
+}
+
+model DumpingThreshold {
+  id                String   @id @default(cuid())
+  source            String   @default("DEFAULT") // GOSZAKUP, SAMRUK_KAZYNA, DEFAULT
+  procurementMethod String   // OPEN_TENDER, PRICE_PROPOSAL, AUCTION, COMMODITY_EXCHANGE, E_STORE, etc.
+  subjectType       String?  // GOODS, WORKS, SERVICES, CONSTRUCTION, DESIGN, SUPERVISION, etc.
+  thresholdPercent  Float    // 20.0, 5.0, 10.0, 30.0, 50.0
+  descriptionRu     String?
+  effectiveFrom     DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([source, procurementMethod])
+}
+
+model DumpingAlert {
+  id               String   @id @default(cuid())
+  tenderId         String
+  tender           Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  currentPrice     Float
+  referencePrice   Float
+  deviationPercent Float
+  thresholdPercent Float
+  severity         String   // WARNING (yellow: <= 5 p.p. to threshold), CRITICAL (red: threshold reached/exceeded)
+  triggeredAt      DateTime @default(now())
+  notes            String?
+  createdAt        DateTime @default(now())
+
+  @@index([tenderId, triggeredAt])
 }
 
 model DataSource {
@@ -278,6 +309,7 @@ model CompanyProfile {
   maxAmount     Float?
   contactEmail  String
   telegramChatId String?
+  minAcceptableMarginPct Float? @default(10.0)
   subscriptionPlan String @default("FREE")
   subscriptionExpiresAt DateTime?
   createdAt     DateTime @default(now())
@@ -445,6 +477,7 @@ model TenderCalculation {
   totalCost             Decimal  @db.Decimal(18, 2)
   targetMarginPct       Decimal  @db.Decimal(5, 2)
   minMarginPct          Decimal  @db.Decimal(5, 2)
+  minAcceptableMarginPct Decimal? @db.Decimal(5, 2)
 
   riskAdjustedMarginPct Decimal? @db.Decimal(5, 2)
   recommendedPrice      Decimal  @db.Decimal(18, 2)

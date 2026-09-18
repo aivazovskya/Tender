@@ -651,3 +651,29 @@ Kaspi Pay биллинге (webhook принимал активацию подп
 Реализовывать фазы 2/3 можно и нужно сейчас — но их фактическая точность на реальных данных Госзакупа
 не будет подтверждена, пока не появится `GOSZAKUP_API_TOKEN` и не пройдёт сверка со схемой v3.
 
+### 10.10 Статус: фазы 2 и 3 завершены (2026-09-18)
+
+Фазы 2 (10.3, пересчёт рентабельности) и 3 (10.4, антидемпинговый контроль) реализованы параллельно:
+
+1. **База данных (`prisma/schema.prisma`):**
+   - Добавлены модели `DumpingThreshold` (нормативные пороги) и `DumpingAlert` (срабатывания по тендеру с уровнем важности INFO / WARNING / CRITICAL).
+   - В `CompanyProfile` добавлено поле `minAcceptableMarginPct Float? @default(10.0)`.
+   - В `TenderCalculation` добавлено поле `minAcceptableMarginPct Decimal? @db.Decimal(5, 2)` для индивидуального переопределения порога.
+   - Модель `LotProfitability` **не создавалась** — строго соблюдено требование §10.3 (переиспользуется `TenderCalculation`).
+
+2. **Сервисы и логика:**
+   - `TenderCalculationService.recalculateOnPriceChange()`: автоматический пересчёт маржи при изменении цены лота, проверка попадания в «красную зону» (ниже порога компании или индивидуального расчёта), генерация алертов в Telegram через `TelegramBotService`.
+   - `AntiDumpingService`: автоматический сидинг базовых порогов (ОТ 20%, СМР 5%, ПИР 10%, Технадзор 10%, ЗЦП 30%, Электронный магазин 50%, Самрук-Казына), определение категории закупки (`inferSubjectType`) по словоформам русского языка, сопоставление порогов (`resolveThreshold`), расчёт девиации и фиксация алертов в БД + Telegram.
+   - `TenderPollingService.pollTender()`: интеграция обеих фаз на событие изменения цены (`rawPayload.newPrice` / `rawPayload.price` / `rawPayload.amount`) с обновлением `tender.amount`, аудита и вызовом пересчёта и антидемпинга.
+
+3. **API и UI:**
+   - API: `GET /api/dumping-thresholds`, `GET/POST /api/tenders/[id]/dumping-alerts`, расширен `PATCH /api/tenders/[id]/calculation`.
+   - UI: баннер красной зоны и панель антидемпингового контроля в `TenderCalculator`, бейдж/баннер демпинговых рисков в `TenderDetailContent`.
+
+4. **Верификация:**
+   - Создан тест-сьют `scripts/tests/profitability-and-antidumping.test.js`.
+   - `node scripts/run-all-tests.js`: **54/54 тест-сьютов успешно пройдены**.
+   - `npm run check:client-secrets`: чисто, утечек секретов нет.
+   - `npm run build`: чистая компиляция Next.js, 0 ошибок типизации.
+
+

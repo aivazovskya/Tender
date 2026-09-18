@@ -3,6 +3,8 @@ import { TelegramBotService } from './telegram.service';
 import { resolveOwnCompanyProfile } from '../security/resolve-company-profile';
 import { TenderStatus, STATUS_LABELS_RU } from '../types/tender';
 import { GoszakupApiAdapter } from '../ingestion/goszakup.adapter';
+import { TenderCalculationService } from './tender-calculation.service';
+import { AntiDumpingService } from './anti-dumping.service';
 
 export interface PollingIntervalRule {
   minHours: number;
@@ -45,8 +47,13 @@ export interface PollTenderResult {
   polled: boolean;
   statusChanged: boolean;
   deadlineChanged: boolean;
+  priceChanged?: boolean;
   previousStatus?: string;
   newStatus?: string;
+  previousPrice?: number;
+  newPrice?: number;
+  redZoneCalculations?: number;
+  dumpingSeverity?: string | null;
   notificationsSent: number;
   error?: string;
 }
@@ -59,6 +66,7 @@ export interface BatchPollingSummary {
   skippedTenders: number;
   statusChanges: number;
   deadlineChanges: number;
+  priceChanges: number;
   notificationsSent: number;
   results: PollTenderResult[];
 }
@@ -365,13 +373,85 @@ export class TenderPollingService {
       }
     }
 
+    // 4. Detect Price / Amount Changes (§10.3 Phase 2 & §10.4 Phase 3)
+    let priceChanged = false;
+    const previousPrice = Number(tender.amount) || 0;
+    let currentPrice = previousPrice;
+    let redZoneCalculations = 0;
+    let dumpingSeverity: string | null = null;
+
+    const candidatePrice = rawPayload?.newPrice ?? rawPayload?.currentPrice ?? rawPayload?.price ?? rawPayload?.amount ?? rawPayload?.lotAmount;
+    if (candidatePrice != null && !isNaN(Number(candidatePrice)) && Number(candidatePrice) > 0) {
+      const parsedPrice = Number(candidatePrice);
+      if (Math.abs(parsedPrice - previousPrice) > 0.01) {
+        priceChanged = true;
+        currentPrice = parsedPrice;
+
+        // A. Update tender.amount in DB and record in audit trail
+        try {
+          await prisma.tender.update({
+            where: { id: tender.id },
+            data: { amount: currentPrice }
+          });
+
+          await prisma.tenderAuditTrail.create({
+            data: {
+              tenderId: tender.id,
+              field: 'amount',
+              oldValue: previousPrice.toString(),
+              newValue: currentPrice.toString(),
+              changedBy: 'TenderPollingService'
+            }
+          });
+        } catch (err: any) {
+          console.warn(`[TenderPollingService] Error updating tender amount:`, err?.message);
+        }
+
+        // B. Phase 2: Recalculate Profitability and detect Red Zone
+        try {
+          const calcResult = await TenderCalculationService.recalculateOnPriceChange(
+            tender.id,
+            currentPrice,
+            { previousPrice }
+          );
+          redZoneCalculations = calcResult.redZoneCount;
+          notificationsSent += calcResult.alertsSent;
+        } catch (err: any) {
+          console.warn(`[TenderPollingService] Error in recalculateOnPriceChange:`, err?.message);
+        }
+
+        // C. Phase 3: Anti-Dumping Analysis & Alerts
+        try {
+          const referencePrice = Number(rawPayload?.referencePrice || rawPayload?.plannedPrice || previousPrice) || currentPrice;
+          const dumpingResult = await AntiDumpingService.checkDumping(
+            tender,
+            currentPrice,
+            referencePrice
+          );
+          if (dumpingResult.triggered) {
+            dumpingSeverity = dumpingResult.severity;
+            if (dumpingResult.notificationSent) {
+              notificationsSent++;
+            }
+          }
+        } catch (err: any) {
+          console.warn(`[TenderPollingService] Error in AntiDumpingService.checkDumping:`, err?.message);
+        }
+      }
+    }
+
     return {
       tenderId: tender.id,
       polled: true,
       statusChanged,
       deadlineChanged,
+      priceChanged,
       previousStatus,
       newStatus,
+      previousPrice,
+      newPrice: currentPrice,
+      redZoneCalculations,
+      dumpingSeverity,
       notificationsSent
     };
   }
@@ -447,6 +527,7 @@ export class TenderPollingService {
     const results: PollTenderResult[] = [];
     let statusChanges = 0;
     let deadlineChanges = 0;
+    let priceChanges = 0;
     let notificationsSent = 0;
     let polledTenders = 0;
     let skippedTenders = 0;
@@ -463,6 +544,7 @@ export class TenderPollingService {
 
       if (result.statusChanged) statusChanges++;
       if (result.deadlineChanged) deadlineChanges++;
+      if (result.priceChanged) priceChanges++;
       notificationsSent += result.notificationsSent;
     }
 
@@ -474,6 +556,7 @@ export class TenderPollingService {
       skippedTenders,
       statusChanges,
       deadlineChanges,
+      priceChanges,
       notificationsSent,
       results
     };

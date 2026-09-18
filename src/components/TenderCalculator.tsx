@@ -16,7 +16,8 @@ import {
   DollarSign, 
   Percent, 
   Loader2,
-  PieChart
+  PieChart,
+  Scale
 } from 'lucide-react';
 
 import { PriceBenchmarkWidget } from './PriceBenchmarkWidget';
@@ -62,10 +63,25 @@ export const TenderCalculator: React.FC<TenderCalculatorProps> = ({ tender, lang
   const [itemAmount, setItemAmount] = useState<string>('0');
   const [itemBaseAmount, setItemBaseAmount] = useState<string>('');
   const [isSavingItem, setIsSavingItem] = useState<boolean>(false);
+  const [dumpingData, setDumpingData] = useState<{
+    applicableThreshold?: { thresholdPercent: number; ruleSource: string; subjectType: string };
+    alerts?: any[];
+  } | null>(null);
 
-  // Fetch Calculation data on mount
+  // Fetch Calculation data and dumping alerts on mount
   useEffect(() => {
     fetchCalculation();
+    fetch(`/api/tenders/${tender.id}/dumping-alerts`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) {
+          setDumpingData({
+            applicableThreshold: d.applicableThreshold,
+            alerts: d.alerts
+          });
+        }
+      })
+      .catch(() => {});
   }, [tender.id]);
 
   const fetchCalculation = async () => {
@@ -274,6 +290,11 @@ export const TenderCalculator: React.FC<TenderCalculatorProps> = ({ tender, lang
 
   const isLossMaking = (calculation.biddingRoomAmount || 0) < 0;
   const isTargetUnattainable = calculation.recommendedPrice > calculation.startPrice;
+  const minThreshold = calculation.minAcceptableMarginPct != null ? calculation.minAcceptableMarginPct : calculation.minMarginPct;
+  const effectiveMargin = calculation.totalCost > 0
+    ? Math.round(((calculation.startPrice - calculation.totalCost) / calculation.totalCost) * 10000) / 100
+    : 0;
+  const isRedZone = !isLossMaking && (calculation.startPrice < calculation.minAcceptablePrice || effectiveMargin < minThreshold);
 
   return (
     <div className="space-y-6">
@@ -290,6 +311,20 @@ export const TenderCalculator: React.FC<TenderCalculatorProps> = ({ tender, lang
               {isKk
                 ? `Минималды маржаны (${calculation.minMarginPct}%) ескергендегі өзіндік құн (${calculation.minAcceptablePrice.toLocaleString('ru-RU')} ₸) лоттың бастапқы бағасынан (${calculation.startPrice.toLocaleString('ru-RU')} ₸) асып түседі. Ағымдағы баптар бойынша қатысу шығынды.`
                 : `Себестоимость с учетом минимальной маржи (${calculation.minMarginPct}%) составляет ${calculation.minAcceptablePrice.toLocaleString('ru-RU')} ₸, что превышает стартовую цену лота (${calculation.startPrice.toLocaleString('ru-RU')} ₸). Участие в текущих условиях приведет к убыткам.`}
+            </p>
+          </div>
+        </div>
+      ) : isRedZone ? (
+        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-900 flex items-start space-x-3 shadow-subtle">
+          <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <h4 className="text-xs font-bold text-rose-900 uppercase tracking-wider">
+              {isKk ? 'ЕСКЕРТУ: РЕНТАБЕЛЬДІЛІК ҚЫЗЫЛ АЙМАҚТА!' : 'ВНИМАНИЕ: РЕНТАБЕЛЬНОСТЬ В КРАСНОЙ ЗОНЕ!'}
+            </h4>
+            <p className="text-xs text-rose-800 leading-relaxed">
+              {isKk
+                ? `Ағымдағы баға бойынша маржа (${effectiveMargin}%) минималды шектен (${minThreshold}%) төмен. Өзіндік құнды оңтайландыру немесе бағаны ${calculation.minAcceptablePrice.toLocaleString('ru-RU')} ₸ деңгейінен кем емес ұсыну қажет.`
+                : `Фактическая маржа лота (${effectiveMargin}%) упала ниже минимально установленного порога (${minThreshold}%). Рекомендуется оптимизировать статьи затрат либо не опускать цену подачи ниже ${calculation.minAcceptablePrice.toLocaleString('ru-RU')} ₸.`}
             </p>
           </div>
         </div>
@@ -426,6 +461,81 @@ export const TenderCalculator: React.FC<TenderCalculatorProps> = ({ tender, lang
           </div>
         </div>
       </div>
+
+      {/* ANTI-DUMPING CONTROL PANEL (§10.4 Phase 3) */}
+      {(() => {
+        const threshold = dumpingData?.applicableThreshold?.thresholdPercent ?? 20.0;
+        const subjectLabel = dumpingData?.applicableThreshold?.subjectType || 'ALL';
+        const referencePrice = calculation.startPrice;
+        const maxDumpingDiscountPrice = referencePrice > 0 ? Math.round(referencePrice * (1 - threshold / 100)) : 0;
+        const hasAlerts = Array.isArray(dumpingData?.alerts) && dumpingData.alerts.length > 0;
+        const latestAlert = hasAlerts && dumpingData?.alerts ? dumpingData.alerts[0] : null;
+
+        return (
+          <div className="p-5 rounded-2xl bg-surface-alt border border-hairline space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Scale className="w-4 h-4 text-sky-600" />
+                <h3 className="text-xs font-bold text-ink uppercase tracking-wider">
+                  {isKk ? 'АНТИДЕМПИНГТІК БАҚЫЛАУ (§10.4)' : 'АНТИДЕМПИНГОВЫЙ КОНТРОЛЬ (§10.4)'}
+                </h3>
+              </div>
+              <span className={`text-xs font-bold font-mono px-2.5 py-0.5 rounded-full border ${
+                latestAlert?.severity === 'CRITICAL'
+                  ? 'bg-rose-100 text-rose-800 border-rose-300'
+                  : latestAlert?.severity === 'WARNING'
+                  ? 'bg-amber-100 text-amber-800 border-amber-300'
+                  : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+              }`}>
+                {latestAlert?.severity === 'CRITICAL'
+                  ? (isKk ? '🚨 Демпинг тіркелді' : '🚨 Демпинг зафиксирован')
+                  : latestAlert?.severity === 'WARNING'
+                  ? (isKk ? '⚠️ Порогке жақын' : '⚠️ Приближение к порогу')
+                  : (isKk ? '✅ Қауіпсіз' : '✅ В пределах нормы')}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
+              <div className="p-3 rounded-xl bg-paper border border-hairline space-y-0.5">
+                <span className="text-[11px] text-mid-gray block">
+                  {isKk ? 'Нормативтік демпинг шегі:' : 'Нормативный порог демпинга:'}
+                </span>
+                <span className="font-bold text-ink text-sm font-mono">{threshold}%</span>
+                <span className="text-[10px] text-mid-gray block">
+                  {subjectLabel === 'CONSTRUCTION' ? (isKk ? 'СМР (Құрылыс) — 5%' : 'СМР (Строительство) — 5%') :
+                   subjectLabel === 'DESIGN' ? (isKk ? 'ЖСҚ / ПИР — 10%' : 'ПИР (Проектирование) — 10%') :
+                   subjectLabel === 'SUPERVISION' ? (isKk ? 'Техқадағалау — 10%' : 'Технадзор — 10%') :
+                   (isKk ? 'Стандартты конкурс / ЗЦП' : 'Конкурс / ЗЦП')}
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-paper border border-hairline space-y-0.5">
+                <span className="text-[11px] text-mid-gray block">
+                  {isKk ? 'Шекті рұқсат етілген баға:' : 'Мин. цена без демпинга:'}
+                </span>
+                <span className="font-bold text-ink text-sm font-mono">
+                  {maxDumpingDiscountPrice.toLocaleString('ru-RU')} ₸
+                </span>
+                <span className="text-[10px] text-mid-gray block">
+                  {isKk ? `-${threshold}% бастапқы бағадан` : `-${threshold}% от стартовой цены`}
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-paper border border-hairline space-y-0.5">
+                <span className="text-[11px] text-mid-gray block">
+                  {isKk ? 'Антидемпингтік қамтамасыз ету:' : 'Обеспечение при демпинге:'}
+                </span>
+                <span className="font-bold text-amber-700 text-sm">
+                  {isKk ? 'Қосымша 1.5 - 3%' : 'Дополнительно 1.5 - 3%'}
+                </span>
+                <span className="text-[10px] text-mid-gray block">
+                  {isKk ? 'Мемлекеттік сатып алу туралы заң' : 'Ст. 26 Закона о госзакупках РК'}
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* PRICE BENCHMARK BY CATEGORY */}
       <PriceBenchmarkWidget tenderId={tender.id} startPrice={calculation.startPrice} />

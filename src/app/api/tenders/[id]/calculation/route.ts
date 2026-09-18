@@ -135,7 +135,8 @@ export async function GET(
           startPrice: new Prisma.Decimal(tender.amount),
           totalCost: new Prisma.Decimal(0),
           targetMarginPct: new Prisma.Decimal(15.0),
-          minMarginPct: new Prisma.Decimal(5.0),
+          minMarginPct: new Prisma.Decimal(companyProfile.minAcceptableMarginPct || 5.0),
+          minAcceptableMarginPct: new Prisma.Decimal(companyProfile.minAcceptableMarginPct || 5.0),
           recommendedPrice: new Prisma.Decimal(tender.amount),
           minAcceptablePrice: new Prisma.Decimal(tender.amount),
           costItems: {
@@ -217,6 +218,9 @@ export async function PATCH(
     }
     if (body.minMarginPct !== undefined) {
       updateData.minMarginPct = new Prisma.Decimal(body.minMarginPct);
+    }
+    if (body.minAcceptableMarginPct !== undefined) {
+      updateData.minAcceptableMarginPct = body.minAcceptableMarginPct != null ? new Prisma.Decimal(body.minAcceptableMarginPct) : null;
     }
     if (body.startPrice !== undefined) {
       updateData.startPrice = new Prisma.Decimal(body.startPrice);
