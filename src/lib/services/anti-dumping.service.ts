@@ -199,6 +199,7 @@ export class AntiDumpingService {
       subjectType?: string;
       notes?: string;
       chatId?: string;
+      chatIds?: string[];
       prismaClient?: PrismaClient | Prisma.TransactionClient;
     }
   ): Promise<DumpingCheckResult> {
@@ -258,11 +259,19 @@ export class AntiDumpingService {
       console.warn('[AntiDumpingService] Failed to create DumpingAlert in DB:', err?.message);
     }
 
-    // Dispatch Telegram Alert
+    // Dispatch Telegram Alert to every resolved recipient (Kanban card owners of this
+    // tender, falling back to TELEGRAM_DEFAULT_CHAT_ID only when none is linked — see
+    // TenderPollingService.resolveNotificationChatIds, the caller resolves this).
     let notificationSent = false;
-    const targetChatId = options?.chatId || process.env.TELEGRAM_DEFAULT_CHAT_ID;
+    const targetChatIds = options?.chatIds && options.chatIds.length > 0
+      ? options.chatIds
+      : options?.chatId
+      ? [options.chatId]
+      : process.env.TELEGRAM_DEFAULT_CHAT_ID
+      ? [process.env.TELEGRAM_DEFAULT_CHAT_ID]
+      : [];
 
-    if (targetChatId) {
+    if (targetChatIds.length > 0) {
       const isCritical = severity === 'CRITICAL';
       const distance = roundMoney(thresholdPercent - deviationPercent);
 
@@ -284,11 +293,13 @@ export class AntiDumpingService {
         `При дальнейшем снижении потребуется антидемпинговое обеспечение или заявка будет отклонена!`
       );
 
-      try {
-        const delivery = await TelegramBotService.sendNotification(tender, targetChatId, message);
-        notificationSent = Boolean(delivery.success);
-      } catch (err: any) {
-        console.warn('[AntiDumpingService] Telegram alert delivery failed:', err?.message);
+      for (const chatId of targetChatIds) {
+        try {
+          const delivery = await TelegramBotService.sendNotification(tender, chatId, message);
+          if (delivery.success) notificationSent = true;
+        } catch (err: any) {
+          console.warn('[AntiDumpingService] Telegram alert delivery failed:', err?.message);
+        }
       }
     }
 

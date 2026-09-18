@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/prisma';
 import { validateApiAuth } from '@/lib/security/auth';
 import { AntiDumpingService } from '@/lib/services/anti-dumping.service';
+import { resolveOwnCompanyProfile } from '@/lib/security/resolve-company-profile';
 
 export async function GET(
   request: NextRequest,
@@ -89,13 +90,15 @@ export async function POST(
     }
 
     const effectiveRefPrice = referencePrice > 0 ? referencePrice : Number(tender.amount);
+    const callerProfile = auth.userId ? await resolveOwnCompanyProfile(auth.userId) : null;
     const result = await AntiDumpingService.checkDumping(
       tender,
       currentPrice,
       effectiveRefPrice,
       {
         subjectType: body.subjectType,
-        notes: body.notes
+        notes: body.notes,
+        chatIds: callerProfile?.telegramChatId ? [callerProfile.telegramChatId] : undefined
       }
     );
 

@@ -423,10 +423,12 @@ export class TenderPollingService {
         // C. Phase 3: Anti-Dumping Analysis & Alerts
         try {
           const referencePrice = Number(rawPayload?.referencePrice || rawPayload?.plannedPrice || previousPrice) || currentPrice;
+          const dumpingChatIds = await this.resolveNotificationChatIds(tender);
           const dumpingResult = await AntiDumpingService.checkDumping(
             tender,
             currentPrice,
-            referencePrice
+            referencePrice,
+            { chatIds: dumpingChatIds }
           );
           if (dumpingResult.triggered) {
             dumpingSeverity = dumpingResult.severity;
@@ -457,12 +459,15 @@ export class TenderPollingService {
   }
 
   /**
-   * Helper to dispatch notification to the relevant Telegram chat
+   * Resolves the set of Telegram chat IDs that should be notified about a tender:
+   * every Kanban card owner's linked chat, falling back to TELEGRAM_DEFAULT_CHAT_ID
+   * only when no card owner has one linked. Shared by status/deadline notifications
+   * (this service) and AntiDumpingService, which otherwise has no way to reach the
+   * actual company following the tender.
    */
-  private static async dispatchTenderNotification(tender: any, message: string): Promise<boolean> {
+  static async resolveNotificationChatIds(tender: any): Promise<string[]> {
     const targetChatIds = new Set<string>();
 
-    // 1. Check Kanban card owners
     if (Array.isArray(tender.kanbanCards)) {
       for (const card of tender.kanbanCards) {
         if (card.userId) {
@@ -474,12 +479,20 @@ export class TenderPollingService {
       }
     }
 
-    // 2. Fallback to default Telegram chat ID if configured
     if (targetChatIds.size === 0 && process.env.TELEGRAM_DEFAULT_CHAT_ID) {
       targetChatIds.add(process.env.TELEGRAM_DEFAULT_CHAT_ID);
     }
 
-    if (targetChatIds.size === 0) {
+    return Array.from(targetChatIds);
+  }
+
+  /**
+   * Helper to dispatch notification to the relevant Telegram chat
+   */
+  private static async dispatchTenderNotification(tender: any, message: string): Promise<boolean> {
+    const targetChatIds = await this.resolveNotificationChatIds(tender);
+
+    if (targetChatIds.length === 0) {
       // Bot not configured or no linked chats
       return false;
     }
