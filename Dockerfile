@@ -36,8 +36,10 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 # Install Playwright browser and system dependencies
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
-RUN npx playwright install --with-deps chromium \
-    && chmod -R 777 /ms-playwright
+RUN apt-get update \
+    && npx playwright install --with-deps chromium \
+    && chmod -R 777 /ms-playwright \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system --gid 1001 nodejs \
     && useradd --system --uid 1001 -g nodejs nextjs
